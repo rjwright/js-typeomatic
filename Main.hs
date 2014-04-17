@@ -85,12 +85,13 @@ main :: IO ()
 main = do
     (infile:[]) <- getArgs
     pr <- readFile infile
-    putStrLn . show . toJSAST . parseTree $ pr
-    putStrLn . show . label . toJSAST . parseTree $ pr
+--    putStrLn . show . toJSAST . parseTree $ pr
+--    putStrLn . show . label . toJSAST . parseTree $ pr
 --    putStrLn . show . getDeclarationGraph . label . toJSAST . parseTree $ pr
-    putStrLn . show . cleanFunctionRules . getDeclarationGraph . label . toJSAST . parseTree $ pr
+--    putStrLn . show . cleanFunctionRules . getDeclarationGraph . label . toJSAST . parseTree $ pr
 --    putStrLn . show . cleanFunction . cleanFunctionRules . getDeclarationGraph . label . toJSAST . parseTree $ pr
 --    putStrLn . show . graphGetAllRules . getDeclarationGraph . label . toJSAST . parseTree $ pr
+    mapM_ print . graphGetAllRules . getDeclarationGraph . label . toJSAST . parseTree $ pr
 
 
 -- Remove the parent field from a FunctionRules so that the tree is more legible
