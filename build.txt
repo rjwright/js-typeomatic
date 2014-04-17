@@ -1,0 +1,1 @@
+~/JSTypeInference/haskell/source $  ghc -o ../out/Main Main.hs -outputdir "../out"
