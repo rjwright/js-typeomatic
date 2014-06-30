@@ -107,20 +107,20 @@ printCleanedFunctionRules (CleanedFunctionRules id rules fRules feRules dIDs) = 
     mapM_ print $ rules
     let padding = "   "
     putStrLn ""
-    putStrLn (padding ++ " Function Rules")
+    putStrLn (padding ++ "Function Rules")
     printCleanedFunctionRulesList fRules $ padding
-    putStrLn (padding ++ " Function Expression Rules")
+    putStrLn (padding ++ "Function Expression Rules")
     printCleanedFunctionExpressionRulesList feRules $ padding
 
 printCleanedFunctionRulesList :: [CleanedFunctionRules] -> String -> IO()
 printCleanedFunctionRulesList ((CleanedFunctionRules id rules fRules feRules dIDs):fx) padding = do
-    putStrLn (padding ++ " My Rules")
-    mapM_ (print . (padding ++) . show) $ rules
+    putStrLn (padding ++ "My Rules")
+    mapM_ (putStrLn . (padding ++) . show) $ rules
     let newPadding = (padding ++ "   ")
     putStrLn ""
-    putStrLn (newPadding ++ " Function Rules")
+    putStrLn (newPadding ++ "Function Rules")
     printCleanedFunctionRulesList fRules $ newPadding
-    putStrLn (newPadding ++ " Function Expression Rules")
+    putStrLn (newPadding ++ "Function Expression Rules")
     printCleanedFunctionExpressionRulesList feRules $ newPadding
     printCleanedFunctionRulesList fx $ padding
 printCleanedFunctionRulesList [] _ = do
@@ -128,13 +128,13 @@ printCleanedFunctionRulesList [] _ = do
 
 printCleanedFunctionExpressionRulesList :: [CleanedFunctionExpressionRules] ->  String -> IO()
 printCleanedFunctionExpressionRulesList ((CleanedFunctionExpressionRules id rules fRules feRules dIDs):fx) padding = do
-    putStrLn (padding ++ " My Rules")
-    mapM_ (print . (padding ++) . show) $ rules
+    putStrLn (padding ++ "My Rules")
+    mapM_ (putStrLn . (padding ++) . show) $ rules
     let newPadding = (padding ++ "   ")
     putStrLn ""
-    putStrLn (newPadding ++ " Function Rules")
+    putStrLn (newPadding ++ "Function Rules")
     printCleanedFunctionRulesList fRules $ newPadding
-    putStrLn (newPadding ++ " Function Expression Rules")
+    putStrLn (newPadding ++ "Function Expression Rules")
     printCleanedFunctionExpressionRulesList feRules $ newPadding
     printCleanedFunctionExpressionRulesList fx $ padding
 printCleanedFunctionExpressionRulesList [] _ = do
