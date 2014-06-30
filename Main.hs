@@ -86,13 +86,59 @@ main = do
     (infile:[]) <- getArgs
     pr <- readFile infile
 --    putStrLn . show . toJSAST . parseTree $ pr
+--    mapM_ print . toJSAST . parseTree $ pr
 --    putStrLn . show . label . toJSAST . parseTree $ pr
+--    mapM_ print . label . toJSAST . parseTree $ pr
 --    putStrLn . show . getDeclarationGraph . label . toJSAST . parseTree $ pr
+--    mapM_ print . getDeclarationGraph . label . toJSAST . parseTree $ pr
 --    putStrLn . show . cleanFunctionRules . getDeclarationGraph . label . toJSAST . parseTree $ pr
+--    mapM_ print . cleanFunctionRules . getDeclarationGraph . label . toJSAST . parseTree $ pr
 --    putStrLn . show . cleanFunction . cleanFunctionRules . getDeclarationGraph . label . toJSAST . parseTree $ pr
+--    mapM_ print . cleanFunction . cleanFunctionRules . getDeclarationGraph . label . toJSAST . parseTree $ pr
+    printCleanedFunctionRules . cleanFunctionRules . getDeclarationGraph . label . toJSAST . parseTree $ pr
 --    putStrLn . show . graphGetAllRules . getDeclarationGraph . label . toJSAST . parseTree $ pr
-    mapM_ print . graphGetAllRules . getDeclarationGraph . label . toJSAST . parseTree $ pr
+--    mapM_ print . graphGetAllRules . getDeclarationGraph . label . toJSAST . parseTree $ pr
 
+
+printCleanedFunctionRules :: CleanedFunctionRules -> IO()
+printCleanedFunctionRules (CleanedFunctionRules id rules fRules feRules dIDs) = do
+    putStrLn ""
+    putStrLn "Top Level Rules"
+    mapM_ print $ rules
+    let padding = "   "
+    putStrLn ""
+    putStrLn (padding ++ " Function Rules")
+    printCleanedFunctionRulesList fRules $ padding
+    putStrLn (padding ++ " Function Expression Rules")
+    printCleanedFunctionExpressionRulesList feRules $ padding
+
+printCleanedFunctionRulesList :: [CleanedFunctionRules] -> String -> IO()
+printCleanedFunctionRulesList ((CleanedFunctionRules id rules fRules feRules dIDs):fx) padding = do
+    putStrLn (padding ++ " My Rules")
+    mapM_ (print . (padding ++) . show) $ rules
+    let newPadding = (padding ++ "   ")
+    putStrLn ""
+    putStrLn (newPadding ++ " Function Rules")
+    printCleanedFunctionRulesList fRules $ newPadding
+    putStrLn (newPadding ++ " Function Expression Rules")
+    printCleanedFunctionExpressionRulesList feRules $ newPadding
+    printCleanedFunctionRulesList fx $ padding
+printCleanedFunctionRulesList [] _ = do
+    putStrLn ""
+
+printCleanedFunctionExpressionRulesList :: [CleanedFunctionExpressionRules] ->  String -> IO()
+printCleanedFunctionExpressionRulesList ((CleanedFunctionExpressionRules id rules fRules feRules dIDs):fx) padding = do
+    putStrLn (padding ++ " My Rules")
+    mapM_ (print . (padding ++) . show) $ rules
+    let newPadding = (padding ++ "   ")
+    putStrLn ""
+    putStrLn (newPadding ++ " Function Rules")
+    printCleanedFunctionRulesList fRules $ newPadding
+    putStrLn (newPadding ++ " Function Expression Rules")
+    printCleanedFunctionExpressionRulesList feRules $ newPadding
+    printCleanedFunctionExpressionRulesList fx $ padding
+printCleanedFunctionExpressionRulesList [] _ = do
+    putStrLn ""
 
 -- Remove the parent field from a FunctionRules so that the tree is more legible
 -- when printed.
