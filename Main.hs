@@ -73,6 +73,31 @@ data CleanedFunctionRules = CleanedFunctionRules FunctionIdentifier [Rule] [Clea
 data CleanedFunctionExpressionRules = CleanedFunctionExpressionRules (Maybe FunctionIdentifier) [Rule]
                         [CleanedFunctionRules] [CleanedFunctionExpressionRules] [DeclaredIdentifier] deriving (Show)
 
+class CleanedRules a where
+    crFunctionIdentifier :: a -> Maybe FunctionIdentifier
+    crRuleList :: a -> [Rule]
+    crCleanedFunctionRuleList :: a -> [CleanedFunctionRules]
+    crCleanedFunctionExpressionRuleList :: a -> [CleanedFunctionExpressionRules]
+    crDeclaredIdentifierList :: a -> [DeclaredIdentifier]
+    crName :: a -> String
+
+instance CleanedRules CleanedFunctionRules where
+    crFunctionIdentifier (CleanedFunctionRules fid _ _ _ _) = Just fid
+    crRuleList (CleanedFunctionRules _ rules _ _ _) = rules
+    crCleanedFunctionRuleList (CleanedFunctionRules _ _ fRules _ _) = fRules
+    crCleanedFunctionExpressionRuleList (CleanedFunctionRules _ _ _ feRules _) = feRules
+    crDeclaredIdentifierList (CleanedFunctionRules _ _ _ _ dIDs) = dIDs
+    crName _ = "Function Rules"
+
+instance CleanedRules CleanedFunctionExpressionRules where
+    crFunctionIdentifier (CleanedFunctionExpressionRules fid _ _ _ _) = fid
+    crRuleList (CleanedFunctionExpressionRules _ rules _ _ _) = rules
+    crCleanedFunctionRuleList (CleanedFunctionExpressionRules _ _ fRules _ _) = fRules
+    crCleanedFunctionExpressionRuleList (CleanedFunctionExpressionRules _ _ _ feRules _) = feRules
+    crDeclaredIdentifierList (CleanedFunctionExpressionRules _ _ _ _ dIDs) = dIDs
+    crName _ = "Function Expression Rules"
+
+
 -- A FunctionRules with the parent and rules fields removed.
 data CleanedFunction = CleanedFunction FunctionIdentifier [CleanedFunction]
                         [CleanedFunctionExpression] [DeclaredIdentifier] deriving (Show)
@@ -80,6 +105,26 @@ data CleanedFunction = CleanedFunction FunctionIdentifier [CleanedFunction]
 data CleanedFunctionExpression = CleanedFunctionExpression (Maybe FunctionIdentifier)
                         [CleanedFunction] [CleanedFunctionExpression] [DeclaredIdentifier] deriving (Show)
 
+class CleanedElement a where
+    ceFunctionIdentifier :: a -> Maybe FunctionIdentifier
+    ceCleanedFunctionList :: a -> [CleanedFunction]
+    ceCleanedFunctionExpressionList :: a -> [CleanedFunctionExpression]
+    ceDeclaredIdentifierList :: a -> [DeclaredIdentifier]
+    ceName :: a -> String
+
+instance CleanedElement CleanedFunction where
+    ceFunctionIdentifier (CleanedFunction fid _ _ _) = Just fid
+    ceCleanedFunctionList (CleanedFunction _ fList _ _) = fList
+    ceCleanedFunctionExpressionList (CleanedFunction _ _ feList _) = feList
+    ceDeclaredIdentifierList (CleanedFunction _ _ _ dIDs) = dIDs
+    ceName _ = "Function"
+
+instance CleanedElement CleanedFunctionExpression where
+    ceFunctionIdentifier (CleanedFunctionExpression fid _ _ _) = fid
+    ceCleanedFunctionList (CleanedFunctionExpression _ fList _ _) = fList
+    ceCleanedFunctionExpressionList (CleanedFunctionExpression _ _ feList _) = feList
+    ceDeclaredIdentifierList (CleanedFunctionExpression _ _ _ dIDs) = dIDs
+    ceName _ = "Function Expression"
 
 main :: IO ()
 main = do
@@ -87,55 +132,83 @@ main = do
     pr <- readFile infile
 --    putStrLn . show . toJSAST . parseTree $ pr
 --    mapM_ print . toJSAST . parseTree $ pr
+
 --    putStrLn . show . label . toJSAST . parseTree $ pr
---    mapM_ print . label . toJSAST . parseTree $ pr
+    mapM_ print . label . toJSAST . parseTree $ pr
+    --putStrLn ""
+    --mapM_ printLabelledJSASTNode . label . toJSAST . parseTree $ pr
+
 --    putStrLn . show . getDeclarationGraph . label . toJSAST . parseTree $ pr
---    mapM_ print . getDeclarationGraph . label . toJSAST . parseTree $ pr
---    putStrLn . show . cleanFunctionRules . getDeclarationGraph . label . toJSAST . parseTree $ pr
---    mapM_ print . cleanFunctionRules . getDeclarationGraph . label . toJSAST . parseTree $ pr
---    putStrLn . show . cleanFunction . cleanFunctionRules . getDeclarationGraph . label . toJSAST . parseTree $ pr
---    mapM_ print . cleanFunction . cleanFunctionRules . getDeclarationGraph . label . toJSAST . parseTree $ pr
-    putStrLn ""
-    printCleanedFunctionRulesList ((cleanFunctionRules . getDeclarationGraph . label . toJSAST . parseTree $ pr):[]) $ ""
-    putStrLn ""
---    putStrLn . show . graphGetAllRules . getDeclarationGraph . label . toJSAST . parseTree $ pr
+
+--    putStrLn ""
+--    printCleanedRulesList ((cleanFunctionRules . getDeclarationGraph . label . toJSAST . parseTree $ pr):[]) $ (makeIndent "")
+
+--    putStrLn ""
+--    printCleanedElementList ((cleanFunction . cleanFunctionRules . getDeclarationGraph . label . toJSAST . parseTree $ pr):[]) $ (makeIndent "")
+
+--    putStrLn ""
 --    mapM_ print . graphGetAllRules . getDeclarationGraph . label . toJSAST . parseTree $ pr
 
+--printLabelledJSASTNode :: ASTChild -> IO()
+--printLabelledJSASTNode ((LabBlock children), _) = do
+--      putStrLn "LabBlock"
+--      mapM_ (putStrLn . show) $ children
+--printLabelledJSASTNode (n, _) = do
+--      putStrLn "Other"
+--      putStrLn . show $ n
 
-printHeading :: String -> String -> [a] -> Bool -> IO()
-printHeading _ _ [] _ = return()
-printHeading p h (f:fx) False = putStrLn (p ++ h)
-printHeading p h (f:fx) True = do
-    putStrLn ""
-    putStrLn (p ++ h)
-
-printCleanedFunctionRulesList :: [CleanedFunctionRules] -> String -> IO()
-printCleanedFunctionRulesList ((CleanedFunctionRules id rules fRules feRules dIDs):fx) padding = do
-    printHeading padding (show id) rules False
-    mapM_ (putStrLn . (padding ++) . show) $ rules
-    let newPadding = (padding ++ "   ")
-    printHeading newPadding "Function Rules" fRules True
-    printCleanedFunctionRulesList fRules $ newPadding
-    printHeading newPadding "Function Expression Rules" feRules True
-    printCleanedFunctionExpressionRulesList feRules $ newPadding
-    printHeading padding "Function Rules" fx True
-    printCleanedFunctionRulesList fx $ padding
-printCleanedFunctionRulesList [] _ = do
+printCleanedRulesList :: CleanedRules a => [a] -> String -> IO()
+printCleanedRulesList (head:fx) padding = do
+    putStrLn (padding ++ " " ++ (show fid))
+    putStrLn (padding ++ " IDENTIFIERS:")
+    mapM_ (putStrLn . ((padding ++ " ") ++) . show) $ dIDs
+    putStrLn (padding ++ " RULES:")
+    mapM_ (putStrLn . ((padding ++ " ") ++) . show) $ rules
+    let newPadding = makeIndent padding
+    printList fRules newPadding
+    printList feRules newPadding
+    printList fx padding
+        where
+            fid = crFunctionIdentifier head
+            rules = crRuleList head
+            fRules = crCleanedFunctionRuleList head
+            feRules = crCleanedFunctionExpressionRuleList head
+            dIDs = crDeclaredIdentifierList head
+            printHeading _ [] = return()
+            printHeading p (f:fx) = do
+                putStrLn ""
+                putStrLn (p ++ " " ++ (crName $ f))
+            printList l p = do
+                printHeading p l
+                printCleanedRulesList l p
+printCleanedRulesList [] _ = do
     return()
 
-printCleanedFunctionExpressionRulesList :: [CleanedFunctionExpressionRules] ->  String -> IO()
-printCleanedFunctionExpressionRulesList ((CleanedFunctionExpressionRules id rules fRules feRules dIDs):fx) padding = do
-    printHeading padding (show id) rules False
-    mapM_ (putStrLn . (padding ++) . show) $ rules
-    let newPadding = (padding ++ "   ")
-    printHeading newPadding "Function Rules" fRules True
-    printCleanedFunctionRulesList fRules $ newPadding
-    printHeading newPadding "Function Expression Rules" feRules True
-    printCleanedFunctionExpressionRulesList feRules $ newPadding
-    printHeading padding "Function Rules" fx True
-    printCleanedFunctionExpressionRulesList fx $ padding
-printCleanedFunctionExpressionRulesList [] _ = do
+printCleanedElementList :: (CleanedElement a, Show a) => [a] -> String -> IO()
+printCleanedElementList (head:fx) padding = do
+    putStrLn . ((padding ++ " ") ++) . show $ fid
+    mapM_ (putStrLn . ((padding ++ " ") ++) . show) $ dIDs
+    let newPadding = makeIndent padding
+    printList fList newPadding
+    printList feList newPadding
+    printList fx padding
+        where
+            fid = ceFunctionIdentifier head
+            fList = ceCleanedFunctionList head
+            feList = ceCleanedFunctionExpressionList head
+            dIDs = ceDeclaredIdentifierList head
+            printHeading _ [] = return()
+            printHeading p (f:fx) = do
+                putStrLn ""
+                putStrLn (p ++ " " ++ (ceName $ f))
+            printList l p = do
+                printHeading p l
+                printCleanedElementList l p
+printCleanedElementList [] _ = do
     return()
+
+--makeIndent :: String -> String
+--makeIndent s = s ++ "..."
 
 -- Remove the parent field from a FunctionRules so that the tree is more legible
 -- when printed.

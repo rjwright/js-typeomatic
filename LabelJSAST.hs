@@ -7,6 +7,8 @@
 module LabelJSAST
 ( label
 , childGetLabel
+--, printLabelledJSASTNode
+, makeIndent
 , JSASTLabel
 , VarChild
 , OpChild
@@ -110,6 +112,25 @@ data LabelledJSAST = LabBlock [ASTChild]
             | LabReturn ExprChild
             | LabStatement ExprChild deriving (Show)
 
+makeIndent :: String -> String
+makeIndent s = s ++ "..."
+
+--printLabelledJSASTNode :: ASTChild -> String -> IO()
+--printLabelledJSASTNode ((LabBlock children), _) padding = do
+--      putStrLn (padding ++ " LabBlock")
+--      mapM_ (printLabelledJSASTNode . (makeIndent $ padding)) $ children 
+--printLabelledJSASTNode ((LabFunctionBody children), _) padding = do
+--      putStrLn (padding ++ " LabFunctionBody")
+--      mapM_ printLabelledJSASTNode children (makeIndent padding)
+--printLabelledJSASTNode ((LabFunctionDeclaration vChild _ child), _) padding = do
+--      putStrLn ("LabFunctionDeclaration " ++ (show vChild))
+--      printLabelledJSASTNode $ child
+--printLabelledJSASTNode ((LabStatement child), _) padding = do
+--      putStrLn "LabStatement"
+--      putStrLn . show $ child
+--printLabelledJSASTNode (n, _) padding = do
+--      putStrLn "Other"
+--      putStrLn . show $ n
 
 -- main :: IO ()
 -- main = do
