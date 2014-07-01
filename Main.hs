@@ -95,10 +95,9 @@ main = do
 --    mapM_ print . cleanFunctionRules . getDeclarationGraph . label . toJSAST . parseTree $ pr
 --    putStrLn . show . cleanFunction . cleanFunctionRules . getDeclarationGraph . label . toJSAST . parseTree $ pr
 --    mapM_ print . cleanFunction . cleanFunctionRules . getDeclarationGraph . label . toJSAST . parseTree $ pr
-    printCleanedFunctionRules . cleanFunctionRules . getDeclarationGraph . label . toJSAST . parseTree $ pr
-    --putStrLn ""
-    --printCleanedFunctionRulesList ((cleanFunctionRules . getDeclarationGraph . label . toJSAST . parseTree $ pr):[]) $ ""
-    --putStrLn ""
+    putStrLn ""
+    printCleanedFunctionRulesList ((cleanFunctionRules . getDeclarationGraph . label . toJSAST . parseTree $ pr):[]) $ ""
+    putStrLn ""
 --    putStrLn . show . graphGetAllRules . getDeclarationGraph . label . toJSAST . parseTree $ pr
 --    mapM_ print . graphGetAllRules . getDeclarationGraph . label . toJSAST . parseTree $ pr
 
@@ -109,18 +108,6 @@ printHeading p h (f:fx) False = putStrLn (p ++ h)
 printHeading p h (f:fx) True = do
     putStrLn ""
     putStrLn (p ++ h)
-
-printCleanedFunctionRules :: CleanedFunctionRules -> IO()
-printCleanedFunctionRules (CleanedFunctionRules id rules fRules feRules dIDs) = do
-    printHeading "" "Top Level Rules" rules True
-    printHeading "" (show id) rules False
-    mapM_ print $ rules
-    let padding = "   "
-    printHeading padding "Function Rules" fRules True
-    printCleanedFunctionRulesList fRules $ padding
-    printHeading padding "Function Expression Rules" feRules True
-    printCleanedFunctionExpressionRulesList feRules $ padding
-    putStrLn ""
 
 printCleanedFunctionRulesList :: [CleanedFunctionRules] -> String -> IO()
 printCleanedFunctionRulesList ((CleanedFunctionRules id rules fRules feRules dIDs):fx) padding = do
