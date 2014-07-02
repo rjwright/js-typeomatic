@@ -148,13 +148,13 @@ funExprMakeLabel :: ExprChild -> (Maybe DeclaredIdentifier)
 funExprMakeLabel (LabFunctionExpression mv vls body, n) = maybeID mv n
         where
         maybeID Nothing _ = Nothing
-        maybeID (Just (id, _)) x = Just (DeclaredIdentifier id (IDLabel x))
+        maybeID (Just (ident, _)) x = Just (DeclaredIdentifier ident (IDLabel x))
 
 varDecMakeLabel :: ExprChild -> DeclaredIdentifier
 varDecMakeLabel (LabVarDeclaration (var, x) mex, n) = DeclaredIdentifier var (IDLabel n)
 
 funDecMakeLabel :: ASTChild -> DeclaredIdentifier
-funDecMakeLabel (LabFunctionDeclaration (id, x) args body, n) = DeclaredIdentifier id (IDLabel n)
+funDecMakeLabel (LabFunctionDeclaration (fid, x) args body, n) = DeclaredIdentifier fid (IDLabel n)
 
 labelledMakeLabel :: ASTChild -> DeclaredIdentifier
 labelledMakeLabel (LabLabelled (var, x) body, n) = DeclaredIdentifier var (IDLabel n)
@@ -522,7 +522,7 @@ exprChildRules (LabFunctionExpression mv vls body, n) dIDs =
         nameRule Nothing _ _= []
         nameRule _ Nothing _ = []
         nameRule (Just (name, x)) (Just d) y = [Rule (Meta x) (makeIDType d)] ++ [Rule (makeIDType d) (Meta y)]
-        makeIDType (DeclaredIdentifier id lab) = IdentifierType id lab
+        makeIDType (DeclaredIdentifier ident lab) = IdentifierType ident lab
 -- Variable declarations.
 exprChildRules (LabVarDeclaration var mex, n) dIDs =
         -- The type of the statement equals the type of mex if mex is not Nothing.
@@ -785,7 +785,7 @@ astChildRules (LabFunctionDeclaration var args body, n) dIDs =
         (varChildRules var dIDs)
         where
         -- The type of an argument in a function declaration is IdentifierType.
-        makeIDType (DeclaredIdentifier id lab) = IdentifierType id lab
+        makeIDType (DeclaredIdentifier ident lab) = IdentifierType ident lab
         -- The type of this function's identifier.
         thisFunID = IdentifierType (childGetValue $ var) (idGetLabel (childGetValue $ var) dIDs)
 -- The type of a labelled block is the type of its body.
@@ -827,7 +827,7 @@ astChildRules (LabIfElse test bodyT bodyF, n) dIDs = [bodyRule bodyT n] ++ [body
 -- The type of a switch statment is the type of all of its cases (which in turn
 -- have the type of their bodies). They type of all the cases must me the same
 -- for type inference on the construct to succeed.
-astChildRules (LabSwitch id cases, n) dIDs = [bodyRule cases n] ++ (exprChildRules id dIDs) ++
+astChildRules (LabSwitch ident cases, n) dIDs = [bodyRule cases n] ++ (exprChildRules ident dIDs) ++
         (astChildRules cases dIDs)
 -- The type of a case in a switch statement is the same as the type of its body.
 --

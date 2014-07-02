@@ -131,12 +131,12 @@ main = do
     (infile:[]) <- getArgs
     pr <- readFile infile
 --    putStrLn . show . toJSAST . parseTree $ pr
---    mapM_ print . toJSAST . parseTree $ pr
+    --mapM_ print . toJSAST . parseTree $ pr
 
 --    putStrLn . show . label . toJSAST . parseTree $ pr
-    mapM_ print . label . toJSAST . parseTree $ pr
-    --putStrLn ""
-    --mapM_ printLabelledJSASTNode . label . toJSAST . parseTree $ pr
+    --mapM_ print . label . toJSAST . parseTree $ pr
+    putStrLn ""
+    mapM_ ((\p c -> printASTChild c p) (makeIndent "")) $ (label . toJSAST . parseTree $ pr)
 
 --    putStrLn . show . getDeclarationGraph . label . toJSAST . parseTree $ pr
 
@@ -213,7 +213,7 @@ printCleanedElementList [] _ = do
 -- Remove the parent field from a FunctionRules so that the tree is more legible
 -- when printed.
 cleanFunctionRules :: FunctionRules -> CleanedFunctionRules
-cleanFunctionRules (FunctionRules id rules fRules feRules dIDs parent) = CleanedFunctionRules id rules
+cleanFunctionRules (FunctionRules fid rules fRules feRules dIDs parent) = CleanedFunctionRules fid rules
         (map cleanFunctionRules fRules) (map cleanFunctionExpressionRules feRules) dIDs
 -- Remove the parent field from a FunctionExpressionRules so that the tree is
 -- more legible when printed.
@@ -225,7 +225,7 @@ cleanFunctionExpressionRules (FunctionExpressionRules mid rules fRules feRules d
 -- Remove the rules field from a CleanedFunctionRules so that the tree is more
 -- legible when printed.
 cleanFunction :: CleanedFunctionRules -> CleanedFunction
-cleanFunction (CleanedFunctionRules id rules cfRules cfeRules dIDs) = CleanedFunction id (map cleanFunction cfRules)
+cleanFunction (CleanedFunctionRules fid rules cfRules cfeRules dIDs) = CleanedFunction fid (map cleanFunction cfRules)
         (map cleanFunctionExpression cfeRules) dIDs
 -- Remove the rules field from a CleanedFunctionExpressionRules so that the tree
 -- is more legible when printed.
@@ -240,7 +240,7 @@ graphGetAllRules funrl = funGetAllRules funrl []
 -- Get all the rules out of a subtree rooted at a FunctionRules node and add
 -- them to the provided list of rules ("old" parameter).
 funGetAllRules :: FunctionRules -> [Rule] -> [Rule]
-funGetAllRules (FunctionRules id rules funs funExs dIDs parent) old = funExsRules
+funGetAllRules (FunctionRules fid rules funs funExs dIDs parent) old = funExsRules
         where
         -- Add the rules in the parameter node to the old rules.
         currentRules = old ++ rules
@@ -262,7 +262,7 @@ mapFunGetAllRules [] rules = rules
 -- FunctionExpressionRules node and add them to the provided list of rules
 -- ("old" parameter).
 funExprGetAllRules :: FunctionExpressionRules -> [Rule] -> [Rule]
-funExprGetAllRules (FunctionExpressionRules id rules funs funExs dIDs parent) old = funExsRules
+funExprGetAllRules (FunctionExpressionRules fid rules funs funExs dIDs parent) old = funExsRules
         where
         -- Add the rules in the parameter node to the old rules.
         currentRules = old ++ rules
@@ -322,7 +322,7 @@ funExprGetVarDecs (LabFunctionExpression mv args body, n) =
         thisFun = (LabFunctionExpression mv args body, n)
         -- Find the name of this function expression.
         listID Nothing = []
-        listID (Just id) = [id]
+        listID (Just lid) = [lid]
 
 -- Add two lists of identifiers. If an identifier occurs in both lists, keep the
 -- element from the second list.
@@ -371,7 +371,7 @@ astGetFunRules :: ASTChild -> ParentFunction -> [DeclaredIdentifier] -> [Functio
 astGetFunRules (LabBlock astList, n) parent dIDs = (mapASTGetFR astList parent dIDs)
 astGetFunRules (LabFunctionBody astList, n) parent dIDs = (mapASTGetFR astList parent dIDs)
 -- For a FunctionDeclaration we add a new FunctionRules.
-astGetFunRules (LabFunctionDeclaration (id, x) args body, n) parent dIDs =
+astGetFunRules (LabFunctionDeclaration (fid, x) args body, n) parent dIDs =
         -- Make a new FunctionRules.
         [
         FunctionRules (FunctionID (funDecMakeLabel thisFunction))
@@ -393,7 +393,7 @@ astGetFunRules (LabFunctionDeclaration (id, x) args body, n) parent dIDs =
         -- quite inelegant, but I don't think there's really any way around it.
         -- I think haskell should automatically bind a varible to function
         -- parameters.
-        thisFunction = (LabFunctionDeclaration (id, x) args body, n)
+        thisFunction = (LabFunctionDeclaration (fid, x) args body, n)
         -- Take the input list of declared identifiers and add any identifiers
         -- declared in this function declaration, overwriting identifiers as
         -- neccessary. Resulting list of declared identifiers is passed into
@@ -412,7 +412,7 @@ astGetFunRules (LabDoWhile body test, n) parent dIDs = astGetFunRules body paren
 astGetFunRules (LabIf test body, n) parent dIDs = astGetFunRules body parent dIDs
 astGetFunRules (LabIfElse test bodyT bodyF, n) parent dIDs = (astGetFunRules bodyT parent dIDs) ++
         (astGetFunRules bodyF parent dIDs)
-astGetFunRules (LabSwitch id cases, n) parent dIDs = astGetFunRules cases parent dIDs
+astGetFunRules (LabSwitch ident cases, n) parent dIDs = astGetFunRules cases parent dIDs
 astGetFunRules (LabCase ex body, n) parent dIDs = astGetFunRules body parent dIDs
 astGetFunRules (LabDefault body, n) parent dIDs = astGetFunRules body parent dIDs
 astGetFunRules (LabTry body catches, n) parent dIDs = (astGetFunRules body parent dIDs) ++
@@ -433,7 +433,7 @@ astGetFunRules (LabStatement ex, n) parent dIDs = []
 astGetFunExprRules :: ASTChild -> ParentFunction -> [DeclaredIdentifier] -> [FunctionExpressionRules]
 astGetFunExprRules (LabBlock astList, n) parent dIDs = (mapASTGetFER astList parent dIDs)
 astGetFunExprRules (LabFunctionBody astList, n) parent dIDs = (mapASTGetFER astList parent dIDs)
-astGetFunExprRules (LabFunctionDeclaration id args body, n) parent dIDs = []
+astGetFunExprRules (LabFunctionDeclaration fid args body, n) parent dIDs = []
 astGetFunExprRules (LabLabelled label body, n) parent dIDs = astGetFunExprRules body parent dIDs
 astGetFunExprRules (LabForVar varEx test count body, n) parent dIDs = (astGetFunExprRules body parent dIDs) ++
         (mapExpGetFER varEx parent dIDs) ++ (getMaybeFunExprRules test parent dIDs) ++
@@ -453,8 +453,8 @@ astGetFunExprRules (LabIf test body, n) parent dIDs = (astGetFunExprRules body p
         (exprGetFunExprRules test parent dIDs)
 astGetFunExprRules (LabIfElse test bodyT bodyF, n) parent dIDs = (astGetFunExprRules bodyT parent dIDs) ++
         (astGetFunExprRules bodyF parent dIDs) ++ (exprGetFunExprRules test parent dIDs)
-astGetFunExprRules (LabSwitch id cases, n) parent dIDs = (astGetFunExprRules cases parent dIDs) ++
-        (exprGetFunExprRules id parent dIDs)
+astGetFunExprRules (LabSwitch ident cases, n) parent dIDs = (astGetFunExprRules cases parent dIDs) ++
+        (exprGetFunExprRules ident parent dIDs)
 astGetFunExprRules (LabCase ex body, n) parent dIDs = (astGetFunExprRules body parent dIDs) ++
         (exprGetFunExprRules ex parent dIDs)
 astGetFunExprRules (LabDefault body, n) parent dIDs = astGetFunExprRules body parent dIDs
@@ -540,7 +540,7 @@ exprGetFunExprRules (LabFunctionExpression mv vls body, n) parent dIDs =
         declaredIDs = addDeclarationLists dIDs (funExprGetVarDecs thisExpr)
         -- Get the function expression's name, if it has one.
         getMaybeID Nothing = Nothing
-        getMaybeID (Just id) = Just (FunctionID id)
+        getMaybeID (Just fid) = Just (FunctionID fid)
         -- This function expression's parent AST.
         newParent = ParentFunExpr thisExpr
 exprGetFunExprRules (LabVarDeclaration var mex, n) parent dIDs = getMaybeFunExprRules mex parent dIDs

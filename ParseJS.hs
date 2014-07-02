@@ -170,7 +170,7 @@ jsnToMaybeListExp jsnList = statementToMaybeListExp . astMap $ jsnList
 
 -- Extract the String value from a JSIdentifier
 identifierGetString :: Node -> String
-identifierGetString (JSIdentifier id) = id
+identifierGetString (JSIdentifier jsid) = jsid
 
 
 -- Make representations of variable declarations in AST.
