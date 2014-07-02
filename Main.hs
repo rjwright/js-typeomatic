@@ -15,6 +15,7 @@ import DeclarationGraph
 import System.Environment
 
 type PrintLabelFlag = Bool
+type PrintLineFlag = Bool
 
 main :: IO ()
 main = do
@@ -23,7 +24,7 @@ main = do
 --    mapM_ print . toJSAST . parseTree $ pr
 --    putStrLn . show . getDeclarationGraph . label . toJSAST . parseTree $ pr
     putStrLn ""
-    mapM_ ((\p c -> printASTChild c p) (makeIndent "")) $ (label . toJSAST . parseTree $ pr)
+    mapM_ ((\p c -> printASTChild c p False) (makeIndent "")) $ (label . toJSAST . parseTree $ pr)
 --    putStrLn ""
 --    printCleanedRulesList ((cleanFunctionRules . getDeclarationGraph . label . toJSAST . parseTree $ pr):[]) $ (makeIndent "")
 --    putStrLn ""
@@ -91,170 +92,177 @@ printCleanedElementList [] _ = do
     return()
 
 
-printASTChild :: ASTChild -> String -> IO()
-printASTChild ((LabBlock children), _) padding = do
-      putStrLn (padding ++ " LabBlock")
-      mapM_ ((\p c -> printASTChild c p) (makeIndent padding)) $ children 
-printASTChild ((LabFunctionBody children), _) padding = do
-      putStrLn (padding ++ " LabFunctionBody")
-      mapM_ ((\p c -> printASTChild c p) (makeIndent padding)) $ children 
-printASTChild ((LabFunctionDeclaration vChild args child), _) padding = do
-      putStr (padding ++ " LabFunctionDeclaration")
-      printVarChild vChild "" False
+printStringAndLabel :: String -> JSASTLabel -> PrintLabelFlag -> PrintLineFlag -> IO()
+printStringAndLabel str label False False =
+      putStr str
+printStringAndLabel str label True False =
+      putStr (str ++ " <" ++ (show label) ++ ">")
+printStringAndLabel str label printLabel True = do
+      printStringAndLabel str label printLabel False
+      putStrLn ""
+
+printASTChild :: ASTChild -> String -> PrintLabelFlag -> IO()
+printASTChild ((LabBlock children), label) padding printLabel = do
+      printStringAndLabel (padding ++ " LabBlock") label printLabel True
+      mapM_ ((\p c -> printASTChild c p printLabel) (makeIndent padding)) $ children 
+printASTChild ((LabFunctionBody children), label) padding printLabel = do
+      printStringAndLabel (padding ++ " LabFunctionBody") label printLabel True
+      mapM_ ((\p c -> printASTChild c p printLabel) (makeIndent padding)) $ children 
+printASTChild ((LabFunctionDeclaration vChild args child), label) padding printLabel = do
+      printStringAndLabel (padding ++ " LabFunctionDeclaration") label printLabel False
+      printVarChild vChild "" printLabel False
       putStr " ["
-      mapM_ (\var -> printVarChild var "" False) $ args
+      mapM_ (\var -> printVarChild var "" printLabel False) $ args
       putStrLn " ]"
-      printASTChild child (makeIndent padding)
-printASTChild ((LabStatement expr), _) padding = do
-      putStrLn (padding ++ " LabStatement")
-      printExprChild expr (makeIndent padding)
-printASTChild ((LabReturn expr), _) padding = do
-      putStrLn (padding ++ " LabReturn")
-      printExprChild expr (makeIndent padding)
-printASTChild ((LabForVar decs cond expr child), _) padding = do
-      putStrLn (padding ++ " LabForVar")
-      mapM_ ((\p e -> printExprChild e p) (makeIndent padding)) $ decs
-      maybePrintExprChild cond (makeIndent padding)
-      maybePrintExprChild expr (makeIndent padding)
-      printASTChild child (makeIndent padding)
-printASTChild ((LabForVarIn var obj child), _) padding = do
-      putStrLn (padding ++ " LabForVarIn")
-      printExprChild var (makeIndent padding)
-      printExprChild obj (makeIndent padding)
-      printASTChild child (makeIndent padding)
-printASTChild (n, _) padding = do
-      putStrLn (padding ++ " OTHER ASTCHILD")
+      printASTChild child (makeIndent padding) printLabel
+printASTChild ((LabStatement expr), label) padding printLabel = do
+      printStringAndLabel (padding ++ " LabStatement") label printLabel True
+      printExprChild expr (makeIndent padding) printLabel
+printASTChild ((LabReturn expr), label) padding printLabel = do
+      printStringAndLabel (padding ++ " LabReturn") label printLabel True
+      printExprChild expr (makeIndent padding) printLabel
+printASTChild ((LabForVar decs cond expr child), label) padding printLabel = do
+      printStringAndLabel (padding ++ " LabForVar") label printLabel True
+      mapM_ ((\p e -> printExprChild e p printLabel) (makeIndent padding)) $ decs
+      maybePrintExprChild cond (makeIndent padding) printLabel
+      maybePrintExprChild expr (makeIndent padding) printLabel
+      printASTChild child (makeIndent padding) printLabel
+printASTChild ((LabForVarIn var obj child), label) padding printLabel = do
+      printStringAndLabel (padding ++ " LabForVarIn") label printLabel True
+      printExprChild var (makeIndent padding) printLabel
+      printExprChild obj (makeIndent padding) printLabel
+      printASTChild child (makeIndent padding) printLabel
+printASTChild (n, label) padding printLabel = do
+      printStringAndLabel (padding ++ " OTHER ASTCHILD") label printLabel True
       putStrLn ((makeIndent padding) ++ " " ++ (show $ n))
 
 
-printExprChild :: ExprChild -> String -> IO()
-printExprChild ((LabList exprs), _) padding = do
-      putStrLn (padding ++ " LabList")
-      mapM_ ((\p e -> printExprChild e p  ) (makeIndent padding)) $ exprs
-printExprChild ((LabAssignment op expr1 expr2), _) padding = do
-      putStrLn (padding ++ " LabAssignment")
-      printOpChild op (makeIndent padding) True
-      printExprChild expr1 (makeIndent padding)
-      printExprChild expr2 (makeIndent padding)
-printExprChild ((LabBinary op expr1 expr2), _) padding = do
-      putStrLn (padding ++ " LabBinary")
-      printOpChild op (makeIndent padding) True
-      printExprChild expr1 (makeIndent padding)
-      printExprChild expr2 (makeIndent padding)
-printExprChild ((LabUnaryPost op expr), _) padding = do
-      putStrLn (padding ++ " LabUnaryPost")
-      printOpChild op (makeIndent padding) True
-      printExprChild expr (makeIndent padding)
-printExprChild ((LabIdentifier var), _) padding = do
-      putStr (padding ++ " LabIdentifier")
-      printVarChild var "" True
-printExprChild ((LabReference obj prop), _) padding = do
-      putStrLn (padding ++ " LabReference")
-      printExprChild obj (makeIndent padding)
-      printExprChild prop (makeIndent padding)
-printExprChild ((LabIndex obj prop), _) padding = do
-      putStrLn (padding ++ " LabIndex")
-      printExprChild obj (makeIndent padding)
-      printExprChild prop (makeIndent padding)
-printExprChild ((LabValue val), _) padding = do
-      putStr (padding ++ " LabValue")
-      printValueChild val (makeIndent padding) True
-printExprChild ((LabVarDeclaration var expr), _) padding = do
-      putStrLn (padding ++ " LabVarDeclaration")
-      printVarChild var (makeIndent padding) True
-      maybePrintExprChild expr (makeIndent padding)
-printExprChild ((LabPropNameValue prop expr), _) padding = do
-      putStrLn (padding ++ " LabPropNameValue")
-      printPropertyNameChild prop (makeIndent padding)
-      printExprChild expr (makeIndent padding)
-printExprChild ((LabFunctionExpression vChild args child), _) padding = do
-      putStr (padding ++ " LabFunctionExpression")
-      maybePrintVarChild vChild "" False
+printExprChild :: ExprChild -> String -> PrintLabelFlag -> IO()
+printExprChild ((LabList exprs), label) padding printLabel = do
+      printStringAndLabel (padding ++ " LabList") label printLabel True
+      mapM_ ((\p e -> printExprChild e p printLabel) (makeIndent padding)) $ exprs
+printExprChild ((LabAssignment op expr1 expr2), label) padding printLabel = do
+      printStringAndLabel (padding ++ " LabAssignment") label printLabel True
+      printOpChild op (makeIndent padding) printLabel True
+      printExprChild expr1 (makeIndent padding) printLabel
+      printExprChild expr2 (makeIndent padding) printLabel
+printExprChild ((LabBinary op expr1 expr2), label) padding printLabel = do
+      printStringAndLabel (padding ++ " LabBinary") label printLabel True
+      printOpChild op (makeIndent padding) printLabel True
+      printExprChild expr1 (makeIndent padding) printLabel
+      printExprChild expr2 (makeIndent padding) printLabel
+printExprChild ((LabUnaryPost op expr), label) padding printLabel = do
+      printStringAndLabel (padding ++ " LabUnaryPost") label printLabel True
+      printOpChild op (makeIndent padding) printLabel True
+      printExprChild expr (makeIndent padding) printLabel
+printExprChild ((LabIdentifier var), label) padding printLabel = do
+      printStringAndLabel (padding ++ " LabIdentifier") label printLabel False
+      printVarChild var "" printLabel True
+printExprChild ((LabReference obj prop), label) padding printLabel = do
+      printStringAndLabel (padding ++ " LabReference") label printLabel True
+      printExprChild obj (makeIndent padding) printLabel
+      printExprChild prop (makeIndent padding) printLabel
+printExprChild ((LabIndex obj prop), label) padding printLabel = do
+      printStringAndLabel (padding ++ " LabIndex") label printLabel True
+      printExprChild obj (makeIndent padding) printLabel
+      printExprChild prop (makeIndent padding) printLabel
+printExprChild ((LabValue val), label) padding printLabel = do
+      printStringAndLabel (padding ++ " LabValue") label printLabel False
+      printValueChild val (makeIndent padding) printLabel True
+printExprChild ((LabVarDeclaration var expr), label) padding printLabel = do
+      printStringAndLabel (padding ++ " LabVarDeclaration") label printLabel True
+      printVarChild var (makeIndent padding) printLabel True
+      maybePrintExprChild expr (makeIndent padding) printLabel
+printExprChild ((LabPropNameValue prop expr), label) padding printLabel = do
+      printStringAndLabel (padding ++ " LabPropNameValue") label printLabel True
+      printPropertyNameChild prop (makeIndent padding) printLabel
+      printExprChild expr (makeIndent padding) printLabel
+printExprChild ((LabFunctionExpression vChild args child), label) padding printLabel = do
+      printStringAndLabel (padding ++ " LabFunctionExpression") label printLabel False
+      maybePrintVarChild vChild "" printLabel False
       putStr " ["
-      mapM_ (\var -> printVarChild var "" False) $ args
+      mapM_ (\var -> printVarChild var "" printLabel False) $ args
       putStrLn " ]"
-      printASTChild child (makeIndent padding)
-printExprChild ((LabCall fid args), _) padding = do
-      putStrLn (padding ++ " LabCall")
-      printExprChild fid (makeIndent padding)
-      printExprChild args (makeIndent padding)
-printExprChild ((LabArguments exprs), _) padding = do
-      putStrLn (padding ++ " LabArguments")
-      mapM_ ((\p e -> printExprChild e p  ) (makeIndent padding)) $ exprs
-printExprChild (n, _) padding = do
-      putStrLn (padding ++ " OTHER EXPRCHILD")
+      printASTChild child (makeIndent padding) printLabel
+printExprChild ((LabCall fid args), label) padding printLabel = do
+      printStringAndLabel (padding ++ " LabCall") label printLabel True
+      printExprChild fid (makeIndent padding) printLabel
+      printExprChild args (makeIndent padding) printLabel
+printExprChild ((LabArguments exprs), label) padding printLabel = do
+      printStringAndLabel (padding ++ " LabArguments") label printLabel True
+      mapM_ ((\p e -> printExprChild e p printLabel) (makeIndent padding)) $ exprs
+printExprChild (n, label) padding printLabel = do
+      printStringAndLabel (padding ++ " OTHER EXPRCHILD") label printLabel True
       putStrLn ((makeIndent padding) ++ " " ++ (show $ n))
 
 
 -- FIXME: Print the "Just". See maybePrintVarChild
-maybePrintExprChild :: Maybe ExprChild -> String -> IO()
-maybePrintExprChild (Just expr) padding = printExprChild expr padding
-maybePrintExprChild Nothing padding = putStrLn (padding ++ " Nothing")
+maybePrintExprChild :: Maybe ExprChild -> String -> PrintLabelFlag -> IO()
+maybePrintExprChild (Just expr) padding printLabel = printExprChild expr padding printLabel
+maybePrintExprChild Nothing padding _ = putStrLn (padding ++ " Nothing") -- FIXME: Does this have a label??
 
 
-printVarChild :: VarChild -> String -> Bool -> IO()
-printVarChild (var, label) padding False = putStr (padding ++ " \"" ++ var ++ "\"")
-printVarChild (var, label) padding True = putStrLn (padding ++ " \"" ++ var ++ "\"")
+printVarChild :: VarChild -> String -> PrintLabelFlag -> PrintLineFlag -> IO()
+printVarChild (var, label) padding printLabel printLine = printStringAndLabel (padding ++ " \"" ++ var ++ "\"") label printLabel printLine
 
 
-maybePrintVarChild :: Maybe VarChild -> String -> Bool -> IO()
-maybePrintVarChild (Just child) padding False = do
+maybePrintVarChild :: Maybe VarChild -> String -> PrintLabelFlag -> PrintLineFlag -> IO()
+maybePrintVarChild (Just var) padding printLabel False = do
       putStr (padding ++ " Just")
-      printVarChild child "" False
-maybePrintVarChild (Just child) padding True = do
+      printVarChild var "" printLabel False
+maybePrintVarChild (Just var) padding printLabel True = do
       putStrLn (padding ++ " Just")
-      printVarChild child (makeIndent padding) True
-maybePrintVarChild Nothing padding False = putStr (padding ++ " \"Nothing\"")
-maybePrintVarChild Nothing padding True = putStrLn (padding ++ " \"Nothing\"")
+      printVarChild var (makeIndent padding) printLabel True
+-- FIXME: Does "Nothing" have a label
+maybePrintVarChild Nothing padding printLabel False = putStr (padding ++ " \"Nothing\"")
+maybePrintVarChild Nothing padding printLabel True = putStrLn (padding ++ " \"Nothing\"")
 
 
-printIndexChild :: IndexChild -> String -> Bool -> IO()
-printIndexChild (index, label) padding False = putStr (padding ++ " \"" ++ (show index) ++ "\"")
-printIndexChild (index, label) padding True = putStrLn (padding ++ " \"" ++ (show index) ++ "\"")
+printIndexChild :: IndexChild -> String -> PrintLabelFlag -> PrintLineFlag -> IO()
+printIndexChild (index, label) padding printLabel printLine =
+      printStringAndLabel (padding ++ " \"" ++ (show index) ++ "\"") label printLabel printLine
 
 
-printValueChild :: ValueChild -> String -> Bool -> IO()
-printValueChild (val, label) padding newLine = printLabelledValue val padding newLine
+printValueChild :: ValueChild -> String -> PrintLabelFlag -> PrintLineFlag -> IO()
+printValueChild (val, label) padding printLabel printLine = printLabelledValue val padding printLabel printLine
 
 
-printOpChild :: OpChild -> String -> Bool -> IO()
-printOpChild (op, label) padding False = putStr (padding ++ " Operator \"" ++ op ++ "\"")
-printOpChild (op, label) padding True = putStrLn (padding ++ " Operator \"" ++ op ++ "\"")
+printOpChild :: OpChild -> String -> PrintLabelFlag -> PrintLineFlag -> IO()
+printOpChild (op, label) padding printLabel printLine =
+      printStringAndLabel (padding ++ " Operator \"" ++ op ++ "\"") label printLabel printLine
 
 
-printPropertyNameChild :: PropertyNameChild -> String -> IO()
-printPropertyNameChild (propName, label) padding = printLabelledPropertyName propName padding
+printPropertyNameChild :: PropertyNameChild -> String -> PrintLabelFlag -> IO()
+printPropertyNameChild ((LabVariableProperty var), label) padding printLabel = do
+      printStringAndLabel (padding ++ " Property") label printLabel False
+      printVarChild var "" printLabel True
+printPropertyNameChild ((LabIndexProperty index), label) padding printLabel = do
+      printStringAndLabel (padding ++ " Property") label printLabel False
+      printIndexChild index "" printLabel True
 
 
-printLabelledPropertyName :: LabelledPropertyName -> String -> IO()
-printLabelledPropertyName (LabVariableProperty var) padding = do
-      putStr (padding ++ " Property")
-      printVarChild var "" True
-printLabelledPropertyName (LabIndexProperty index) padding = do
-      putStr (padding ++ " Property")
-      printIndexChild index "" True
-
-
-printLabelledValue :: LabelledValue -> String -> Bool -> IO()
-printLabelledValue (LabObject exprs) padding _ = do
+printLabelledValue :: LabelledValue -> String -> PrintLabelFlag -> PrintLineFlag -> IO()
+printLabelledValue (LabObject exprs) padding printLabel _ = do
       putStrLn ""
       putStrLn (padding ++ " LabObject")
-      mapM_ ((\p e -> printExprChild e p  ) (makeIndent padding)) $ exprs
-printLabelledValue (LabInt val) padding False = do
+      mapM_ ((\p e -> printExprChild e p printLabel) (makeIndent padding)) $ exprs
+printLabelledValue (LabInt val) padding _ False = do
       putStr (" LabInt " ++ (show val))
-printLabelledValue (LabFloat val) padding False = do
+printLabelledValue (LabFloat val) padding _ False = do
       putStr (" LabFloat " ++ (show val))
-printLabelledValue (LabDQString val) padding False = do
+printLabelledValue (LabDQString val) padding _ False = do
       putStr (" LabDQString " ++ (show val))
-printLabelledValue (LabArray elems) padding False = do
-      putStrLn (" LabArray")
-      putStrLn ((makeIndent padding) ++ " [")
-      mapM_ ((\p e -> printExprChild e p  ) (makeIndent padding)) $ elems
-      putStr ((makeIndent padding) ++ " ]")
-printLabelledValue labVal padding True = do
-      printLabelledValue labVal padding False
+printLabelledValue (LabArray elems) padding printLabel False = do
       putStrLn ""
-printLabelledValue n padding _ = do
+      putStrLn (padding ++ " LabArray")
+      putStrLn ((makeIndent padding) ++ " [")
+      mapM_ ((\p e -> printExprChild e p printLabel) (makeIndent padding)) $ elems
+      putStr ((makeIndent padding) ++ " ]")
+printLabelledValue labVal padding printLabel True = do
+      printLabelledValue labVal padding printLabel False
+      putStrLn ""
+printLabelledValue n padding _ _ = do
       putStrLn ""
       putStrLn (padding ++ " OTHER LABELLEDVALUE")
       putStrLn ((makeIndent padding) ++ " " ++ (show $ n))
+

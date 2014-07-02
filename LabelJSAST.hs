@@ -65,6 +65,9 @@ data LabelledValue = LabInt Int
             | LabUndefined
             | LabNull deriving (Show)
 
+-- FIXME: Some of these contain Maybe *Child values.
+-- "Nothing" has no label. Is that a problem?
+
 -- A recursively labelled subtree, rooted at a LabelledExpression.
 data LabelledExpression = LabList [ExprChild]
             | LabBinary OpChild ExprChild ExprChild
