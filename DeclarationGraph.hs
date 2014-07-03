@@ -306,21 +306,21 @@ astGetFunRules (LabFunctionDeclaration (fid, x) args body, n) parent dIDs =
         -- function's parent AST.
         declaredIDs parent
         ]
-        where
-        -- Gives a name to the argument. I find myself doing this a lot when
-        -- pattern matching on different sorts of inputs to a function. It's
-        -- quite inelegant, but I don't think there's really any way around it.
-        -- I think haskell should automatically bind a varible to function
-        -- parameters.
-        thisFunction = (LabFunctionDeclaration (fid, x) args body, n)
-        -- Take the input list of declared identifiers and add any identifiers
-        -- declared in this function declaration, overwriting identifiers as
-        -- neccessary. Resulting list of declared identifiers is passed into
-        -- calls to astChildRules, astGetFunRule and astGetFunExprRules for this
-        -- function's body.
-        declaredIDs = (addDeclarationLists dIDs (funDecGetVarDecs thisFunction))
-        -- The parent AST for this function declaration.
-        newParent = ParentFunDecl thisFunction
+            where
+                -- Gives a name to the argument. I find myself doing this a lot when
+                -- pattern matching on different sorts of inputs to a function. It's
+                -- quite inelegant, but I don't think there's really any way around it.
+                -- I think haskell should automatically bind a varible to function
+                -- parameters.
+                thisFunction = (LabFunctionDeclaration (fid, x) args body, n)
+                -- Take the input list of declared identifiers and add any identifiers
+                -- declared in this function declaration, overwriting identifiers as
+                -- neccessary. Resulting list of declared identifiers is passed into
+                -- calls to astChildRules, astGetFunRule and astGetFunExprRules for this
+                -- function's body.
+                declaredIDs = (addDeclarationLists dIDs (funDecGetVarDecs thisFunction))
+                -- The parent AST for this function declaration.
+                newParent = ParentFunDecl thisFunction
 astGetFunRules (LabLabelled label body, n) parent dIDs = astGetFunRules body parent dIDs
 astGetFunRules (LabForVar varEx test count body, n) parent dIDs = astGetFunRules body parent dIDs
 astGetFunRules (LabFor varEx test count body, n) parent dIDs = astGetFunRules body parent dIDs
@@ -448,20 +448,20 @@ exprGetFunExprRules (LabFunctionExpression mv vls body, n) parent dIDs =
         -- plus this function expression's parent AST.
         declaredIDs parent
         ]
-        where
-        -- Give a name to the (Haskell Land) argument.
-        thisExpr = (LabFunctionExpression mv vls body, n)
-        -- Take the input list of declared identifiers and add any identifiers
-        -- declared in this function expression, overwriting identifiers as
-        -- neccessary. Resulting list of declared identifiers is passed into
-        -- calls to astChildRules, astGetFunRule and astGetFunExprRules for this
-        -- function expression's body.
-        declaredIDs = addDeclarationLists dIDs (funExprGetVarDecs thisExpr)
-        -- Get the function expression's name, if it has one.
-        getMaybeID Nothing = Nothing
-        getMaybeID (Just fid) = Just (FunctionID fid)
-        -- This function expression's parent AST.
-        newParent = ParentFunExpr thisExpr
+            where
+                -- Give a name to the (Haskell Land) argument.
+                thisExpr = (LabFunctionExpression mv vls body, n)
+                -- Take the input list of declared identifiers and add any identifiers
+                -- declared in this function expression, overwriting identifiers as
+                -- neccessary. Resulting list of declared identifiers is passed into
+                -- calls to astChildRules, astGetFunRule and astGetFunExprRules for this
+                -- function expression's body.
+                declaredIDs = addDeclarationLists dIDs (funExprGetVarDecs thisExpr)
+                -- Get the function expression's name, if it has one.
+                getMaybeID Nothing = Nothing
+                getMaybeID (Just fid) = Just (FunctionID fid)
+                -- This function expression's parent AST.
+                newParent = ParentFunExpr thisExpr
 exprGetFunExprRules (LabVarDeclaration var mex, n) parent dIDs = getMaybeFunExprRules mex parent dIDs
 exprGetFunExprRules (LabNew ex, n) parent dIDs = exprGetFunExprRules ex parent dIDs
 
