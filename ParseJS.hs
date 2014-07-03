@@ -29,13 +29,15 @@ module ParseJS
 
 --------------------------------------------------------------------------------
 
-import Language.JavaScript.Parser (parse)
-import Language.JavaScript.Parser.AST
-import Control.Monad.State
-import Data.Functor.Identity
-import Data.Maybe (catMaybes, isJust, fromJust, mapMaybe)
-import Data.List (nub, (\\), find, delete, intercalate)
-import System.Environment
+import           Control.Monad.State
+import           Data.Functor.Identity
+import           Data.List                      (delete, find, intercalate, nub,
+                                                 (\\))
+import           Data.Maybe                     (catMaybes, fromJust, isJust,
+                                                 mapMaybe)
+import           Language.JavaScript.Parser     (parse)
+import           Language.JavaScript.Parser.AST
+import           System.Environment
 
 type Variable = String
 type Index = Int
@@ -484,3 +486,4 @@ pp' n (JSObjectLiteral list) = taglist n "" "JSObjectLiteral" list
 pp' n (JSPropertyNameandValue key values) = taglist n ((show . jsnGetNode) key) "JSPropertyNameandValue" values
 pp' n (JSMemberDot list ident) = taglist n "" "JSMemberDot" list ++ pp' n (jsnGetNode ident)
 pp' n a = (replicate n ' ') ++ show a ++ "\n"
+

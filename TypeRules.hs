@@ -32,8 +32,8 @@ module TypeRules
 
 --------------------------------------------------------------------------------
 
-import LabelJSAST
-import ParseJS
+import           LabelJSAST
+import           ParseJS
 
 -- NOTE FOR THIS MODULE:
 -- 1)
@@ -59,7 +59,7 @@ import ParseJS
 --
 -- In this case (Meta 11) has type IntType if both (Meta 9) and (Meta 8) have
 -- type IntType. As it turns out, they do.
-data Type = 
+data Type =
             -- The type for an identifier, including a label to distinguish
             -- variables with the same name.
             IdentifierType Variable IdentifierLabel
@@ -212,7 +212,7 @@ varChildRules (var, x) dIDs = [Rule (Meta x) (IdentifierType var (idGetLabel var
 idGetLabel :: Variable -> [DeclaredIdentifier] -> IdentifierLabel
 idGetLabel variable [] = GlobalLabel
 idGetLabel variable ((DeclaredIdentifier v label):ds) = if (variable == v) then label else (idGetLabel variable ds)
- 
+
 -- Generate rules from a value.
 valueChildRules :: ValueChild -> [DeclaredIdentifier] -> [Rule]
 -- For primitive literals.
@@ -394,7 +394,7 @@ exprChildRules (LabIndex ex1 ex2, n) dIDs = (exprChildRules ex1 dIDs) ++
         -- definition of type safety.
         --
         -- Shane says that we should support dynamic arrays with elements that are all of the same
-        -- type or undefined. For now I will just assume that all arrays have static size. I will 
+        -- type or undefined. For now I will just assume that all arrays have static size. I will
         -- also ignore the Array constructor for now and only deal with literally defined arrays.
         --
         -- To make this work I will need to differentiate between references into arrays
@@ -611,7 +611,7 @@ assignmentGetVar (LabStatement ex, _) = assignmentGetVar' . removeUselessParenAn
 -- 'this' via the variable?
 -- e.g: function Foo(b) { var a = this; if (b) { a.x = 5; } }.
 -- It is important that I pick up all references to properties of 'this'.
--- 
+--
 -- FOR THE MOMENT any reference to 'this' other than a reference to a property
 -- on the left-hand side of a simple assignment expression at the top level of
 -- scope inside a function body should cause type inference to fail on that
@@ -737,7 +737,7 @@ funBodyRules block n =
 --     (Meta n)
 --     (ConstructorType
 --         (
---         ObjectType 
+--         ObjectType
 --             [
 --             (VariableProperty "a", Meta n_a),
 --             (VariableProperty "b", Meta n_b)
@@ -772,7 +772,7 @@ astChildRules (LabBlock astList, n) dIDs = (mapASTChildRules astList dIDs) ++ (b
 astChildRules (LabFunctionBody astList, n) dIDs = (mapASTChildRules astList dIDs) ++ (funBodyRules astList n) ++
         (constructorRules astList n)
 -- Function declarations.
-astChildRules (LabFunctionDeclaration var args body, n) dIDs = 
+astChildRules (LabFunctionDeclaration var args body, n) dIDs =
         -- The type of the function's identifier is they same as they type of the declaration statement.
         [Rule thisFunID (Meta n)] ++
         -- The type of the declaration statement is FunctionType. A FunctionType

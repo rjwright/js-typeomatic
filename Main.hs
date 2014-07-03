@@ -8,11 +8,11 @@ module Main
 
 ---------------------------------------------------------------------------------
 
-import ParseJS
-import LabelJSAST
-import TypeRules
-import DeclarationGraph
-import System.Environment
+import           DeclarationGraph
+import           LabelJSAST
+import           ParseJS
+import           System.Environment
+import           TypeRules
 
 type PrintLabelFlag = Bool
 type PrintLineFlag = Bool
@@ -104,10 +104,10 @@ printStringAndLabel str label printLabel True = do
 printASTChild :: ASTChild -> String -> PrintLabelFlag -> IO()
 printASTChild ((LabBlock children), label) padding printLabel = do
       printStringAndLabel (padding ++ " LabBlock") label printLabel True
-      mapM_ ((\p c -> printASTChild c p printLabel) (makeIndent padding)) $ children 
+      mapM_ ((\p c -> printASTChild c p printLabel) (makeIndent padding)) $ children
 printASTChild ((LabFunctionBody children), label) padding printLabel = do
       printStringAndLabel (padding ++ " LabFunctionBody") label printLabel True
-      mapM_ ((\p c -> printASTChild c p printLabel) (makeIndent padding)) $ children 
+      mapM_ ((\p c -> printASTChild c p printLabel) (makeIndent padding)) $ children
 printASTChild ((LabFunctionDeclaration vChild args child), label) padding printLabel = do
       printStringAndLabel (padding ++ " LabFunctionDeclaration") label printLabel False
       printVarChild vChild "" printLabel False

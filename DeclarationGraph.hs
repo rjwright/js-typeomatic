@@ -30,10 +30,10 @@
 
 --------------------------------------------------------------------------------
 
-import ParseJS
-import LabelJSAST
-import TypeRules
-import System.Environment
+import           LabelJSAST
+import           ParseJS
+import           System.Environment
+import           TypeRules
 
 -- The main reason for carting one of these around for every node in the
 -- declaration graph was so that I could use it to make the call graph.
@@ -47,7 +47,7 @@ data ParentFunction = ParentFunDecl ASTChild
 
 -- Identifier for functions which have a declared identifier or a dummy
 -- "global function".
-data FunctionIdentifier = 
+data FunctionIdentifier =
             FunctionID DeclaredIdentifier
             | GlobalID deriving (Show)
 
@@ -398,7 +398,7 @@ valueGetFunExprRules _ _ _ = []
 -- Make FunctionExpressionRules from an Expression. All of these, with the
 -- exception of LabFunctionExpression, either return nothing (when they don't
 -- contain any fields that could contain a function expression), or recursively
--- process any expression or value fields. 
+-- process any expression or value fields.
 exprGetFunExprRules :: ExprChild -> ParentFunction -> [DeclaredIdentifier] -> [FunctionExpressionRules]
 exprGetFunExprRules (LabList expList, n) parent dIDs = mapExpGetFER expList parent dIDs
 exprGetFunExprRules (LabBinary op ex1 ex2, n) parent dIDs = (exprGetFunExprRules ex1 parent dIDs) ++
@@ -501,7 +501,7 @@ exprGetVarDecs (LabFunctionExpression mv var body, n)  = []
 -- Return the unique identifier for the variable being declared and recursively
 -- process the expression field.
 exprGetVarDecs (LabVarDeclaration (var, x) mex, n) = [varDecMakeLabel $ thisVarDec] ++ (maybeExprGetVarDecs $ mex)
-        where 
+        where
         -- Name the (Haskell Land) argument.
         thisVarDec = (LabVarDeclaration (var, x) mex, n)
 exprGetVarDecs (LabNew ex, n) = exprGetVarDecs $ ex
