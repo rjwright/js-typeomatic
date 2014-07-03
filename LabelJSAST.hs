@@ -1,6 +1,4 @@
 
-------------------------------------------------------------------------------
-
 -- Module takes a JSAST and gives each vertex a unique integer label. The
 -- label counter is simply threaded through the tree. Traversal is depth
 -- first. It's all fairly straight-forward.
@@ -24,7 +22,6 @@ module LabelJSAST
 , label
 ) where
 
-------------------------------------------------------------------------------
 
 import ParseJS
 import System.Environment
@@ -170,6 +167,7 @@ labelJSASTList (a:ax) n =
 -- Label a Varialble.
 labelVariable :: Variable -> JSASTLabel -> VarChild
 labelVariable var n = (var, n + 1)
+
 
 -- Label a Maybe Variable if it is not Nothing.
 labelMaybeVar :: (Maybe Variable) -> JSASTLabel -> (Maybe VarChild)
@@ -323,6 +321,7 @@ labelExpression (New ex) n =
     ((LabNew field1), (childGetLabel field1) + 1)
     where
         field1 = labelExpression ex n
+
 
 -- Label a Maybe Expression if it is not Nothing.
 labelMaybeExpression :: (Maybe Expression) -> JSASTLabel -> (Maybe ExprChild)

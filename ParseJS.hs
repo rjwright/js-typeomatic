@@ -1,6 +1,4 @@
 
-------------------------------------------------------------------------------
-
 -- This module parses a JavaScript source file, using the
 -- language.javascript.Parser library for Haskell, then simplifies the parse
 -- tree to produce a more useful abstract syntax tree. The documentation for
@@ -29,7 +27,6 @@ module ParseJS
 , toJSAST
 ) where
 
-------------------------------------------------------------------------------
 
 import Control.Monad.State
 import Data.Functor.Identity
@@ -50,9 +47,11 @@ import Language.JavaScript.Parser (parse)
 import Language.JavaScript.Parser.AST
 import System.Environment
 
+
 type Variable = String
 type Index = Int
 type Operator = String
+
 
 -- A property of an object can have either a string or integer identifier.
 data PropertyName =
@@ -67,6 +66,7 @@ data PropertyName =
     | UnknownProperty
     | VariableProperty Variable deriving (Show)
 
+
 -- Represent literal values.
 data Value =
       JSArray [Expression]
@@ -80,6 +80,7 @@ data Value =
     | JSObject [Expression]
     | JSString String
     | JSUndefined deriving (Show)
+
 
 -- Represent source elements that can approximately be described as
 -- expressions. Initially this was for elements that appeared as expressions
@@ -109,6 +110,7 @@ data Expression =
     | UnaryPre Operator Expression
     | Value Value
     | VarDeclaration Variable (Maybe Expression) deriving (Show)
+
 
 -- Represent source elements which include a "block" or "body" and thus make
 -- logical non-terminal nodes for an abstract syntax tree.
@@ -143,6 +145,7 @@ data JSAST =
 jsnGetNode :: JSNode -> Node
 jsnGetNode (NS a _) = a
 
+
 -- Extract the Node from a JSNode and apply toJSAST.
 jsnToJSAST :: JSNode -> [JSAST]
 jsnToJSAST jsn = toJSAST . jsnGetNode $ jsn
@@ -158,19 +161,23 @@ parseTree program = (jsnGetNode . \(Right a) -> a) $ parse program "";
 astMap :: [JSNode] -> [JSAST]
 astMap jsnList = concat . map jsnToJSAST $ jsnList
 
+
 -- Extract a list or an expression in parens from a Statement.
 statementToListExp :: [JSAST] -> Expression
 statementToListExp [Statement (List list)] = List list
 statementToListExp [Statement (ParenExpression exp)] = ParenExpression exp
 
+
 statementToMaybeListExp :: [JSAST] -> Maybe Expression
 statementToMaybeListExp [] = Nothing
 statementToMaybeListExp list = Just . statementToListExp $ list
+
 
 -- Make an expression list or paren expression Statement from a JSNode and
 -- then extract the expression.
 jsnToListExp :: JSNode -> Expression
 jsnToListExp jsn = statementToListExp . jsnToJSAST $ jsn
+
 
 jsnToMaybeListExp :: [JSNode] -> Maybe Expression
 jsnToMaybeListExp jsnList = statementToMaybeListExp . astMap $ jsnList
@@ -194,10 +201,8 @@ toJSASTVarDeclaration (JSVarDecl name value) =
 -- Take a node in the parse tree output from language.javascript.Parser and
 -- make an abstract syntax tree.
 toJSAST :: Node -> [JSAST]
-------------------------------------------------------------------------------
 -- These ones return a proper list of JSASTs. (Haskell Land) Constructors
 -- which use one of these to fill a field must have a [JSAST] for that field.
-------------------------------------------------------------------------------
 toJSAST (JSSourceElementsTop topList) = astMap $ topList
 toJSAST (JSSourceElements elementsList) = astMap $ elementsList
 toJSAST (JSFunctionBody bodyList) = astMap $ bodyList
@@ -206,10 +211,9 @@ toJSAST (JSBlock jsnode) = jsnToJSAST $ jsnode
 toJSAST (JSStatementBlock item) = jsnToJSAST $ item
 toJSAST (JSVariables _ varDecs) =
     map (Statement . toJSASTVarDeclaration . jsnGetNode) $ varDecs
-------------------------------------------------------------------------------
 -- These ones always return singleton lists. (Haskell Land) Constructors
 -- which use only these to fill a field can have a JSAST for that field.
-------------------------------------------------------------------------------
+--
 -- A JSExpression contains a list of JSNodes, separated by <JSLiteral ','>.
 -- These need to be seperated (basically the <JSLiteral ','>s need to be
 -- stripped. My code to do that is kind of disgusting.
@@ -365,12 +369,12 @@ toJSAST x =
     ]
 
 ------------------------------------------------------------------------------
-
 -- ***********************************************************************
 -- These functions are used to process array literals. Elisions in array *
 -- literals are a bit of a pain in the butt. This code is kind of bad    *
 -- and took me an insane amount of time to write. Good luck.             *
 -- ***********************************************************************
+-- TODO: Find a better way to single these out (horizontal lines in code suck)
 
 -- Takes a representation of a JS array and produces a singleton list
 -- containing the next element, paired with the remainder of the array.
@@ -396,6 +400,7 @@ getSubarray ((JSElision _):rest) = getSubarray $ rest
 getSubarray (y:(JSElision e):rest) = ([y], ((JSElision e):rest))
 getSubarray (y:ys) = let (next, rest) = getSubarray $ ys in (y:(next), rest)
 
+
 -- Takes an array and makes a (Haskell Land) 2D array, one subarray per
 -- element of the (JS) array.
 arrayToSubarrays :: [Node] -> [[Node]]
@@ -403,6 +408,7 @@ arrayToSubarrays [] = []
 arrayToSubarrays ls =
     let (nextSub, rest) = getSubarray ls in
         ([nextSub] ++ (arrayToSubarrays rest))
+
 
 -- Takes a representation of a literal array from the output of
 -- language.javascript.Parser, deals with elisions at the start of the array,
@@ -416,16 +422,18 @@ jsArrayGetSubarray jsa =
             let (e, rest) = getLeadingElisions x
                 in (([JSIdentifier "undefined"]:e), rest)
         getLeadingElisions lst = ([], lst)
-
 ------------------------------------------------------------------------------
+
 
 -- Takes a list of JSNodes and makes an expression.
 mapListToExpression :: [JSNode] -> Expression
 mapListToExpression jsn = listToJSASTExpression . map jsnGetNode $ jsn
 
+
 mapListToMaybeExpression :: [JSNode] -> Maybe Expression
 mapListToMaybeExpression [] = Nothing
 mapListToMaybeExpression jsn = Just . mapListToExpression $ jsn
+
 
 -- Takes a list of Nodes and builds a single expression.
 listToJSASTExpression :: [Node] -> Expression
@@ -457,6 +465,7 @@ listToJSASTExpression list =
     else
         getJSASTCallExpression list
 
+
 -- Makes arguments from a list of lists of JSNodes that represent a list of
 -- arguments.
 toJSASTArguments :: [[JSNode]] -> Expression
@@ -477,6 +486,8 @@ isAssignment (l:ls) =
             | elem op ["=", "+=", "-=", "*=", "/=",
                 "%=", "<<=", ">>=", ">>>=", "&=", "^=", "|="] = True
         isAssigOp _ = False
+
+
 -- To handle messy assignments
 getJSASTAssignment :: [Node] -> Expression
 getJSASTAssignment list =
@@ -500,6 +511,8 @@ isParenCallExp list =
     where
         nodeIsParenCallExp (JSCallExpression "()" _) = True
         nodeIsParenCallExp _ = False
+
+
 -- To handle the case where the last element of the list is a
 -- (JSCallExpression "()" [JSArguments _]) I don't know if the second field
 -- can be anything other than a singleton list containing a JSArguments but
@@ -526,6 +539,8 @@ isCallExpression list =
         nodeIsCallExp (JSCallExpression "." _) = True
         nodeIsCallExp (JSCallExpression "[]" _) = True
         nodeIsCallExp _ = False
+
+
 -- To handle the case where the last element in the list is a
 -- (JSCallExpression "[]" whatever) or a (JSCallExpression "." whatever).
 --

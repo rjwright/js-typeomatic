@@ -1,6 +1,4 @@
 
-------------------------------------------------------------------------------
-
 -- This module generates type constraints (also called "type rules" or just
 -- "rules" throughout this program) from sections of a labelled AST that
 -- correspond to functions (i.e. scope levels). Type constraints are
@@ -31,10 +29,10 @@ module TypeRules
 , varDecMakeLabel
 ) where
 
-------------------------------------------------------------------------------
 
 import LabelJSAST
 import ParseJS
+
 
 -- NOTE FOR THIS MODULE:
 -- Try to preserve info about when a variable is an integer. E.g. if we have
@@ -131,6 +129,7 @@ data Type =
 -- A type rule (i.e. a type constraint)
 data Rule = Rule Type Type deriving (Show)
 
+
 -- GlobalLabel is for identifiers that are assigned without being declared, as
 -- doing so declares a global variable. IDLabel is for any identifier that can
 -- be assigned a unique label when it is declared.
@@ -138,14 +137,18 @@ data IdentifierLabel =
       GlobalLabel
     | IDLabel Int deriving (Show)
 
+
 -- An identifier with a name and a label
 data DeclaredIdentifier =
     DeclaredIdentifier Variable IdentifierLabel deriving (Show)
 
 ------------------------------------------------------------------------------
--- These functions ensure that the label used in making a unique
--- DeclaredIdentifier is consistent, as the DeclaredIdentifiers need to be
--- made more than once in some cases.
+-- ***************************************************************************
+-- These functions ensure that the label used in making a unique             *
+-- DeclaredIdentifier is consistent, as the DeclaredIdentifiers need to b    *
+-- made more than once in some cases.                                        *
+-- ***************************************************************************
+-- TODO: Move these into a module?
 funExprMakeLabel :: ExprChild -> (Maybe DeclaredIdentifier)
 funExprMakeLabel (LabFunctionExpression mv vls body, n) =
     maybeID mv n
@@ -154,26 +157,32 @@ funExprMakeLabel (LabFunctionExpression mv vls body, n) =
         maybeID (Just (ident, _)) x =
             Just (DeclaredIdentifier ident (IDLabel x))
 
+
 varDecMakeLabel :: ExprChild -> DeclaredIdentifier
 varDecMakeLabel (LabVarDeclaration (var, x) mex, n) =
     DeclaredIdentifier var (IDLabel n)
+
 
 funDecMakeLabel :: ASTChild -> DeclaredIdentifier
 funDecMakeLabel (LabFunctionDeclaration (fid, x) args body, n) =
     DeclaredIdentifier fid (IDLabel n)
 
+
 labelledMakeLabel :: ASTChild -> DeclaredIdentifier
 labelledMakeLabel (LabLabelled (var, x) body, n) =
     DeclaredIdentifier var (IDLabel n)
 
+
 argMakeLabel :: VarChild -> DeclaredIdentifier
 argMakeLabel (var, n) = DeclaredIdentifier var (IDLabel n)
-----------------------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------
+
 
 -- Extract the value (strip label) from a VarChild, ExprChild, ValueChild or
 -- ASTChild.
 childGetValue :: (a, JSASTLabel) -> a
 childGetValue (val, lab) = val
+
 
 -- Create a Meta type from the label on a VarChild, ExprChild, ValueChild or
 -- ASTChild.
@@ -185,6 +194,7 @@ childToMeta ch = Meta . childGetLabel $ ch
 maybeVarChildRules :: (Maybe VarChild) -> [DeclaredIdentifier] -> [Rule]
 maybeVarChildRules (Just vc) dIDs = varChildRules vc $ dIDs
 maybeVarChildRules Nothing _ = []
+
 
 -- Generate rules from a Maybe ExprChild
 maybeExprChildRules :: (Maybe ExprChild) -> [DeclaredIdentifier] -> [Rule]
@@ -199,12 +209,14 @@ mapVarChildRules var dIDs =
     where
         mapVarChildRules' v = varChildRules v dIDs
 
+
 -- Generate rules from an ExprChild list
 mapExprChildRules :: [ExprChild] -> [DeclaredIdentifier] -> [Rule]
 mapExprChildRules ex dIDs =
     concat . map mapExprChildRules' $ ex
     where
         mapExprChildRules' e = exprChildRules e dIDs
+
 
 -- Gernerate rules from an ASTChild list
 mapASTChildRules :: [ASTChild] -> [DeclaredIdentifier] -> [Rule]
@@ -213,11 +225,13 @@ mapASTChildRules ast dIDs =
     where
         mapASTChildRules' a = astChildRules a dIDs
 
+
 -- Generate rules from a VarChild.
 varChildRules :: VarChild -> [DeclaredIdentifier] -> [Rule]
 varChildRules (var, x) dIDs =
     [Rule (Meta x) (IdentifierType var (idGetLabel var dIDs))]
     ++ [Rule (IdentifierType var (idGetLabel var dIDs)) (Meta x)]
+
 
 -- Take a variable name and a list of declared identifiers and search the list
 -- for the variable name. If the name appears in the list, return the label it
@@ -229,6 +243,7 @@ idGetLabel variable ((DeclaredIdentifier v label):ds) =
         label
     else
         (idGetLabel variable ds)
+
 
 -- Generate rules from a value.
 valueChildRules :: ValueChild -> [DeclaredIdentifier] -> [Rule]
@@ -301,6 +316,7 @@ valueChildRules (LabArray elements, x) dIDs =
             elemTypeRules els ((elemTypeRule e i):elRules) (i + 1)
 valueChildRules (LabUndefined, x) dIDs = [Rule (Meta x) UndefType]
 valueChildRules (LabNull, x) dIDs = [Rule (Meta x) NullType]
+
 
 -- Generate rules from an expression.
 --
@@ -746,6 +762,7 @@ exprChildRules (LabNew (LabCall ex1 ex2, p), n) dIDs =
     where
         argsToMeta (LabArguments args, n) = map childToMeta args
 
+
 -- Remove the LabList wrapper on singleton lists and remove parentheses from
 -- expressions.
 --
@@ -756,6 +773,7 @@ removeUselessParenAndList (LabParenExpression ex, _) =
     removeUselessParenAndList $ ex
 removeUselessParenAndList ex = ex
 
+
 -- Return true if the expression is an integer literal.
 isIntLiteral :: ExprChild -> Bool
 -- This use of removeUselssParenAndList is fine.
@@ -765,6 +783,7 @@ isIntLiteral ex =
         isIntLiteral' (LabValue (LabInt i, _), _) = True
         isIntLiteral' _ = False
 
+
 -- Extract the actual integer value from an integer literal expression.
 getIntLiteral :: ExprChild -> Int
 -- This use of removeUselssParenAndList is fine.
@@ -772,6 +791,7 @@ getIntLiteral ex =
     getIntLiteral' . removeUselessParenAndList $ ex
     where
         getIntLiteral' (LabValue (LabInt i, _), _) = i
+
 
 -- Return true if the expression in a string literal.
 isStringLiteral :: ExprChild -> Bool
@@ -783,6 +803,7 @@ isStringLiteral ex =
         isStringLiteral' (LabValue (LabDQString s, _), _) = True
         isStringLiteral' _ = False
 
+
 -- Extract the actual string value from a string literal expression.
 getStringLiteral :: ExprChild -> String
 -- This use of removeUselssParenAndList is fine.
@@ -791,6 +812,7 @@ getStringLiteral ex =
     where
         getStringLiteral' (LabValue (LabString s, _), _) = s
         getStringLiteral' (LabValue (LabDQString s, _), _) = s
+
 
 -- Returns true if the ASTChild is a Statement containing an
 -- <Assignment "=" ex1 ex2>. False otherwise.
@@ -820,6 +842,7 @@ assignmentGetVar (LabStatement ex, _) =
     where
         assignmentGetVar' (LabAssignment _ var _, _) = var
 
+
 -- Return true if the expression is a reference to a property (this.something
 -- or this[something]). Return false otherwise.
 --
@@ -842,6 +865,7 @@ isPropertyReference (LabReference (LabIdentifier ("this", _),_) _, _) = True
 isPropertyReference (LabIndex (LabIdentifier ("this", _), _) _, _) = True
 isPropertyReference _ = False
 
+
 -- Return true if the AST represents a simple assignment expression on a
 -- property of 'this', false otherwise.
 isPropRefAssignment :: ASTChild -> Bool
@@ -854,6 +878,7 @@ isPropRefAssignment ast =
                 False
             else
                 (isPropertyReference . assignmentGetVar $ ast)
+
 
 -- Takes an expression which is a reference to a property and returns the name
 -- of the property paired with the type of its value.
@@ -871,6 +896,7 @@ getPropertyNameType (LabIndex (LabIdentifier (obj, _), _) prop, n) =
         [((VariableProperty . getStringLiteral $ prop), (Meta n))]
     else
         []
+
 
 -- Takes an ASTChild. If the ASTChild is a Statement containing an
 -- <Assignment "=" ex1 ex2>, and ex1 is a property (i.e. this.something),
@@ -895,6 +921,7 @@ getAssignedProperty ast =
     else
         []
 
+
 -- Check AST for references to properties (this.anything) which aren't in the
 -- list. If found return true. Else return false.
 --
@@ -911,6 +938,7 @@ hasUnassignedProps :: [ASTChild] -> [(PropertyName, Type)] -> Bool
 -- TODO: Implement
 hasUnassignedProps ast list = False
 
+
 -- If a statement in the block is a Return, or anything that has a Block field
 -- (except for a function declaration or a function expression) then we make a
 -- rule matching the type of the whole block to the type of that statment.
@@ -921,6 +949,7 @@ blockRules block n =
         getBlockRule (LabFunctionDeclaration _ _ _, _) = []
         getBlockRule (LabStatement _, _) = []
         getBlockRule (_, l) = [Rule (Meta n) (Meta l)]
+
 
 -- Finds the return type of a function body if it is type-safe. Makes a rule
 -- relating the type of the block to UndefType is the return type is not type
@@ -968,6 +997,7 @@ funBodyRules block n =
             isReturn (LabReturn _, _) = True
             isReturn _ = False
 
+
 -- Make a rule for the constructor type of a function body - the type of the
 -- function's result when it is instantiated.
 --
@@ -999,19 +1029,23 @@ constructorRules block n =
         (ObjectType (concat . map getAssignedProperty $ block))
     ]
 
+
 -- Make a rule for ASTs that have the same type as their body (a block)
 bodyRule :: ASTChild -> JSASTLabel -> Rule
 bodyRule body n = Rule (Meta n) (childToMeta $ body)
+
 
 -- Make a rule for expressions that have Boolean type
 boolRule :: ExprChild -> Rule
 boolRule (LabList ex, n) = Rule (childToMeta . last $ ex) BoolType
 boolRule ex = Rule (childToMeta $ ex) BoolType
 
+
 -- Make a list of rules from a Maybe ExprChild of Boolean type.
 maybeBoolRule :: (Maybe ExprChild) -> [Rule]
 maybeBoolRule (Just t) = [boolRule $ t]
 maybeBoolRule Nothing = []
+
 
 -- Generate rules from an AST
 astChildRules :: ASTChild -> [DeclaredIdentifier] -> [Rule]
