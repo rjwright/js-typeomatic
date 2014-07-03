@@ -15,25 +15,25 @@
 -- added to the tree as the tree is built.
 
  module DeclarationGraph
-( ParentFunction(..)
-, IdentifierLabel
+( CleanedElement (..)
+, CleanedRules (..)
+, FunctionExpressionRules(..)
 , FunctionIdentifier(..)
 , FunctionRules(..)
-, FunctionExpressionRules(..)
-, CleanedRules (..)
-, CleanedElement (..)
+, IdentifierLabel
+, ParentFunction(..)
+, cleanFunction
+, cleanFunctionRules
 , getDeclarationGraph
 , graphGetAllRules
-, cleanFunctionRules
-, cleanFunction
 ) where
 
 --------------------------------------------------------------------------------
 
-import           LabelJSAST
-import           ParseJS
-import           System.Environment
-import           TypeRules
+import LabelJSAST
+import ParseJS
+import System.Environment
+import TypeRules
 
 -- The main reason for carting one of these around for every node in the
 -- declaration graph was so that I could use it to make the call graph.

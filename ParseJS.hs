@@ -13,60 +13,73 @@
 -- This file contains some old code from Shane's proof of concept (I hardly knew
 -- Haskell at that point) that should be reviewed.
 --
+-- Top level function is (toJSAST . parseTree)
+--
 -- I will add more comments to this file if I get time.
 
 module ParseJS
-( parseTree
-, toJSAST
-, Variable
+( Expression(..)
 , Index
+, JSAST(..)
 , Operator
 , PropertyName(..)
 , Value(..)
-, Expression(..)
-, JSAST(..)
+, Variable
+, parseTree
+, toJSAST
 ) where
 
 --------------------------------------------------------------------------------
 
-import           Control.Monad.State
-import           Data.Functor.Identity
-import           Data.List                      (delete, find, intercalate, nub,
-                                                 (\\))
-import           Data.Maybe                     (catMaybes, fromJust, isJust,
-                                                 mapMaybe)
-import           Language.JavaScript.Parser     (parse)
-import           Language.JavaScript.Parser.AST
-import           System.Environment
+import Control.Monad.State
+import Data.Functor.Identity
+import Data.List
+    ( delete
+    , find
+    , intercalate
+    , nub
+    ,(\\)
+    )
+import Data.Maybe
+    ( catMaybes
+    , fromJust
+    , isJust
+    , mapMaybe
+    )
+import Language.JavaScript.Parser (parse)
+import Language.JavaScript.Parser.AST
+import System.Environment
 
 type Variable = String
 type Index = Int
 type Operator = String
 
 -- A property of an object can have either a string or integer identifier.
-data PropertyName = VariableProperty Variable
-            | IndexProperty Index
-            -- This is only used in the TypeRules module. It is used when
-            -- an object or array is indexed using a variable insead of a
-            -- string or integer literal. In that case either the thing
-            -- being indexed is an array and we don't care about the value
-            -- of the index, or the thing being referenced is an object, in
-            -- which case it will have AmbiguousType anyway because of the
-            -- non-literal index.
-            | UnknownProperty deriving (Show)
+data PropertyName =
+      IndexProperty Index
+    -- This is only used in the TypeRules module. It is used when
+    -- an object or array is indexed using a variable insead of a
+    -- string or integer literal. In that case either the thing
+    -- being indexed is an array and we don't care about the value
+    -- of the index, or the thing being referenced is an object, in
+    -- which case it will have AmbiguousType anyway because of the
+    -- non-literal index.
+    | UnknownProperty
+    | VariableProperty Variable deriving (Show)
 
 -- Represent literal values.
-data Value = JSInt Int
-            | JSFloat Double
-            | JSString String
-            | JSBool Bool
-            -- Double quote strings. Never treated differently to normal
-            -- strings. Should be merged. TODO
-            | JSDQString String
-            | JSObject [Expression]
-            | JSArray [Expression]
-            | JSUndefined
-            | JSNull deriving (Show)
+data Value =
+      JSArray [Expression]
+    | JSBool Bool
+    -- Double quote strings. Never treated differently to normal
+    -- strings. Should be merged. TODO
+    | JSDQString String
+    | JSFloat Double
+    | JSInt Int
+    | JSNull
+    | JSObject [Expression]
+    | JSString String
+    | JSUndefined deriving (Show)
 
 -- Represent source elements that can approximately be described as expressions.
 -- Initially this was for elements that appeared as expressions in the output
@@ -74,27 +87,28 @@ data Value = JSInt Int
 -- it made sense.
 --
 -- None of these contain JSAST fields except for FunctionExpression.
-data Expression = List [Expression]
-            | Binary Operator Expression Expression
-            | UnaryPost Operator Expression
-            | UnaryPre Operator Expression
-            | Ternary Expression Expression Expression
-            | Assignment Operator Expression Expression
-            | Identifier Variable
-            | Reference Expression Expression
-            | Index Expression Expression
-            | Value Value
-            | PropNameValue PropertyName Expression
-            | Call Expression Expression
-            | Arguments [Expression]
-            | ParenExpression Expression
-            | Break (Maybe Variable)
-            | Continue (Maybe Variable)
-            | Throw Expression
-            | CallExpression Expression Operator Expression
-            | FunctionExpression (Maybe Variable) [Variable] JSAST
-            | VarDeclaration Variable (Maybe Expression)
-            | New Expression deriving (Show)
+data Expression =
+      Arguments [Expression]
+    | Assignment Operator Expression Expression
+    | Binary Operator Expression Expression
+    | Break (Maybe Variable)
+    | Call Expression Expression
+    | CallExpression Expression Operator Expression
+    | Continue (Maybe Variable)
+    | FunctionExpression (Maybe Variable) [Variable] JSAST
+    | Identifier Variable
+    | Index Expression Expression
+    | List [Expression]
+    | New Expression
+    | ParenExpression Expression
+    | PropNameValue PropertyName Expression
+    | Reference Expression Expression
+    | Ternary Expression Expression Expression
+    | Throw Expression
+    | UnaryPost Operator Expression
+    | UnaryPre Operator Expression
+    | Value Value
+    | VarDeclaration Variable (Maybe Expression) deriving (Show)
 
 -- Represent source elements which include a "block" or "body" and thus make
 -- logical non-terminal nodes for an abstract syntax tree.
@@ -102,35 +116,27 @@ data Expression = List [Expression]
 -- Also includes a type for return expressions (Return) and a wrapper for
 -- instances of the Expression data type (Statement). I'm not sure how or why
 -- that happened, but I'm sure there was an excellent reason.
-data JSAST = Block [JSAST]
-            | FunctionBody [JSAST]
-            | FunctionDeclaration Variable [Variable] JSAST
-            | Labelled Variable JSAST
-            | ForVar [Expression] (Maybe Expression) (Maybe Expression) JSAST
-            | For (Maybe Expression) (Maybe Expression) (Maybe Expression) JSAST
-            | ForIn [Variable] Expression JSAST
-            | ForVarIn Expression Expression JSAST
-            | While Expression JSAST
-            | DoWhile JSAST Expression
-            | If Expression JSAST
-            | IfElse Expression JSAST JSAST
-            | Switch Expression JSAST
-            | Case Expression JSAST
-            | Default JSAST
-            | Try JSAST JSAST
-            | Catch Variable (Maybe Expression) JSAST
-            | Finally JSAST
-            | Return Expression
-            | Statement Expression deriving (Show)
-
-
-
--- main :: IO ()
--- main = do
---    (infile:[]) <- getArgs
---    pr <- readFile infile
---    putStrLn . show . parseTree $ pr
---    putStrLn . show . toJSAST . parseTree $ pr
+data JSAST =
+      Block [JSAST]
+    | Case Expression JSAST
+    | Catch Variable (Maybe Expression) JSAST
+    | Default JSAST
+    | DoWhile JSAST Expression
+    | Finally JSAST
+    | For (Maybe Expression) (Maybe Expression) (Maybe Expression) JSAST
+    | ForIn [Variable] Expression JSAST
+    | ForVar [Expression] (Maybe Expression) (Maybe Expression) JSAST
+    | ForVarIn Expression Expression JSAST
+    | FunctionBody [JSAST]
+    | FunctionDeclaration Variable [Variable] JSAST
+    | If Expression JSAST
+    | IfElse Expression JSAST JSAST
+    | Labelled Variable JSAST
+    | Return Expression
+    | Statement Expression
+    | Switch Expression JSAST
+    | Try JSAST JSAST
+    | While Expression JSAST deriving (Show)
 
 
 -- Extract the Node from a JSNode.
@@ -177,9 +183,11 @@ identifierGetString (JSIdentifier jsid) = jsid
 
 -- Make representations of variable declarations in AST.
 toJSASTVarDeclaration :: Node -> Expression
-toJSASTVarDeclaration (JSVarDecl name []) = VarDeclaration (identifierGetString $ jsnGetNode name) Nothing
-toJSASTVarDeclaration (JSVarDecl name value) = VarDeclaration
-        (identifierGetString $ jsnGetNode name) (Just (mapListToExpression $ value))
+toJSASTVarDeclaration (JSVarDecl name []) =
+    VarDeclaration (identifierGetString $ jsnGetNode name) Nothing
+toJSASTVarDeclaration (JSVarDecl name value) =
+    VarDeclaration (identifierGetString $ jsnGetNode name) $
+        (Just (mapListToExpression $ value))
 
 
 -- Take a node in the parse tree output from language.javascript.Parser and make
@@ -203,21 +211,26 @@ toJSAST (JSVariables _ varDecs) = map (Statement . toJSASTVarDeclaration . jsnGe
 -- A JSExpression contains a list of JSNodes, separated by <JSLiteral ','>. These
 -- need to be seperated (basically the <JSLiteral ','>s need to be stripped. My
 -- code to do that is kind of disgusting.
-toJSAST (JSExpression jsnList) = [Statement . List $ (map
-        (listToJSASTExpression)
+toJSAST (JSExpression jsnList) =
+    [Statement . List $ (map (listToJSASTExpression)
         (jsExpGetSublists (map jsnGetNode jsnList)))]
-        where
+    where
         -- This could be improved. TODO
-            jsExpGetSublists [] = []
-            jsExpGetSublists [item] = [[item]]
-            jsExpGetSublists ls = let (nextSub, rest) = getSublist ls in ([nextSub] ++ (jsExpGetSublists rest))
-            getSublist [] = ([], [])
-            getSublist [item] = ([item], [])
-            getSublist ((JSLiteral ","):rest) = ([], rest)
-            getSublist (y:ys) = let (next, rest) = getSublist ys in (y:(next), rest)
-toJSAST (JSFunction name inputs body) = [FunctionDeclaration (identifierGetString . jsnGetNode $ name)
-        (map (identifierGetString . jsnGetNode) inputs) (FunctionBody . jsnToJSAST $ body)]
-toJSAST (JSLabelled label body) = [Labelled (identifierGetString . jsnGetNode $ label) (Block . jsnToJSAST $ body)]
+        jsExpGetSublists [] = []
+        jsExpGetSublists [item] = [[item]]
+        jsExpGetSublists ls = let (nextSub, rest) = getSublist ls in ([nextSub] ++ (jsExpGetSublists rest))
+        getSublist [] = ([], [])
+        getSublist [item] = ([item], [])
+        getSublist ((JSLiteral ","):rest) = ([], rest)
+        getSublist (y:ys) = let (next, rest) = getSublist ys in (y:(next), rest)
+toJSAST (JSFunction name inputs body) =
+    [FunctionDeclaration
+        (identifierGetString . jsnGetNode $ name)
+        (map (identifierGetString . jsnGetNode) inputs)
+        (FunctionBody . jsnToJSAST $ body)]
+toJSAST (JSLabelled label body) =
+    [Labelled (identifierGetString . jsnGetNode $ label)
+        (Block . jsnToJSAST $ body)]
 toJSAST (JSBreak [] _) = [Statement . Break $ Nothing]
 toJSAST (JSBreak [label] _) = [Statement . Break . Just . identifierGetString . jsnGetNode $ label]
 toJSAST (JSContinue [item]) = [Statement . Continue $ Nothing]
