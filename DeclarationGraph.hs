@@ -569,6 +569,8 @@ exprGetFunExprRules (LabIndex ex1 ex2, n) parent dIDs =
 --
 -- TODO: Is this already done in the code that handles values?
 --
+-- FIXME: What is going on here vv
+--
 -- exprGetFunExprRules (LabValue (LabOjbect ex, r), n) parent dIDs = []
 -- exprGetFunExprRules (LabValue (LabArray ex, r), n) parent dIDs = []
 exprGetFunExprRules (LabValue val, n) parent dIDs =
