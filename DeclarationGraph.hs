@@ -1,6 +1,4 @@
 
---------------------------------------------------------------------------------
-
 -- This module maps the scope tree of the input JavaScript and assigns
 -- unambiguous labels to all identifiers. Each node in the scope tree represents
 -- a function or a function expression and includes the function's identifier,
@@ -16,6 +14,8 @@
 
  module DeclarationGraph
 ( CleanedElement (..)
+, CleanedFunction
+, CleanedFunctionRules (..)
 , CleanedRules (..)
 , FunctionExpressionRules(..)
 , FunctionIdentifier(..)
@@ -28,7 +28,6 @@
 , graphGetAllRules
 ) where
 
---------------------------------------------------------------------------------
 
 import LabelJSAST
 import ParseJS

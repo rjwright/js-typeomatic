@@ -29,30 +29,45 @@ import System.Environment
 -- A type for the labels.
 type JSASTLabel = Int
 
+
 -- A Variable and a label.
 type VarChild = (Variable, JSASTLabel)
+
+
 -- An Operator and a label.
 type OpChild = (Operator, JSASTLabel)
+
+
 -- An Index and a label.
 type IndexChild = (Index, JSASTLabel)
+
+
 -- A VarChild or IndexChild wrapped in a LabelledPropertyName, and a label.
 -- Added long after the original code was written.
 --
 -- TODO: Test.
 type PropertyNameChild = (LabelledPropertyName, JSASTLabel)
+
+
 -- A value wrapped as a LabelledValue, and a label.
 -- Most LabelledValues contain only the value and no label.
 type ValueChild = (LabelledValue, JSASTLabel)
+
+
 -- A LabelledExpression (which is a labelled subtree) and a label.
 type ExprChild = (LabelledExpression, JSASTLabel)
+
+
 -- A LabelledJSAST (which is a labelled subree) an a label.
 type ASTChild = (LabelledJSAST, JSASTLabel)
+
 
 -- A wrapper for a VarChild or IndexChild that identifies it as a name for a
 -- an object property.
 data LabelledPropertyName =
       LabIndexProperty IndexChild
     | LabVariableProperty VarChild deriving (Show)
+
 
 -- A labelled representation of a literal.
 -- LabelledValues representing primitives contain only the value and no label.
@@ -68,6 +83,7 @@ data LabelledValue =
     | LabObject [ExprChild]
     | LabString String
     | LabUndefined deriving (Show)
+
 
 -- FIXME: Some of these contain Maybe *Child values. "Nothing" has no label.
 -- Is that a problem?
@@ -96,6 +112,7 @@ data LabelledExpression =
     | LabUnaryPre OpChild ExprChild
     | LabValue ValueChild
     | LabVarDeclaration VarChild (Maybe ExprChild) deriving (Show)
+
 
 -- A recursively labelled subrtree, rooted at a LabelledJSAST.
 data LabelledJSAST =
