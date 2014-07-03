@@ -1,5 +1,6 @@
 
 ------------------------------------------------------------------------------
+
 -- Module takes a JSAST and gives each vertex a unique integer label. The
 -- label counter is simply threaded through the tree. Traversal is depth
 -- first. It's all fairly straight-forward.
@@ -352,7 +353,7 @@ labelJSAST (FunctionDeclaration var args body) n =
         field2 = labelVarList args (childGetLabel field1)
         field3 =
             labelJSAST
-                body $
+                body
                 (maximum ((listGetLabels field2) ++ [childGetLabel field1]))
 labelJSAST (Labelled var body) n =
     ((LabLabelled field1 field2), (childGetLabel $ field2) + 1)
@@ -365,14 +366,15 @@ labelJSAST (ForVar ex1 ex2 ex3 body) n =
         field1 = labelExpressionList ex1 n
         field2 =
             labelMaybeExpression
-                ex2 $ (maximum ((listGetLabels field1) ++ [n]))
+                ex2
+                (maximum ((listGetLabels field1) ++ [n]))
         field3 =
             labelMaybeExpression
-                ex3 $
+                ex3
                 (maximum ((listGetLabels field1) ++ [maxMaybeLabel field2 n]))
         field4 =
             labelJSAST
-                body $
+                body
                 (maximum
                     ((listGetLabels field1)
                     ++ [maxMaybeLabel field2 n]
@@ -384,11 +386,11 @@ labelJSAST (For ex1 ex2 ex3 body) n =
         field2 = labelMaybeExpression ex2 (maxMaybeLabel field1 n)
         field3 =
             labelMaybeExpression
-                ex3 $
+                ex3
                 (max (maxMaybeLabel field1 n) (maxMaybeLabel field2 n))
         field4 =
             labelJSAST
-                body $
+                body
                 (maximum
                     ([maxMaybeLabel field1 n]
                     ++ [maxMaybeLabel field2 n]
