@@ -45,7 +45,7 @@ main = do
     --
     -- TODO: Experiment with keeping JS code snippets in the tree and printing
     -- them here.
-    -- mapPrintASTChild (makeLabelledJSAST pr) (makeIndent "") False
+    mapPrintASTChild (makeLabelledJSAST pr) (makeIndent "") False
 
     -- Prints the original AST without labels.
     --
