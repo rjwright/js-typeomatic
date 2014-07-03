@@ -113,7 +113,7 @@ data Type =
     | NumType
     -- An ObjectType contains a list of properties.
     --
-    -- TODO: add more comments on this when you remember WTF is going on.
+    -- TODO: add more comments on this when you remember what is going on.
     | ObjectType [(PropertyName, Type)]
     -- For expressions that contain + or +=.
     | PlusType Type Type
