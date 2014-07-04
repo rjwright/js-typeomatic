@@ -9,8 +9,7 @@
 -- Top level function is (toJSAST . parseTree)
 --
 -- TODO: Does this file need more comments?
---
--- TODO: Decide how to format data structure "instances"
+
 
 module ParseJS
 ( Expression(..)
@@ -141,18 +140,18 @@ jsnGetNode (NS a _) = a
 
 -- Extract the Node from a JSNode and apply toJSAST.
 jsnToJSAST :: JSNode -> [JSAST]
-jsnToJSAST jsn = toJSAST . jsnGetNode $ jsn
+jsnToJSAST jsn = toJSAST $ jsnGetNode jsn
 
 
 -- Parse JavaScript source code.
 parseTree :: String -> Node
-parseTree program = (jsnGetNode . \(Right a) -> a) $ parse program "";
+parseTree program = jsnGetNode $ (\(Right a) -> a) $ parse program "";
 
 
 -- Most Nodes have a [JSNode] field. astMap applies toJSAST to the Node field of each JSNode in such
 -- a list, putting the results in a new list
 astMap :: [JSNode] -> [JSAST]
-astMap jsnList = concat . map jsnToJSAST $ jsnList
+astMap jsnList = concat $ map jsnToJSAST jsnList
 
 
 -- Extract a list or an expression in parens from a Statement.
@@ -163,17 +162,17 @@ statementToListExp [Statement (ParenExpression exp)] = ParenExpression exp
 
 statementToMaybeListExp :: [JSAST] -> Maybe Expression
 statementToMaybeListExp [] = Nothing
-statementToMaybeListExp list = Just . statementToListExp $ list
+statementToMaybeListExp list = Just $ statementToListExp list
 
 
 -- Make an expression list or paren expression Statement from a JSNode and then extract the
 -- expression.
 jsnToListExp :: JSNode -> Expression
-jsnToListExp jsn = statementToListExp . jsnToJSAST $ jsn
+jsnToListExp jsn = statementToListExp $ jsnToJSAST jsn
 
 
 jsnToMaybeListExp :: [JSNode] -> Maybe Expression
-jsnToMaybeListExp jsnList = statementToMaybeListExp . astMap $ jsnList
+jsnToMaybeListExp jsnList = statementToMaybeListExp $ astMap jsnList
 
 
 -- Extract the String value from a JSIdentifier
@@ -184,15 +183,13 @@ identifierGetString (JSIdentifier jsid) = jsid
 -- Make representations of variable declarations in AST.
 toJSASTVarDeclaration :: Node -> Expression
 toJSASTVarDeclaration (JSVarDecl name []) =
-    -- FORMATTING: Tree
     VarDeclaration
         (identifierGetString $ jsnGetNode name)
         Nothing
 toJSASTVarDeclaration (JSVarDecl name value) =
-    -- FORMATTING: TREE
     VarDeclaration
         (identifierGetString $ jsnGetNode name)
-        (Just (mapListToExpression $ value))
+        (Just $ mapListToExpression value)
 
 
 -- Take a node in the parse tree output from language.javascript.Parser and make an abstract syntax
@@ -200,13 +197,13 @@ toJSASTVarDeclaration (JSVarDecl name value) =
 toJSAST :: Node -> [JSAST]
 -- These ones return a proper list of JSASTs. (Haskell Land) Constructors which use one of these to
 -- fill a field must have a [JSAST] for that field.
-toJSAST (JSSourceElementsTop topList) = astMap $ topList
-toJSAST (JSSourceElements elementsList) = astMap $ elementsList
-toJSAST (JSFunctionBody bodyList) = astMap $ bodyList
-toJSAST (JSStatementList statList) = astMap $ statList
-toJSAST (JSBlock jsnode) = jsnToJSAST $ jsnode
-toJSAST (JSStatementBlock item) = jsnToJSAST $ item
-toJSAST (JSVariables _ varDecs) = map (Statement . toJSASTVarDeclaration . jsnGetNode) $ varDecs
+toJSAST (JSSourceElementsTop topList) = astMap topList
+toJSAST (JSSourceElements elementsList) = astMap elementsList
+toJSAST (JSFunctionBody bodyList) = astMap bodyList
+toJSAST (JSStatementList statList) = astMap statList
+toJSAST (JSBlock jsnode) = jsnToJSAST jsnode
+toJSAST (JSStatementBlock item) = jsnToJSAST item
+toJSAST (JSVariables _ varDecs) = map (Statement . toJSASTVarDeclaration . jsnGetNode) varDecs
 -- These ones always return singleton lists. (Haskell Land) Constructors which use only these to
 -- fill a field can have a JSAST for that field.
 --
@@ -214,11 +211,8 @@ toJSAST (JSVariables _ varDecs) = map (Statement . toJSASTVarDeclaration . jsnGe
 -- seperated (basically the <JSLiteral ','>s need to be stripped. My code to do that is kind of
 -- disgusting.
 toJSAST (JSExpression jsnList) =
-    -- FORMATTING: Tree
     [Statement
-        . List
-        $ (map (listToJSASTExpression)
-        $ (jsExpGetSublists (map jsnGetNode jsnList)))
+        (List (map listToJSASTExpression (jsExpGetSublists $ map jsnGetNode jsnList)))
     ]
     where
         -- TODO: This could be improved.
@@ -229,141 +223,138 @@ toJSAST (JSExpression jsnList) =
         getSublist [] = ([], [])
         getSublist [item] = ([item], [])
         getSublist ((JSLiteral ","):rest) = ([], rest)
-        getSublist (y:ys) =
-            let (next, rest) = getSublist ys in (y:(next), rest)
+        getSublist (y:ys) = let (next, rest) = getSublist ys in (y:(next), rest)
 toJSAST (JSFunction name inputs body) =
-    -- FORMATTING: Tree
     [FunctionDeclaration
-        (identifierGetString . jsnGetNode $ name)
+        (identifierGetString $ jsnGetNode name)
         (map (identifierGetString . jsnGetNode) inputs)
-        (FunctionBody . jsnToJSAST $ body)
+        (FunctionBody (jsnToJSAST body))
     ]
 toJSAST (JSLabelled label body) =
     [Labelled
-        (identifierGetString . jsnGetNode $ label)
-        (Block . jsnToJSAST $ body)
+        (identifierGetString $ jsnGetNode label)
+        (Block (jsnToJSAST body))
     ]
 toJSAST (JSBreak [] _) =
     [Statement
-        . Break $ Nothing
+        (Break Nothing)
     ]
 toJSAST (JSBreak [label] _) =
     [Statement
-        . Break . Just . identifierGetString . jsnGetNode $ label
+        (Break (Just $ identifierGetString $ jsnGetNode label))
     ]
 toJSAST (JSContinue [item]) =
     [Statement
-        . Continue $ Nothing
+        (Continue Nothing)
     ]
 toJSAST (JSContinue [label, semi]) =
     [Statement
-        . Continue . Just . identifierGetString . jsnGetNode $ label
+        (Continue (Just $ identifierGetString $ jsnGetNode label))
     ]
 toJSAST (JSThrow expr) =
     [Statement
-        . Throw . toJSASTExpression . jsnGetNode $ expr
+        (Throw (toJSASTExpression $ jsnGetNode expr))
     ]
     where
-        toJSASTExpression (JSExpression ex) = mapListToExpression $ ex
+        toJSASTExpression (JSExpression ex) = mapListToExpression ex
 -- JSForVar occurs in the case that variables are declared in the loop statement, multiple
 -- predicates and multiple counter operations.
 toJSAST (JSForVar vars test count body) =
-    -- FORMATTING: Tree
     [ForVar
-        (map (toJSASTVarDeclaration . jsnGetNode) $ vars)
-        (jsnToMaybeListExp $ test)
-        (jsnToMaybeListExp $ count)
-        (Block . jsnToJSAST $ body)
+        (map (toJSASTVarDeclaration . jsnGetNode) vars)
+        (jsnToMaybeListExp test)
+        (jsnToMaybeListExp count)
+        (Block (jsnToJSAST body))
     ]
 -- JSFor occurs when no varibles are declared in the loop (although they may be re-assigned),
 -- multiple predicates and multiple counter operations
 toJSAST (JSFor vars test count body) =
     [For
-        (jsnToMaybeListExp $ vars)
-        (jsnToMaybeListExp $ test)
-        (jsnToMaybeListExp $ count)
-        (Block . jsnToJSAST $ body)
+        (jsnToMaybeListExp vars)
+        (jsnToMaybeListExp test)
+        (jsnToMaybeListExp count)
+        (Block (jsnToJSAST body))
     ]
 -- JSForIn occurs when no variables are declared inside the for statement, and the loop iterates
 -- over some object (e.g. an array)
 toJSAST (JSForIn vars obj body) =
     [ForIn
-        (map (identifierGetString . jsnGetNode) $ vars)
-        (jsnToListExp $ obj)
-        (Block . jsnToJSAST $ body)
+        (map (identifierGetString . jsnGetNode) vars)
+        (jsnToListExp obj)
+        (Block (jsnToJSAST body))
     ]
 -- JSForVarIn occurs when variables are declared inside the for statement and the loop iterates over
 -- some object (e.g. an array)
 toJSAST (JSForVarIn var obj body) =
     [ForVarIn
-        (toJSASTVarDeclaration . jsnGetNode $ var)
-        (jsnToListExp $ obj)
-        (Block . jsnToJSAST $ body)
+        (toJSASTVarDeclaration $ jsnGetNode var)
+        (jsnToListExp obj)
+        (Block (jsnToJSAST body))
     ]
 toJSAST (JSWhile test body) =
     [While
-        (jsnToListExp $ test)
-        (Block . jsnToJSAST $ body)
+        (jsnToListExp test)
+        (Block (jsnToJSAST body))
     ]
 -- TODO: Look at the parser source and find out what "something" actually is
 toJSAST (JSDoWhile body test something) =
     [DoWhile
-        (Block . jsnToJSAST $ body)
-        (jsnToListExp $ test)
+        (Block (jsnToJSAST body))
+        (jsnToListExp test)
     ]
 toJSAST (JSIf test body) =
     [If
-        (jsnToListExp $ test)
-        (Block . jsnToJSAST $ body)
+        (jsnToListExp test)
+        (Block (jsnToJSAST body))
     ]
 toJSAST (JSIfElse test trueBody falseBody) =
     [IfElse
-        (jsnToListExp $ test)
-        (Block . jsnToJSAST $ trueBody)
-        (Block . jsnToJSAST $ falseBody)
+        (jsnToListExp test)
+        (Block (jsnToJSAST trueBody))
+        (Block (jsnToJSAST falseBody))
     ]
 toJSAST (JSSwitch var cases) =
     [Switch
-        (jsnToListExp $ var)
-        (Block . concat . map (jsnToJSAST) $ cases)
+        (jsnToListExp var)
+        (Block (concat $ map jsnToJSAST cases))
     ]
 toJSAST (JSCase cs body) =
     [Case
-        (jsnToListExp $ cs)
-        (Block . jsnToJSAST $ body)
+        (jsnToListExp cs)
+        (Block (jsnToJSAST body))
     ]
 toJSAST (JSDefault body) =
     [Default
-        (Block . jsnToJSAST $ body)
+        (Block (jsnToJSAST body))
     ]
-toJSAST (JSTry body catch) =
+toJSAST (JSTry body catchClause) =
     [Try
-        (Block . jsnToJSAST $ body)
-        (Block . astMap $ catch)
+        (Block (jsnToJSAST body))
+        (Block (astMap catchClause))
     ]
 toJSAST (JSCatch var test body) =
     [Catch
-        (identifierGetString . jsnGetNode $ var)
-        (mapListToMaybeExpression $ test)
-        (Block . jsnToJSAST $ body)
+        (identifierGetString $ jsnGetNode var)
+        (mapListToMaybeExpression test)
+        (Block (jsnToJSAST body))
     ]
 toJSAST (JSFinally body) =
     [Finally
-        (Block . jsnToJSAST $ body)
+        (Block (jsnToJSAST body))
     ]
 toJSAST (JSReturn [item]) =
     [Return
-        . Value $ JSUndefined
+        (Value JSUndefined)
     ]
 toJSAST (JSReturn [val, semi]) =
     [Return
-        . jsnToListExp $ val
+        (jsnToListExp val)
     ]
 -- TODO: Not 100% sure that this is safe.
 toJSAST (JSLiteral ";") = []
 toJSAST x =
     [Statement
-        . makeJSASTExpression $ x
+        (makeJSASTExpression x)
     ]
 
 ----------------------------------------------------------------------------------------------------
@@ -390,10 +381,10 @@ getSubarray [item] = ([item], [])
 getSubarray ((JSElision _):(JSElision e):rest) =
     ([(JSIdentifier "undefined")], ((JSElision e):rest))
 -- One elision and then a non-elision entry indicates a comma seperator and then the entry.
-getSubarray ((JSElision _):rest) = getSubarray $ rest
+getSubarray ((JSElision _):rest) = getSubarray rest
 -- An entry and then an elision and then another entry. The elision is a seperator.
 getSubarray (y:(JSElision e):rest) = ([y], ((JSElision e):rest))
-getSubarray (y:ys) = let (next, rest) = getSubarray $ ys in (y:(next), rest)
+getSubarray (y:ys) = let (next, rest) = getSubarray ys in (y:(next), rest)
 
 
 -- Takes an array and makes a (Haskell Land) 2D array, one subarray per element of the (JS) array.
@@ -417,12 +408,12 @@ jsArrayGetSubarray jsa =
 
 -- Takes a list of JSNodes and makes an expression.
 mapListToExpression :: [JSNode] -> Expression
-mapListToExpression jsn = listToJSASTExpression . map jsnGetNode $ jsn
+mapListToExpression jsn = listToJSASTExpression $ map jsnGetNode jsn
 
 
 mapListToMaybeExpression :: [JSNode] -> Maybe Expression
 mapListToMaybeExpression [] = Nothing
-mapListToMaybeExpression jsn = Just . mapListToExpression $ jsn
+mapListToMaybeExpression jsn = Just $ mapListToExpression jsn
 
 
 -- Takes a list of Nodes and builds a single expression.
@@ -438,14 +429,14 @@ listToJSASTExpression [(JSUnary operator), (JSDecimal x)]
 -- FIXME: This is ugly. Can I abstract these operators away?
 listToJSASTExpression ((JSUnary operator):x)
     | elem operator ["-", "+", "--", "++", "!", "typeof ", "delete ", "~"] =
-        -- FORMATTING: Flat
-        UnaryPre operator (listToJSASTExpression x)
-listToJSASTExpression ((JSLiteral "new "):x) = New . listToJSASTExpression $ x
+        UnaryPre
+            operator
+            (listToJSASTExpression x)
+listToJSASTExpression ((JSLiteral "new "):x) = New (listToJSASTExpression x)
 listToJSASTExpression [x, (JSArguments args)] =
-    --  FORMATTING: Tree
     Call
-        (makeJSASTExpression $ x)
-        (toJSASTArguments $ args)
+        (makeJSASTExpression x)
+        (toJSASTArguments args)
 listToJSASTExpression list =
     if (isAssignment list) then
         getJSASTAssignment list
@@ -460,8 +451,8 @@ toJSASTArguments :: [[JSNode]] -> Expression
 toJSASTArguments args =
     Arguments (map getJSASTArgument args)
     where
-        getJSASTArgument [item] = makeJSASTExpression . jsnGetNode $ item
-        getJSASTArgument nodes = mapListToExpression $ nodes
+        getJSASTArgument [item] = makeJSASTExpression $ jsnGetNode item
+        getJSASTArgument nodes = mapListToExpression nodes
 
 
 -- Determine whether the list of Nodes is an assignment
@@ -510,11 +501,11 @@ isParenCallExp list =
 getJSASTCall :: [Node] -> Expression
 getJSASTCall list =
     Call
-        (listToJSASTExpression . init $ list)
-        (lastGetArgs . last $ list)
+        (listToJSASTExpression $ init list)
+        (lastGetArgs $ last list)
     where
         lastGetArgs (JSCallExpression "()" [args]) =
-            getArgs . jsnGetNode $ args
+            getArgs $ jsnGetNode args
         getArgs (JSArguments ar) = toJSASTArguments ar
 
 
@@ -536,15 +527,14 @@ isCallExpression list =
 -- callExpression is
 getJSASTCallExpression :: [Node] -> Expression
 getJSASTCallExpression list =
-    -- FORMATTING: Tree
-    let (op, ex) = callExp . last $ list in
+    let (op, ex) = callExp $ last list in
         CallExpression
-            (listToJSASTExpression . init $ list)
+            (listToJSASTExpression $ init list)
             op
             ex
     where
-        callExp (JSCallExpression "[]" exp) = ("[]", statementToListExp . astMap $ exp)
-        callExp (JSCallExpression "." [exp]) = (".", makeJSASTExpression . jsnGetNode $ exp)
+        callExp (JSCallExpression "[]" exp) = ("[]", statementToListExp $ astMap exp)
+        callExp (JSCallExpression "." [exp]) = (".", makeJSASTExpression $ jsnGetNode exp)
 
 
 -- Takes a Node that represents a property of an object and produdes a singleton list containing a
@@ -552,13 +542,13 @@ getJSASTCallExpression list =
 toJSASTPropNameValue :: Node -> [Expression]
 toJSASTPropNameValue (JSPropertyNameandValue (NS (JSIdentifier name) _) value) =
         [PropNameValue
-            (VariableProperty $ name)
-            (listToJSASTExpression . map jsnGetNode $ value)
+            (VariableProperty name)
+            (listToJSASTExpression $ map jsnGetNode value)
         ]
 toJSASTPropNameValue (JSPropertyNameandValue (NS (JSDecimal index) _) value) =
         [PropNameValue
-            (IndexProperty . read $ index)
-            (listToJSASTExpression . map jsnGetNode $ value)
+            (IndexProperty (read index))
+            (listToJSASTExpression $ map jsnGetNode value)
         ]
 toJSASTPropNameValue _ = []
 
@@ -575,11 +565,11 @@ toJSASTValue (JSLiteral "true") = JSBool True
 toJSASTValue (JSStringLiteral '"' s) = JSDQString s
 toJSASTValue (JSStringLiteral _ s) = JSString s
 toJSASTValue (JSObjectLiteral list) =
-    JSObject . concat . map (toJSASTPropNameValue . jsnGetNode) $ list
+    JSObject
+        (concat $ map (toJSASTPropNameValue . jsnGetNode) list)
 toJSASTValue (JSArrayLiteral arr) =
     JSArray
-        $ (map (listToJSASTExpression)
-            $ (jsArrayGetSubarray (map jsnGetNode arr)))
+        (map listToJSASTExpression (jsArrayGetSubarray $ map jsnGetNode arr))
 
 
 -- Takes a single Node and builds a single expression.
@@ -587,8 +577,8 @@ makeJSASTExpression :: Node -> Expression
 makeJSASTExpression (JSExpressionBinary operator left right) =
     Binary
         operator
-        (mapListToExpression $ left)
-        (mapListToExpression $ right)
+        (mapListToExpression left)
+        (mapListToExpression right)
 makeJSASTExpression (JSIdentifier "undefined") = Value JSUndefined
 makeJSASTExpression (JSLiteral "null") = Value JSNull
 makeJSASTExpression (JSLiteral "this") = Identifier "this"
@@ -596,34 +586,34 @@ makeJSASTExpression (JSIdentifier identifier) = Identifier identifier
 makeJSASTExpression (JSExpressionPostfix operator variable) =
     UnaryPost
         operator
-        (mapListToExpression $ variable)
+        (mapListToExpression variable)
 makeJSASTExpression (JSExpressionParen expr) =
     ParenExpression
-        . jsnToListExp $ expr
+        (jsnToListExp expr)
 makeJSASTExpression (JSExpressionTernary expr iftrue iffalse) =
     Ternary
-        (mapListToExpression $ expr)
-        (mapListToExpression $ iftrue)
-        (mapListToExpression $ iffalse)
+        (mapListToExpression expr)
+        (mapListToExpression iftrue)
+        (mapListToExpression iffalse)
 makeJSASTExpression (JSMemberDot pre post) =
     Reference
-        (mapListToExpression $ pre)
-        (makeJSASTExpression . jsnGetNode $ post)
+        (mapListToExpression pre)
+        (makeJSASTExpression $ jsnGetNode post)
 makeJSASTExpression (JSMemberSquare pre post) =
     Index
-        (mapListToExpression $ pre)
-        (jsnToListExp $ post)
-makeJSASTExpression (JSArguments args) = toJSASTArguments $ args
+        (mapListToExpression pre)
+        (jsnToListExp post)
+makeJSASTExpression (JSArguments args) = toJSASTArguments args
 -- FIXME: Assumes name is a singleton list. Could it be anything else?
 makeJSASTExpression (JSFunctionExpression [name] args body) =
     FunctionExpression
-        (Just . identifierGetString . jsnGetNode $ name)
-        (map (identifierGetString . jsnGetNode) $ args)
-        (FunctionBody . jsnToJSAST $ body)
+        (Just $ identifierGetString $ jsnGetNode name)
+        (map (identifierGetString . jsnGetNode) args)
+        (FunctionBody (jsnToJSAST body))
 makeJSASTExpression (JSFunctionExpression [] args body) =
     FunctionExpression
         Nothing
-        (map (identifierGetString . jsnGetNode) $ args)
-        (FunctionBody . jsnToJSAST $ body)
+        (map (identifierGetString . jsnGetNode) args)
+        (FunctionBody (jsnToJSAST body))
 -- Anything left unmatched here is assumed to be a literal value.
-makeJSASTExpression val = Value . toJSASTValue $ val
+makeJSASTExpression val = Value (toJSASTValue val)

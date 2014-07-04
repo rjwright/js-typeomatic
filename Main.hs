@@ -32,8 +32,9 @@ main = do
     -- Prints the rules, indented base on their scope, plus an optional list
     -- of the identifiers that are visible at that each scope.
     -- putStr "Top Level:"
-    -- printCleanedRulesList
-    --     ((makeCleanedFunctionRules pr):[]) (makeIndent "") False
+    -- *VISUAL SNIPPETS*****************
+    printCleanedRulesList
+        ((makeCleanedFunctionRules pr):[]) (makeIndent "") False
 
     -- TODO: Rule type needs pretty printing
     -- mapM_ print (makeAllRules pr)
@@ -45,7 +46,10 @@ main = do
     --
     -- TODO: Experiment with keeping JS code snippets in the tree and printing
     -- them here.
-    mapPrintASTChild (makeLabelledJSAST pr) (makeIndent "") False
+    --  *VISUAL SNIPPETS****************
+    -- mapPrintASTChild (makeLabelledJSAST pr) (makeIndent "") False
+    --  *VISUAL SNIPPETS****************
+    -- mapPrintASTChild (makeLabelledJSAST pr) (makeIndent "") True
 
     -- Prints the original AST without labels.
     --
