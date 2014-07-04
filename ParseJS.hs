@@ -541,15 +541,15 @@ getJSASTCallExpression list =
 -- PropNameValue Expression.
 toJSASTPropNameValue :: Node -> [Expression]
 toJSASTPropNameValue (JSPropertyNameandValue (NS (JSIdentifier name) _) value) =
-        [PropNameValue
-            (VariableProperty name)
-            (listToJSASTExpression $ map jsnGetNode value)
-        ]
+    [PropNameValue
+        (VariableProperty name)
+        (listToJSASTExpression $ map jsnGetNode value)
+    ]
 toJSASTPropNameValue (JSPropertyNameandValue (NS (JSDecimal index) _) value) =
-        [PropNameValue
-            (IndexProperty (read index))
-            (listToJSASTExpression $ map jsnGetNode value)
-        ]
+    [PropNameValue
+        (IndexProperty (read index))
+        (listToJSASTExpression $ map jsnGetNode value)
+    ]
 toJSASTPropNameValue _ = []
 
 

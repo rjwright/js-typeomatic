@@ -339,11 +339,11 @@ exprChildRules (LabBinary (op, _) ex1 ex2, n) dIDs | elem op ["&", "|", "^"] =
 --
 -- FIXME: Pre-define these operator lists somewhere so that these signatures aren't so long
 exprChildRules (LabBinary (op, _) ex1 ex2, n) dIDs | elem op ["<<", ">>", ">>>"] =
-        [Rule (Meta n) IntType]
-        ++ [Rule (childToMeta ex1) NumType]
-        ++ [Rule (childToMeta ex2) NumType]
-        ++ (exprChildRules ex1 dIDs)
-        ++ (exprChildRules ex2 dIDs)
+    [Rule (Meta n) IntType]
+    ++ [Rule (childToMeta ex1) NumType]
+    ++ [Rule (childToMeta ex2) NumType]
+    ++ (exprChildRules ex1 dIDs)
+    ++ (exprChildRules ex2 dIDs)
 -- The type of a comparison expression is Bool.
 exprChildRules (LabBinary (op, _) ex1 ex2, n) dIDs
     | elem op ["==", "!=", "===", "!==", ">", "<", ">=", "<="] =
@@ -365,9 +365,9 @@ exprChildRules (LabUnaryPost op ex, n) dIDs =
     ++ (exprChildRules ex dIDs)
 -- These only operate on numbers. The type of the expression is the type of ex.
 exprChildRules (LabUnaryPre (op, _) ex, n) dIDs | elem op ["++", "--", "-", "+"] =
-        [Rule (childToMeta ex) NumType]
-        ++ [Rule (Meta n) (childToMeta ex)]
-        ++ (exprChildRules ex dIDs)
+    [Rule (childToMeta ex) NumType]
+    ++ [Rule (Meta n) (childToMeta ex)]
+    ++ (exprChildRules ex dIDs)
 -- The type of a not expression is bool.
 exprChildRules (LabUnaryPre ("!", _) ex, n) dIDs =
     [Rule (Meta n) BoolType]
@@ -401,11 +401,11 @@ exprChildRules (LabAssignment ("+=", _) ex1 ex2, n) dIDs =
 -- avoid it, as the new type of the variable depends on its old type. The unification algorithm will
 -- have to handle it.
 exprChildRules (LabAssignment (op, _) ex1 ex2, n) dIDs | elem op ["-=", "*=", "%="] =
-        [Rule (Meta n) (IntAndInt (childToMeta ex1) (childToMeta ex2))]
-        ++ [Rule (childToMeta ex1) (Meta n)]
-        ++ [Rule (childToMeta ex2) NumType]
-        ++ (exprChildRules ex1 dIDs)
-        ++ (exprChildRules ex2 dIDs)
+    [Rule (Meta n) (IntAndInt (childToMeta ex1) (childToMeta ex2))]
+    ++ [Rule (childToMeta ex1) (Meta n)]
+    ++ [Rule (childToMeta ex2) NumType]
+    ++ (exprChildRules ex1 dIDs)
+    ++ (exprChildRules ex2 dIDs)
 -- Similar to the '/' operator.
 exprChildRules (LabAssignment (op, _) ex1 ex2, n) dIDs | elem op ["/="] =
     [Rule (Meta n) FloatType]

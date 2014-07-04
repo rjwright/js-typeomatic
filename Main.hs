@@ -267,7 +267,7 @@ printExprChild (n, lab) padding printLab = do
 -- FIXME: Print the "Just". See maybePrintVarChild
 maybePrintExprChild :: Maybe ExprChild -> String -> LabFlag -> IO()
 maybePrintExprChild (Just expr) padding printLab =
-        printExprChild expr padding printLab
+    printExprChild expr padding printLab
 -- FIXME: Nothings have no label. Is that a problem?
 maybePrintExprChild Nothing padding _ = putStrLn (padding ++ " Nothing")
 

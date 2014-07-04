@@ -48,10 +48,9 @@ import System.Environment
 import TypeRules
 
 
--- The main reason for carting one of these around for every node in the
--- declaration graph was so that I could use it to make the call graph. It is
--- no longer necessary at this layer. Remove it? Will it be useful when it
--- comes time to compile? Should I alter it to use the unique identifiers?
+-- The main reason for carting one of these around for every node in the declaration graph was so
+-- that I could use it to make the call graph. It is no longer necessary at this layer. Remove it?
+-- Will it be useful when it comes time to compile? Should I alter it to use the unique identifiers?
 data ParentFunction =
       ParentFunDecl ASTChild
     | ParentFunExpr ExprChild
@@ -59,8 +58,7 @@ data ParentFunction =
     | TopLevel deriving (Show)
 
 
--- Identifier for functions which have a declared identifier or a dummy
--- "global function".
+-- Identifier for functions which have a declared identifier or a dummy "global function".
 data FunctionIdentifier =
       FunctionID DeclaredIdentifier
     | GlobalID deriving (Show)
