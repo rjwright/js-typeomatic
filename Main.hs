@@ -33,8 +33,8 @@ main = do
     -- Prints the rules, indented base on their scope, plus an optional list
     -- of the identifiers that are visible at that each scope.
     -- putStr "Top Level:"
-    -- printCleanedRulesList
-    --     ((makeCleanedFunctionRules pr):[]) (makeIndent "") False
+    printCleanedRulesList
+        ((makeCleanedFunctionRules pr):[]) (makeIndent "") True
 
     -- TODO: Rule type needs pretty printing
     -- mapM_ print (makeAllRules pr)
@@ -52,7 +52,10 @@ main = do
     -- Prints the original AST without labels.
     --
     -- TODO: Add pretty printing for this.
-    -- mapM_ print (makeJSAST pr)
+    mapM_ print (makeJSAST pr)
+
+    putStrLn ""
+    putStrLn $ show $ parseTree pr
     putStrLn ""
 
 
@@ -101,6 +104,7 @@ printCleanedRulesList (head:fx) padding printIdentifiers = do
         return()
     putStrLn (padding ++ " RULES:")
     mapM_ (putStrLn . ((padding ++ " ") ++) . show) rules
+    -- mapM_ (\r -> printRule r padding) rules
     let newPadding = makeIndent padding
     printList fRules newPadding
     printList feRules newPadding
@@ -354,3 +358,15 @@ printLabelledValue n padding _ _ = do
     putStrLn (padding ++ " OTHER LABELLED VALUE")
     putStrLn ((makeIndent padding) ++ " " ++ (show n))
 
+-- TODO: Implement pretty printing for Rules
+-- printRule :: Rule -> String -> IO()
+-- printRule (Rule type1 type2) padding = do
+--     -- putStrLn (padding ++ "Rule:")
+--     putStr (padding ++ " (" ++ (show type1) ++ ") ")
+--     putStrLn ("(" ++ (show type2) ++ ")")
+--     putStrLn ""
+
+-- TODO: Implement pretty printing for Types
+-- printType :: Type -> String -> IO()
+-- printType (IdentifierType var lab) padding =
+--     putStrLn (padding ++ "IdentifierType " ++ (show var) ++ (show lab))

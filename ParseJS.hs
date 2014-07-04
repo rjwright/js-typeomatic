@@ -1,10 +1,10 @@
 
--- This module parses a JavaScript source file, using the language.javascript.Parser library for
--- Haskell, then simplifies the parse tree to produce a more useful abstract syntax tree. The
--- documentation for the Haskell library is on the web, but it isn't particularly useful. Most of
--- its data types contain a lot of different (and meaningful) constructors that don't show up in the
--- doc. But the source for the library is small and readable. Most of it is in Yak. I would
--- recommend going straight to the source for anything that is unclear.
+-- This module parses a JavaScript source file using the language.javascript.Parser library for
+-- Haskell, then simplifies the parse tree to produce a more useful abstract syntax tree (AST).
+--
+-- The documentation for the Haskell library is on the web, but it isn't particularly useful. Most
+-- of its data types contain a lot of different (and meaningful) constructors that don't show up in
+-- the doc. Best approach is to look at the source.
 --
 -- Top level function is (toJSAST . parseTree)
 --
@@ -49,15 +49,19 @@ type Index = Int
 type Operator = String
 
 
--- A property of an object can have either a string or integer identifier.
+-- Represent an identifier used to index an object property using square branchets. An object
+-- property's identifier can be a string or an integer.
 data PropertyName =
+    --  Index is an integer literal.
       IndexProperty Index
-    -- This is only used in the TypeRules module. It is used when an object or array is indexed
-    -- using a variable insead of a string or integer literal. In that case either the thing being
-    -- indexed is an array and we don't care about the value of the index, or the thing being
-    -- referenced is an object, in which case it will have AmbiguousType anyway because of the non-
-    -- literal index.
+    -- This is used in the TypeRules module when an object or array is indexed using a variable
+    -- insead of a string/integer literal.
+    --
+    -- If the structure being indexed is an array then this will be resolved to an IntType. If the
+    -- structure is an object, then the object is not type safe (so we no longer care about the type
+    -- of this index)
     | UnknownProperty
+    --  Index is a string literal.
     | VariableProperty Variable deriving (Show)
 
 
@@ -65,11 +69,13 @@ data PropertyName =
 data Value =
       JSArray [Expression]
     | JSBool Bool
-    -- Double quote strings are never treated differently to normal strings. TODO: Should be merged.
+    -- Double quote strings are never treated differently to normal strings.
+    -- TODO: Should be merged with JSString
     | JSDQString String
     | JSFloat Double
     | JSInt Int
     | JSNull
+    -- TODO: Comment on what the expressions can be.
     | JSObject [Expression]
     | JSString String
     | JSUndefined deriving (Show)
@@ -86,15 +92,29 @@ data Expression =
     | Binary Operator Expression Expression
     | Break (Maybe Variable)
     | Call Expression Expression
+    -- In Language.JavaScript, a call expression is an expression that calls - or accesses a
+    -- property of - a function call.
+    --
+    -- E.g. foo()(); Or foo().bar;
+    --
+    -- However, this program treats foo()() as a Call within a Call (as I believe that is a
+    -- sufficient description for our purposes).
     | CallExpression Expression Operator Expression
     | Continue (Maybe Variable)
+    -- A function expression occurs when a function definition is on the right hand side of some
+    -- statement.
     | FunctionExpression (Maybe Variable) [Variable] JSAST
     | Identifier Variable
+    -- Represents an index into a structure using square brackets.
     | Index Expression Expression
+    -- TODO: Needs comment to explain what it is
     | List [Expression]
     | New Expression
+    -- TODO: Needs comment to explain what it is.
     | ParenExpression Expression
+    -- Represents a property of an object.
     | PropNameValue PropertyName Expression
+    -- Represents a reference to a structure member using a dot.
     | Reference Expression Expression
     | Ternary Expression Expression Expression
     | Throw Expression
@@ -107,7 +127,7 @@ data Expression =
 -- Represent source elements which include a "block" or "body" and thus make logical non-terminal
 -- nodes for an abstract syntax tree.
 --
--- Also includes a type for return expressions (Return) and a wrapper for instances of the
+-- FIXME: Also includes a type for return expressions (Return) and a wrapper for instances of the
 -- Expression data type (Statement). I'm not sure how or why that happened, but I'm sure there was
 -- an excellent reason.
 data JSAST =
@@ -138,14 +158,14 @@ jsnGetNode :: JSNode -> Node
 jsnGetNode (NS a _) = a
 
 
--- Extract the Node from a JSNode and apply toJSAST.
-jsnToJSAST :: JSNode -> [JSAST]
-jsnToJSAST jsn = toJSAST $ jsnGetNode jsn
-
-
 -- Parse JavaScript source code.
 parseTree :: String -> Node
 parseTree program = jsnGetNode $ (\(Right a) -> a) $ parse program "";
+
+
+-- Extract the Node from a JSNode and apply toJSAST.
+jsnToJSAST :: JSNode -> [JSAST]
+jsnToJSAST jsn = toJSAST $ jsnGetNode jsn
 
 
 -- Most Nodes have a [JSNode] field. astMap applies toJSAST to the Node field of each JSNode in such
@@ -417,6 +437,8 @@ mapListToMaybeExpression jsn = Just $ mapListToExpression jsn
 
 
 -- Takes a list of Nodes and builds a single expression.
+--
+-- TODO: Add a comment here explaining where these Node lists come from.
 listToJSASTExpression :: [Node] -> Expression
 listToJSASTExpression [item] = makeJSASTExpression item
 -- FIXME: This is very ugly
@@ -426,7 +448,6 @@ listToJSASTExpression [(JSUnary operator), (JSDecimal x)]
                     JSFloat (-1 * (read x))
                 else
                     JSInt (-1 * (read x)) in Value  y
--- FIXME: This is ugly. Can I abstract these operators away?
 listToJSASTExpression ((JSUnary operator):x)
     | elem operator ["-", "+", "--", "++", "!", "typeof ", "delete ", "~"] =
         UnaryPre
@@ -437,14 +458,14 @@ listToJSASTExpression [x, (JSArguments args)] =
     Call
         (makeJSASTExpression x)
         (toJSASTArguments args)
+-- FIXME: This is SUPER ugly and isCallExpression isn't being used.
 listToJSASTExpression list =
     if (isAssignment list) then
         getJSASTAssignment list
-    else if (isParenCallExp list) then
+    else if (isParenCallExp $ last list) then
         getJSASTCall list
     else
         getJSASTCallExpression list
-
 
 -- Makes arguments from a list of lists of JSNodes that represent a list of arguments.
 toJSASTArguments :: [[JSNode]] -> Expression
@@ -454,87 +475,75 @@ toJSASTArguments args =
         getJSASTArgument [item] = makeJSASTExpression $ jsnGetNode item
         getJSASTArgument nodes = mapListToExpression nodes
 
+-- Determine if a Node is an assignment operator
+isAssignmentOperator :: String -> Bool
+isAssignmentOperator op
+    | elem op ["=", "+=", "-=", "*=", "/=", "%=", "<<=", ">>=", ">>>=", "&=", "^=", "|="] = True
+    | otherwise = False
 
 -- Determine whether the list of Nodes is an assignment
 isAssignment :: [Node] -> Bool
 isAssignment [] = False
-isAssignment (l:ls) =
-    (isAssigOp l) || (isAssignment ls)
-    where
-        -- FIXME: Can we abstract this list?
-        isAssigOp (JSOperator op)
-            | elem op ["=", "+=", "-=", "*=", "/=",
-                "%=", "<<=", ">>=", ">>>=", "&=", "^=", "|="] = True
-        isAssigOp _ = False
+isAssignment ((JSOperator op):ls) = (isAssignmentOperator op) || (isAssignment ls)
+isAssignment (_:ls) = isAssignment ls
 
 
 -- To handle messy assignments
 getJSASTAssignment :: [Node] -> Expression
 getJSASTAssignment list =
+    -- FIXME: This whole function is a brain drain. Refactor.
     let (pre, op, post) = getPrePost list in
         Assignment
             op
             (listToJSASTExpression pre)
             (listToJSASTExpression post)
     where
-        --  FIXME: Can we abstract this?
-        getPrePost ((JSOperator oper):rest)
-            | elem oper ["=", "+=", "-=", "*=", "/=", "%=",
-                "<<=", ">>=", ">>>=", "&=", "^=", "|="] = ([], oper, rest)
+        getPrePost ((JSOperator op):xs)
+            | (isAssignmentOperator op) = ([], op, xs)
         getPrePost (x:xs) = let (l, o, u) = getPrePost xs in (x:l, o, u)
 
 
--- Determine whether the last element of the list is a JSCallExpression with parentheses
-isParenCallExp :: [Node] -> Bool
-isParenCallExp list =
-    nodeIsParenCallExp (last list)
-    where
-        nodeIsParenCallExp (JSCallExpression "()" _) = True
-        nodeIsParenCallExp _ = False
+-- Determine whether a node is JSCallExpression with parentheses
+isParenCallExp :: Node -> Bool
+isParenCallExp (JSCallExpression "()" _) = True
+isParenCallExp _ = False
 
 
 -- To handle the case where the last element of the list is a (JSCallExpression "()" [JSArguments
 -- _]) I don't know if the second field can be anything other than a singleton list containing a
 -- JSArguments but for now I'm just going to hope not.
 --
--- TODO: Just look at the parser souce to work this out
+-- TODO: Just look at the parser source to work this out
 getJSASTCall :: [Node] -> Expression
 getJSASTCall list =
     Call
         (listToJSASTExpression $ init list)
-        (lastGetArgs $ last list)
+        (lastGetArgs $ argsNode $ last list)
     where
-        lastGetArgs (JSCallExpression "()" [args]) =
-            getArgs $ jsnGetNode args
-        getArgs (JSArguments ar) = toJSASTArguments ar
+        argsNode (JSCallExpression _ [args]) = jsnGetNode args
+        lastGetArgs (JSArguments ar) = toJSASTArguments ar
 
 
--- Determine whether the last element of the list is a JSCallExpression with a dot or with square
--- brackets
-isCallExpression :: [Node] -> Bool
-isCallExpression list =
-    nodeIsCallExp (last list)
-    where
-        nodeIsCallExp (JSCallExpression "." _) = True
-        nodeIsCallExp (JSCallExpression "[]" _) = True
-        nodeIsCallExp _ = False
-
-
--- To handle the case where the last element in the list is a (JSCallExpression "[]" whatever) or a
--- (JSCallExpression "." whatever).
+-- Determine whether a node is a JSCallExpression with a dot or with square brackets.
 --
--- FIXME: THis function is very confusing. Refactor. Also should record an example of what a
--- callExpression is
+-- FIXME: Should be called by listToJSASTExpression but currently isn't called.
+isCallExpression :: Node -> Bool
+isCallExpression (JSCallExpression "." _) = True
+isCallExpression (JSCallExpression "[]" _) = True
+isCallExpression _ = False
+
+-- To handle the case where the last element in the list is a (JSCallExpression "[]" exp) or a
+-- (JSCallExpression "." exp).
 getJSASTCallExpression :: [Node] -> Expression
 getJSASTCallExpression list =
-    let (op, ex) = callExp $ last list in
-        CallExpression
-            (listToJSASTExpression $ init list)
-            op
-            ex
+    CallExpression
+        (listToJSASTExpression $ init list)
+        (callExpOperator $ last list)
+        (callExpProperty $ last list)
     where
-        callExp (JSCallExpression "[]" exp) = ("[]", statementToListExp $ astMap exp)
-        callExp (JSCallExpression "." [exp]) = (".", makeJSASTExpression $ jsnGetNode exp)
+        callExpOperator (JSCallExpression operator _) = operator
+        callExpProperty (JSCallExpression "[]" exp) = statementToListExp $ astMap exp
+        callExpProperty (JSCallExpression "." [exp]) = makeJSASTExpression $ jsnGetNode exp
 
 
 -- Takes a Node that represents a property of an object and produdes a singleton list containing a
@@ -604,7 +613,6 @@ makeJSASTExpression (JSMemberSquare pre post) =
         (mapListToExpression pre)
         (jsnToListExp post)
 makeJSASTExpression (JSArguments args) = toJSASTArguments args
--- FIXME: Assumes name is a singleton list. Could it be anything else?
 makeJSASTExpression (JSFunctionExpression [name] args body) =
     FunctionExpression
         (Just $ identifierGetString $ jsnGetNode name)
