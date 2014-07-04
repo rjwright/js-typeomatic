@@ -41,15 +41,15 @@ type OpChild = (Operator, JSASTLabel)
 type IndexChild = (Index, JSASTLabel)
 
 
--- A VarChild or IndexChild wrapped in a LabelledPropertyName, and a label.
--- Added long after the original code was written.
+-- A VarChild or IndexChild wrapped in a LabelledPropertyName, and a label. Added long after the
+-- original code was written.
 --
 -- TODO: Test.
 type PropertyNameChild = (LabelledPropertyName, JSASTLabel)
 
 
--- A value wrapped as a LabelledValue, and a label.
--- Most LabelledValues contain only the value and no label.
+-- A value wrapped as a LabelledValue, and a label. Most LabelledValues contain only the value and
+-- no label.
 type ValueChild = (LabelledValue, JSASTLabel)
 
 
@@ -61,16 +61,14 @@ type ExprChild = (LabelledExpression, JSASTLabel)
 type ASTChild = (LabelledJSAST, JSASTLabel)
 
 
--- A wrapper for a VarChild or IndexChild that identifies it as a name for a
--- an object property.
+-- A wrapper for a VarChild or IndexChild that identifies it as a name for a an object property.
 data LabelledPropertyName =
       LabIndexProperty IndexChild
     | LabVariableProperty VarChild deriving (Show)
 
 
--- A labelled representation of a literal.
--- LabelledValues representing primitives contain only the value and no label.
--- LabelledValues representing objects and arrays are labelled recursively.
+-- A labelled representation of a literal. LabelledValues representing primitives contain only the
+-- value and no label. LabelledValues representing objects and arrays are labelled recursively.
 -- LabUndefined and LabNull have no value or label.
 data LabelledValue =
       LabArray [ExprChild]
@@ -84,8 +82,7 @@ data LabelledValue =
     | LabUndefined deriving (Show)
 
 
--- FIXME: Some of these contain Maybe *Child values. "Nothing" has no label.
--- Is that a problem?
+-- FIXME: Some of these contain Maybe *Child values. "Nothing" has no label. Is that a problem?
 --
 -- A recursively labelled subtree, rooted at a LabelledExpression.
 data LabelledExpression =
@@ -206,11 +203,11 @@ labelIndex ix n = (ix, n + 1)
 -- TODO: Unit test?
 labelPropertyName :: PropertyName -> JSASTLabel -> PropertyNameChild
 labelPropertyName (IndexProperty ix) n =
-    (LabIndexProperty field1, (childGetLabel $ field1) + 1)
+    (LabIndexProperty field1, (childGetLabel field1) + 1)
     where
         field1 = labelIndex ix n
 labelPropertyName (VariableProperty var) n =
-    (LabVariableProperty field1, (childGetLabel $ field1) + 1)
+    (LabVariableProperty field1, (childGetLabel field1) + 1)
     where
         field1 = labelVariable var n
 
@@ -342,88 +339,72 @@ labelExpression (New ex) n =
 -- Label a Maybe Expression if it is not Nothing.
 labelMaybeExpression :: (Maybe Expression) -> JSASTLabel -> (Maybe ExprChild)
 labelMaybeExpression Nothing n = Nothing
-labelMaybeExpression (Just ex) n = Just (labelExpression ex n)
+labelMaybeExpression (Just ex) n = Just $ labelExpression ex n
 
 
 -- Label a JSAST. Recursively process any child fields.
 labelJSAST :: JSAST -> JSASTLabel -> ASTChild
 labelJSAST (Block jsastLs) n =
-    ((LabBlock field1), (maximum ((listGetLabels $ field1) ++ [n])) + 1)
+    ((LabBlock field1), (maximum ((listGetLabels field1) ++ [n])) + 1)
     where
         field1 = labelJSASTList jsastLs n
 labelJSAST (FunctionBody jsastLs) n =
-    (
-        (LabFunctionBody field1),
-        (maximum ((listGetLabels $ field1) ++ [n])) + 1
-    )
+    ((LabFunctionBody field1), (maximum ((listGetLabels field1) ++ [n])) + 1)
     where
         field1 = labelJSASTList jsastLs n
 labelJSAST (FunctionDeclaration var args body) n =
-    (
-        (LabFunctionDeclaration field1 field2 field3),
-        (childGetLabel $ field3) + 1
-    )
+    ((LabFunctionDeclaration field1 field2 field3), (childGetLabel field3) + 1)
     where
         field1 = labelVariable var n
         field2 = labelVarList args (childGetLabel field1)
-        field3 =
-            labelJSAST
-                body
-                (maximum ((listGetLabels field2) ++ [childGetLabel field1]))
+        field3 = labelJSAST body $ maximum ((listGetLabels field2) ++ [childGetLabel field1])
 labelJSAST (Labelled var body) n =
-    ((LabLabelled field1 field2), (childGetLabel $ field2) + 1)
+    ((LabLabelled field1 field2), (childGetLabel field2) + 1)
     where
         field1 = labelVariable var n
         field2 = labelJSAST body (childGetLabel field1)
 labelJSAST (ForVar ex1 ex2 ex3 body) n =
-    ((LabForVar field1 field2 field3 field4), (childGetLabel $ field4) + 1)
+    ((LabForVar field1 field2 field3 field4), (childGetLabel field4) + 1)
     where
         field1 = labelExpressionList ex1 n
-        field2 =
-            labelMaybeExpression
-                ex2
-                (maximum ((listGetLabels field1) ++ [n]))
+        field2 = labelMaybeExpression ex2 $ maximum ((listGetLabels field1) ++ [n])
         field3 =
-            labelMaybeExpression
-                ex3
-                (maximum ((listGetLabels field1) ++ [maxMaybeLabel field2 n]))
+            labelMaybeExpression ex3 $ maximum ((listGetLabels field1) ++ [maxMaybeLabel field2 n])
         field4 =
             labelJSAST
                 body
-                (maximum
+                $ maximum
                     ((listGetLabels field1)
                     ++ [maxMaybeLabel field2 n]
-                    ++ [maxMaybeLabel field3 n]))
+                    ++ [maxMaybeLabel field3 n])
 labelJSAST (For ex1 ex2 ex3 body) n =
-    ((LabFor field1 field2 field3 field4), (childGetLabel $ field4) + 1)
+    ((LabFor field1 field2 field3 field4), (childGetLabel field4) + 1)
     where
         field1 = labelMaybeExpression ex1 n
         field2 = labelMaybeExpression ex2 (maxMaybeLabel field1 n)
         field3 =
-            labelMaybeExpression
-                ex3
-                (max (maxMaybeLabel field1 n) (maxMaybeLabel field2 n))
+            labelMaybeExpression ex3 $ max (maxMaybeLabel field1 n) (maxMaybeLabel field2 n)
         field4 =
             labelJSAST
                 body
-                (maximum
+                $ maximum
                     ([maxMaybeLabel field1 n]
                     ++ [maxMaybeLabel field2 n]
-                    ++ [maxMaybeLabel field3 n]))
+                    ++ [maxMaybeLabel field3 n])
 labelJSAST (ForIn vars ex body) n =
-    ((LabForIn field1 field2 field3), (childGetLabel $ field3) + 1)
+    ((LabForIn field1 field2 field3), (childGetLabel field3) + 1)
     where
         field1 = labelVarList vars n
-        field2 = labelExpression ex (maximum ((listGetLabels field1) ++ [n]))
+        field2 = labelExpression ex $ maximum ((listGetLabels field1) ++ [n])
         field3 = labelJSAST body (childGetLabel field2)
 labelJSAST (ForVarIn ex1 ex2 body) n =
-    ((LabForVarIn field1 field2 field3), (childGetLabel $ field3) + 1)
+    ((LabForVarIn field1 field2 field3), (childGetLabel field3) + 1)
     where
         field1 = labelExpression ex1 n
         field2 = labelExpression ex2 (childGetLabel field1)
         field3 = labelJSAST body (childGetLabel field2)
 labelJSAST (While ex body) n =
-    ((LabWhile field1 field2), (childGetLabel $ field2) + 1)
+    ((LabWhile field1 field2), (childGetLabel field2) + 1)
     where
         field1 = labelExpression ex n
         field2 = labelJSAST body (childGetLabel field1)
@@ -431,45 +412,45 @@ labelJSAST (DoWhile body ex) n  =
     ((LabDoWhile field1 field2), (childGetLabel field2) + 1)
     where
         field1 = labelJSAST body n
-        field2 = labelExpression ex (childGetLabel $ field1)
+        field2 = labelExpression ex (childGetLabel field1)
 labelJSAST (If ex body) n =
-    ((LabIf field1 field2), (childGetLabel $ field2) + 1)
+    ((LabIf field1 field2), (childGetLabel field2) + 1)
     where
         field1 = labelExpression ex n
         field2 = labelJSAST body (childGetLabel field1)
 labelJSAST (IfElse ex bodyT bodyF) n =
-    ((LabIfElse field1 field2 field3), (childGetLabel $ field3) + 1)
+    ((LabIfElse field1 field2 field3), (childGetLabel field3) + 1)
     where
         field1 = labelExpression ex n
-        field2 = labelJSAST bodyT (childGetLabel $ field1)
-        field3 = labelJSAST bodyF (childGetLabel $ field2)
+        field2 = labelJSAST bodyT (childGetLabel field1)
+        field3 = labelJSAST bodyF (childGetLabel field2)
 labelJSAST (Switch ex cs) n =
-    ((LabSwitch field1 field2), (childGetLabel $ field2) + 1)
+    ((LabSwitch field1 field2), (childGetLabel field2) + 1)
     where
         field1 = labelExpression ex n
         field2 = labelJSAST cs (childGetLabel field1)
 labelJSAST (Case ex body) n =
-    ((LabCase field1 field2), (childGetLabel $ field2) + 1)
+    ((LabCase field1 field2), (childGetLabel field2) + 1)
     where
         field1 = labelExpression ex n
         field2 = labelJSAST body (childGetLabel field1)
 labelJSAST (Default body) n =
-    ((LabDefault field1), (childGetLabel $ field1) + 1)
+    ((LabDefault field1), (childGetLabel field1) + 1)
     where
         field1 = labelJSAST body n
 labelJSAST (Try body ctch) n =
-    ((LabTry field1 field2), (childGetLabel $ field2) + 1)
+    ((LabTry field1 field2), (childGetLabel field2) + 1)
     where
         field1 = labelJSAST body n
-        field2 = labelJSAST ctch (childGetLabel $ field1)
+        field2 = labelJSAST ctch (childGetLabel field1)
 labelJSAST (Catch var ex body) n =
-    ((LabCatch field1 field2 field3), (childGetLabel $ field3) + 1)
+    ((LabCatch field1 field2 field3), (childGetLabel field3) + 1)
     where
         field1 = labelVariable var n
         field2 = labelMaybeExpression ex (childGetLabel field1)
         field3 = labelJSAST body (maxMaybeLabel field2 (childGetLabel field1))
 labelJSAST (Finally body) n =
-    ((LabFinally field1), (childGetLabel $ field1) + 1)
+    ((LabFinally field1), (childGetLabel field1) + 1)
     where
         field1 = labelJSAST body n
 labelJSAST (Return ex) n =
