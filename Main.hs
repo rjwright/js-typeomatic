@@ -1,5 +1,6 @@
 
 -- Module prints human-legible output from the various layers of the pipeline
+-- 
 -- TODO: Comment this file.
 
 --module PrettyPrint
@@ -39,7 +40,7 @@ main = do
     -- mapM_ print (makeAllRules pr)
 
     -- Raw output with a lot of details.
-    -- putStrLn . show . makeDeclarationGraph $ pr
+    -- putStrLn $ show $ makeDeclarationGraph pr
 
     -- Prints the cleaned ATS, indented, with optional labels.
     --
@@ -56,24 +57,23 @@ main = do
 
 
 makeCleanedFunctions :: String -> CleanedFunction
-makeCleanedFunctions input =
-    cleanFunction . makeCleanedFunctionRules $ input
+makeCleanedFunctions input = cleanFunction $ makeCleanedFunctionRules input
 
 makeCleanedFunctionRules :: String -> CleanedFunctionRules
-makeCleanedFunctionRules input =
-    cleanFunctionRules . makeDeclarationGraph $ input
+makeCleanedFunctionRules input = cleanFunctionRules $ makeDeclarationGraph input
 
 makeAllRules :: String -> [Rule]
-makeAllRules input = graphGetAllRules . makeDeclarationGraph $ input
+makeAllRules input = graphGetAllRules $ makeDeclarationGraph input
 
 makeDeclarationGraph :: String -> FunctionRules
-makeDeclarationGraph input = getDeclarationGraph . makeLabelledJSAST $ input
+makeDeclarationGraph input = getDeclarationGraph $ makeLabelledJSAST input
 
 makeLabelledJSAST :: String -> [ASTChild]
-makeLabelledJSAST input = label . makeJSAST $ input
+makeLabelledJSAST input = label $ makeJSAST input
 
 makeJSAST :: String -> [JSAST]
-makeJSAST input = toJSAST . parseTree $ input
+makeJSAST input = toJSAST $ parseTree input
+
 
 makeIndent :: String -> String
 makeIndent s = s ++ "..."
@@ -96,11 +96,11 @@ printCleanedRulesList (head:fx) padding printIdentifiers = do
     putStrLn (" " ++ (show fid))
     if printIdentifiers == True then do
         putStrLn (padding ++ " IDENTIFIERS:")
-        mapM_ (putStrLn . ((padding ++ " ") ++) . show) $ dIDs
+        mapM_ (putStrLn . ((padding ++ " ") ++) . show) dIDs
     else
         return()
     putStrLn (padding ++ " RULES:")
-    mapM_ (putStrLn . ((padding ++ " ") ++) . show) $ rules
+    mapM_ (putStrLn . ((padding ++ " ") ++) . show) rules
     let newPadding = makeIndent padding
     printList fRules newPadding
     printList feRules newPadding
@@ -114,7 +114,7 @@ printCleanedRulesList (head:fx) padding printIdentifiers = do
         printHeading _ [] = return()
         printHeading p (f:fx) = do
             putStrLn ""
-            putStr (p ++ " " ++ (crName $ f) ++ ":")
+            putStr (p ++ " " ++ (crName f) ++ ":")
         printList l p = do
             printHeading p l
             printCleanedRulesList l p printIdentifiers
@@ -125,7 +125,7 @@ printCleanedRulesList [] _ _ = return()
 printCleanedElementList :: (CleanedElement a, Show a) => [a] -> String -> IO()
 printCleanedElementList (head:fx) padding = do
     putStrLn (" " ++ (show fid))
-    mapM_ (putStrLn . ((padding ++ " ") ++) . show) $ dIDs
+    mapM_ (putStrLn . ((padding ++ " ") ++) . show) dIDs
     let newPadding = makeIndent padding
     printList fList newPadding
     printList feList newPadding
@@ -138,7 +138,7 @@ printCleanedElementList (head:fx) padding = do
         printHeading _ [] = return()
         printHeading p (f:fx) = do
             putStrLn ""
-            putStr (p ++ " " ++ (ceName $ f) ++ ":")
+            putStr (p ++ " " ++ (ceName f) ++ ":")
         printList l p = do
             printHeading p l
             printCleanedElementList l p
@@ -147,7 +147,7 @@ printCleanedElementList [] _ = return()
 
 mapPrintASTChild :: [ASTChild] -> String -> LabFlag -> IO()
 mapPrintASTChild children padding printLab =
-    mapM_ printChild $ children
+    mapM_ printChild children
     where
         printChild c = printASTChild c padding printLab
 
@@ -159,14 +159,13 @@ printASTChild ((LabBlock children), lab) padding printLab = do
 printASTChild ((LabFunctionBody children), lab) padding printLab = do
     printLnStrAndLabel (padding ++ " LabFunctionBody") lab printLab
     mapPrintASTChild children (makeIndent padding) printLab
-printASTChild ((LabFunctionDeclaration vChild args child), lab)
-    padding printLab = do
-        printStrAndLabel (padding ++ " LabFunctionDeclaration") lab printLab
-        printVarChild vChild "" printLab False
-        putStr " ["
-        mapPrintVarChild args "" printLab False
-        putStrLn " ]"
-        printASTChild child (makeIndent padding) printLab
+printASTChild ((LabFunctionDeclaration vChild args child), lab) padding printLab = do
+    printStrAndLabel (padding ++ " LabFunctionDeclaration") lab printLab
+    printVarChild vChild "" printLab False
+    putStr " ["
+    mapPrintVarChild args "" printLab False
+    putStrLn " ]"
+    printASTChild child (makeIndent padding) printLab
 printASTChild ((LabStatement expr), lab) padding printLab = do
     printLnStrAndLabel (padding ++ " LabStatement") lab printLab
     printExprChild expr (makeIndent padding) printLab
@@ -188,12 +187,12 @@ printASTChild ((LabForVarIn var obj child), lab) padding printLab = do
     printASTChild child p printLab
 printASTChild (n, lab) padding printLab = do
     printLnStrAndLabel (padding ++ " OTHER ASTCHILD") lab printLab
-    putStrLn ((makeIndent padding) ++ " " ++ (show $ n))
+    putStrLn ((makeIndent padding) ++ " " ++ (show n))
 
 
 mapPrintExprChild :: [ExprChild] -> String -> LabFlag -> IO()
 mapPrintExprChild children padding printLab =
-    mapM_ printChild $ children
+    mapM_ printChild children
     where
         printChild c = printExprChild c padding printLab
 
@@ -245,14 +244,13 @@ printExprChild ((LabPropNameValue prop expr), lab) padding printLab = do
     let p = makeIndent padding
     printPropertyNameChild prop p printLab
     printExprChild expr p printLab
-printExprChild ((LabFunctionExpression vChild args child), lab)
-    padding printLab = do
-        printStrAndLabel (padding ++ " LabFunctionExpression") lab printLab
-        maybePrintVarChild vChild "" printLab False
-        putStr " ["
-        mapPrintVarChild args "" printLab False
-        putStrLn " ]"
-        printASTChild child (makeIndent padding) printLab
+printExprChild ((LabFunctionExpression vChild args child), lab) padding printLab = do
+    printStrAndLabel (padding ++ " LabFunctionExpression") lab printLab
+    maybePrintVarChild vChild "" printLab False
+    putStr " ["
+    mapPrintVarChild args "" printLab False
+    putStrLn " ]"
+    printASTChild child (makeIndent padding) printLab
 printExprChild ((LabCall fid args), lab) padding printLab = do
     printLnStrAndLabel (padding ++ " LabCall") lab printLab
     let p = makeIndent padding
@@ -263,7 +261,7 @@ printExprChild ((LabArguments exprs), lab) padding printLab = do
     mapPrintExprChild exprs (makeIndent padding) printLab
 printExprChild (n, lab) padding printLab = do
     printLnStrAndLabel (padding ++ " OTHER EXPRCHILD") lab printLab
-    putStrLn ((makeIndent padding) ++ " " ++ (show $ n))
+    putStrLn ((makeIndent padding) ++ " " ++ (show n))
 
 
 -- FIXME: Print the "Just". See maybePrintVarChild
@@ -276,7 +274,7 @@ maybePrintExprChild Nothing padding _ = putStrLn (padding ++ " Nothing")
 
 mapPrintVarChild :: [VarChild] -> String -> LabFlag -> LineFlag -> IO()
 mapPrintVarChild children padding printLab printLine =
-    mapM_ printChild $ children
+    mapM_ printChild children
     where
         printChild c = printVarChild c padding printLab printLine
 
@@ -322,14 +320,12 @@ printOpChild (op, lab) padding printLab False =
 
 
 printPropertyNameChild :: PropertyNameChild -> String -> LabFlag -> IO()
-printPropertyNameChild ((LabVariableProperty var), lab)
-    padding printLab = do
-        printStrAndLabel (padding ++ " Property") lab printLab
-        printVarChild var "" printLab True
-printPropertyNameChild ((LabIndexProperty index), lab)
-    padding printLab = do
-        printStrAndLabel (padding ++ " Property") lab printLab
-        printIndexChild index "" printLab True
+printPropertyNameChild ((LabVariableProperty var), lab) padding printLab = do
+    printStrAndLabel (padding ++ " Property") lab printLab
+    printVarChild var "" printLab True
+printPropertyNameChild ((LabIndexProperty index), lab) padding printLab = do
+    printStrAndLabel (padding ++ " Property") lab printLab
+    printIndexChild index "" printLab True
 
 
 printLabelledValue :: LabelledValue -> String -> LabFlag -> LineFlag -> IO()
@@ -356,5 +352,5 @@ printLabelledValue labVal padding printLab True = do
 printLabelledValue n padding _ _ = do
     putStrLn ""
     putStrLn (padding ++ " OTHER LABELLED VALUE")
-    putStrLn ((makeIndent padding) ++ " " ++ (show $ n))
+    putStrLn ((makeIndent padding) ++ " " ++ (show n))
 
