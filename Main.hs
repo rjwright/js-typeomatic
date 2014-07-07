@@ -12,6 +12,7 @@ main
 
 import DeclarationGraph
 import LabelJSAST
+import Language.JavaScript.Parser.AST
 import ParseJS
 import System.Environment
 import TypeRules
@@ -56,6 +57,7 @@ main = do
 
 	putStrLn ""
 	-- putStrLn $ show $ parseTree pr
+	printParseTree $ parseTree pr
 	putStrLn ""
 
 
@@ -92,6 +94,9 @@ printLnStrAndLabel str lab printLab = do
 	printStrAndLabel str lab printLab
 	putStrLn ""
 
+
+printParseTree :: Node -> IO()
+printParseTree (JSSourceElementsTop elements) = mapM_ (putStrLn . show . showStripped) elements
 
 -- Prints CleanedRules, indented according to their depth in the tree
 printCleanedRulesList :: CleanedRules a => [a] -> String -> Bool -> IO()
