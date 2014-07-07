@@ -358,6 +358,7 @@ exprChildRules (LabBinary (op, _) ex1 ex2, n) dIDs | elem op ["&&", "||"] =
     ++ (exprChildRules ex1 dIDs)
     ++ (exprChildRules ex2 dIDs)
 -- Tye type of an in expression is bool.
+-- TODO: Added in 2014. Revisit.
 exprChildRules (LabBinary (" in ", _) ex1 ex2, n) dIDs =
     [Rule (Meta n) BoolType]
     -- For type safety, ex1 must be an object or array; but it doesn't have to contain ex2. I
@@ -377,6 +378,15 @@ exprChildRules (LabBinary (" in ", _) ex1 ex2, n) dIDs =
         ++ [Rule (childToMeta ex2) (IntIfArrayType (childToMeta ex1))])
     ++ (exprChildRules ex1 dIDs)
     ++ (exprChildRules ex2 dIDs)
+-- The type of a "instanceof" expression is bool.
+-- TODO: Added in 2014. Revisit.
+exprChildRules (LabBinary (" instanceof ", _) ex1 ex2, n) dIDs =
+    [Rule (Meta n) BoolType]
+    -- FIXME: If ex2 isn't a function then JS throws a  TypeError. There should be a Rule equating
+    -- ex2 with Function, but there isn't at this stage. Might need to introduce a new Type for
+    -- this.
+    ++ (exprChildRules ex1 dIDs)
+    ++ (exprChildRules ex2 dIDs)
 -- Postfix '++' or '--' only operate on numbers. They type of the expression is number (integer if
 -- ex is integer and float if ex is float).
 exprChildRules (LabUnaryPost op ex, n) dIDs =
@@ -391,6 +401,11 @@ exprChildRules (LabUnaryPre (op, _) ex, n) dIDs | elem op ["++", "--", "-", "+"]
 -- The type of a not expression is bool.
 exprChildRules (LabUnaryPre ("!", _) ex, n) dIDs =
     [Rule (Meta n) BoolType]
+    ++ (exprChildRules ex dIDs)
+-- The type of a "typeof" expression is string.
+-- TODO: Added in 2014. Revisit.
+exprChildRules (LabUnaryPre ("typeof ", _) ex, n) dIDs =
+    [Rule (Meta n) StringType]
     ++ (exprChildRules ex dIDs)
 -- The type of the condition in a ternary expression is bool. They type of the whole expression is
 -- the type of the two optional expressions. If they don't have the same type then type inference on

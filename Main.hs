@@ -47,7 +47,7 @@ main = do
     -- TODO: Experiment with keeping JS code snippets in the tree and printing
     -- them here.
     -- mapPrintASTChild (makeLabelledJSAST pr) (makeIndent "") False
-    mapPrintASTChild (makeLabelledJSAST pr) (makeIndent "") True
+    -- mapPrintASTChild (makeLabelledJSAST pr) (makeIndent "") True
 
     -- Prints the original AST without labels.
     --
@@ -57,8 +57,8 @@ main = do
     putStrLn ""
     putStrLn $ show $ parseTree pr
     putStrLn ""
-    printCleanedRulesList
-        ((makeCleanedFunctionRules pr):[]) (makeIndent "") True
+    -- printCleanedRulesList
+    --     ((makeCleanedFunctionRules pr):[]) (makeIndent "") True
     putStrLn ""
 
 
@@ -158,7 +158,7 @@ mapPrintASTChild children padding printLab =
     where
         printChild c = printASTChild c padding printLab
 
-
+-- TODO: Alphabetize these.
 printASTChild :: ASTChild -> String -> LabFlag -> IO()
 printASTChild ((LabBlock children), lab) padding printLab = do
     printLnStrAndLabel (padding ++ " LabBlock") lab printLab
@@ -184,6 +184,33 @@ printASTChild ((LabIf cond child), lab) padding printLab = do
     let p = makeIndent padding
     printExprChild cond p printLab
     printASTChild child p printLab
+printASTChild ((LabTry tryChild catchChild), lab) padding printLab = do
+    printLnStrAndLabel (padding ++ " LabTry") lab printLab
+    let p = makeIndent padding
+    printASTChild tryChild p printLab
+    printASTChild catchChild p printLab
+printASTChild ((LabCatch var expr child), lab) padding printLab = do
+    printLnStrAndLabel (padding ++ " LabCatch") lab printLab
+    let p = makeIndent padding
+    printVarChild var p printLab True
+    maybePrintExprChild expr p printLab
+    printASTChild child p printLab
+printASTChild ((LabSwitch var child), lab) padding printLab = do
+    printLnStrAndLabel (padding ++ " LabSwitch") lab printLab
+    let p = makeIndent padding
+    printExprChild var p printLab
+    printASTChild child p printLab
+printASTChild ((LabCase val child), lab) padding printLab = do
+    printLnStrAndLabel (padding ++ " LabCase") lab printLab
+    let p = makeIndent padding
+    printExprChild val p printLab
+    printASTChild child p printLab
+printASTChild ((LabIfElse cond childTrue childFalse), lab) padding printLab = do
+    printLnStrAndLabel (padding ++ " LabIfElse") lab printLab
+    let p = makeIndent padding
+    printExprChild cond p printLab
+    printASTChild childTrue p printLab
+    printASTChild childFalse p printLab
 printASTChild ((LabForVar decs cond expr child), lab) padding printLab = do
     printLnStrAndLabel (padding ++ " LabForVar") lab printLab
     let p = makeIndent padding
@@ -197,6 +224,11 @@ printASTChild ((LabForVarIn var obj child), lab) padding printLab = do
     printExprChild var p printLab
     printExprChild obj p printLab
     printASTChild child p printLab
+printASTChild ((LabWhile cond child), lab) padding printLab = do
+    printLnStrAndLabel (padding ++ " LabWhile") lab printLab
+    let p = makeIndent padding
+    printExprChild cond p printLab
+    printASTChild child p printLab
 printASTChild (n, lab) padding printLab = do
     printLnStrAndLabel (padding ++ " OTHER ASTCHILD") lab printLab
     putStrLn ((makeIndent padding) ++ " " ++ (show n))
@@ -209,6 +241,7 @@ mapPrintExprChild children padding printLab =
         printChild c = printExprChild c padding printLab
 
 
+-- TODO: Alphabetize these.
 printExprChild :: ExprChild -> String -> LabFlag -> IO()
 printExprChild ((LabList exprs), lab) padding printLab = do
     printLnStrAndLabel (padding ++ " LabList") lab printLab
@@ -219,6 +252,12 @@ printExprChild ((LabAssignment op expr1 expr2), lab) padding printLab = do
     printOpChild op p printLab True
     printExprChild expr1 p printLab
     printExprChild expr2 p printLab
+printExprChild ((LabTernary cond exprTrue exprFalse), lab) padding printLab = do
+    printLnStrAndLabel (padding ++ " LabTernary") lab printLab
+    let p = makeIndent padding
+    printExprChild cond p printLab
+    printExprChild exprTrue p printLab
+    printExprChild exprFalse p printLab
 printExprChild ((LabBinary op expr1 expr2), lab) padding printLab = do
     printLnStrAndLabel (padding ++ " LabBinary") lab printLab
     let p = makeIndent padding
@@ -227,6 +266,11 @@ printExprChild ((LabBinary op expr1 expr2), lab) padding printLab = do
     printExprChild expr2 p printLab
 printExprChild ((LabUnaryPost op expr), lab) padding printLab = do
     printLnStrAndLabel (padding ++ " LabUnaryPost") lab printLab
+    let p = makeIndent padding
+    printOpChild op p printLab True
+    printExprChild expr p printLab
+printExprChild ((LabUnaryPre op expr), lab) padding printLab = do
+    printLnStrAndLabel (padding ++ " LabUnaryPre") lab printLab
     let p = makeIndent padding
     printOpChild op p printLab True
     printExprChild expr p printLab
@@ -256,6 +300,14 @@ printExprChild ((LabPropNameValue prop expr), lab) padding printLab = do
     let p = makeIndent padding
     printPropertyNameChild prop p printLab
     printExprChild expr p printLab
+printExprChild ((LabNew cons), lab) padding printLab = do
+    printLnStrAndLabel (padding ++ " LabNew") lab printLab
+    let p = makeIndent padding
+    printExprChild cons p printLab
+printExprChild ((LabThrow child), lab) padding printLab = do
+    printLnStrAndLabel (padding ++ " LabThrow") lab printLab
+    let p = makeIndent padding
+    printExprChild child p printLab
 printExprChild ((LabFunctionExpression vChild args child), lab) padding printLab = do
     printStrAndLabel (padding ++ " LabFunctionExpression") lab printLab
     maybePrintVarChild vChild "" printLab False
@@ -271,6 +323,12 @@ printExprChild ((LabCall fid args), lab) padding printLab = do
     let p = makeIndent padding
     printExprChild fid p printLab
     printExprChild args p printLab
+printExprChild ((LabCallExpression call op expr), lab) padding printLab = do
+    printLnStrAndLabel (padding ++ " LabCallExpression") lab printLab
+    let p = makeIndent padding
+    printExprChild call p printLab
+    printOpChild op p printLab True
+    printExprChild expr p printLab
 printExprChild ((LabArguments exprs), lab) padding printLab = do
     printLnStrAndLabel (padding ++ " LabArguments") lab printLab
     mapPrintExprChild exprs (makeIndent padding) printLab
@@ -344,6 +402,10 @@ printPropertyNameChild ((LabIndexProperty index), lab) padding printLab = do
 
 
 printLabelledValue :: LabelledValue -> String -> LabFlag -> LineFlag -> IO()
+printLabelledValue (LabUndefined) padding _ False =
+    putStr (" LabUndefined")
+printLabelledValue (LabNull) padding _ False =
+    putStr (" LabNull")
 printLabelledValue (LabObject exprs) padding printLab _ = do
     putStrLn ""
     putStrLn (padding ++ " LabObject")
@@ -352,6 +414,8 @@ printLabelledValue (LabInt val) padding _ False =
     putStr (" LabInt " ++ (show val))
 printLabelledValue (LabFloat val) padding _ False =
     putStr (" LabFloat " ++ (show val))
+printLabelledValue (LabBool val) padding _ False =
+    putStr (" LabBool " ++ (show val))
 printLabelledValue (LabString val) padding _ False =
     putStr (" LabString " ++ (show val))
 printLabelledValue (LabDQString val) padding _ False =
@@ -366,10 +430,6 @@ printLabelledValue (LabArray elems) padding printLab False = do
 printLabelledValue labVal padding printLab True = do
     printLabelledValue labVal padding printLab False
     putStrLn ""
-printLabelledValue n padding _ _ = do
-    putStrLn ""
-    putStrLn (padding ++ " OTHER LABELLED VALUE")
-    putStrLn ((makeIndent padding) ++ " " ++ (show n))
 
 -- TODO: Implement pretty printing for Rules
 -- printRule :: Rule -> String -> IO()
