@@ -93,7 +93,6 @@ data LabelledExpression =
     | LabCall ExprChild ExprChild
     | LabCallExpression ExprChild OpChild ExprChild
     | LabContinue (Maybe VarChild)
-    -- FIXME: Can a function expression have a name (first arg)?
     | LabFunctionExpression (Maybe VarChild) [VarChild] ASTChild
     | LabIdentifier VarChild
     | LabIndex ExprChild ExprChild
