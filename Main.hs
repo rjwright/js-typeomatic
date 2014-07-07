@@ -155,6 +155,14 @@ mapPrintASTChild children padding printLab =
 	where
 		printChild c = printASTChild c padding printLab
 
+
+-- TODO: Still need to do:
+-- 		LabDefault ASTChild
+-- 		LabDoWhile ASTChild ExprChild
+-- 		LabFinally ASTChild
+-- 		LabFor (Maybe ExprChild) (Maybe ExprChild) (Maybe ExprChild) ASTChild
+-- 		LabForIn [VarChild] ExprChild ASTChild
+-- 		LabLabelled VarChild ASTChild
 printASTChild :: ASTChild -> String -> LabFlag -> IO()
 printASTChild ((LabBlock children), lab) padding printLab = do
 	printLnStrAndLabel (padding ++ " LabBlock") lab printLab
@@ -236,7 +244,10 @@ mapPrintExprChild children padding printLab =
 	where
 		printChild c = printExprChild c padding printLab
 
--- TODO: Still need to do LabBreak (Maybe VarChild) & LabContinue (Maybe VarChild)
+
+-- TODO: Still need to do
+-- 		LabBreak (Maybe VarChild)
+-- 		LabContinue (Maybe VarChild)
 printExprChild :: ExprChild -> String -> LabFlag -> IO()
 printExprChild ((LabArguments exprs), lab) padding printLab = do
 	printLnStrAndLabel (padding ++ " LabArguments") lab printLab
