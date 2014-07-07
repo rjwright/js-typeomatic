@@ -360,10 +360,21 @@ exprChildRules (LabBinary (op, _) ex1 ex2, n) dIDs | elem op ["&&", "||"] =
 -- Tye type of an in expression is bool.
 exprChildRules (LabBinary (" in ", _) ex1 ex2, n) dIDs =
     [Rule (Meta n) BoolType]
-    -- TODO: For type safety, ex1 must be an object or array; but it doesn't have to contain ex2. I
-    -- might need to introduce another type to represent this.
-    --
-    -- TODO: if ex2 is a variable then ex1 is corruptIfObjectType.
+    -- For type safety, ex1 must be an object or array; but it doesn't have to contain ex2. I
+    -- might need to introduce another type to represent this properly.
+    ++
+    (if ((isIntLiteral ex2) || (isStringLiteral ex2)) then
+        [Rule (childToMeta ex1) (AtLeastObjectType [])]
+
+    else
+        [Rule (childToMeta ex1) (AtLeastObjectType [])]
+        -- If the object is not an array then type inference on the object and all of its members
+        -- must fail.
+        ++ [Rule (childToMeta ex1) (CorruptIfObjectType (childToMeta ex1))]
+        -- If the object is an array then the index must have reference type (because we are, for
+        -- now, disregarding the case where the user references a property of the array other than
+        -- an element.)
+        ++ [Rule (childToMeta ex2) (IntIfArrayType (childToMeta ex1))])
     ++ (exprChildRules ex1 dIDs)
     ++ (exprChildRules ex2 dIDs)
 -- Postfix '++' or '--' only operate on numbers. They type of the expression is number (integer if
@@ -522,6 +533,7 @@ exprChildRules (LabIndex ex1 ex2, n) dIDs =
         -- now, disregarding the case where the user references a property of the array other than
         -- an element.)
         ++ [Rule (childToMeta ex2) (IntIfArrayType (childToMeta ex1))]
+        -- FIXME: Does this need to be outside the "if"?
         ++ (exprChildRules ex2 dIDs))
 -- The type of a LabValue is the type of the value it contains.
 exprChildRules (LabValue val, n) dIDs =
