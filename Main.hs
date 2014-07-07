@@ -33,8 +33,8 @@ main = do
     -- Prints the rules, indented base on their scope, plus an optional list
     -- of the identifiers that are visible at that each scope.
     -- putStr "Top Level:"
-    printCleanedRulesList
-        ((makeCleanedFunctionRules pr):[]) (makeIndent "") True
+    -- printCleanedRulesList
+    --     ((makeCleanedFunctionRules pr):[]) (makeIndent "") True
 
     -- TODO: Rule type needs pretty printing
     -- mapM_ print (makeAllRules pr)
@@ -52,10 +52,13 @@ main = do
     -- Prints the original AST without labels.
     --
     -- TODO: Add pretty printing for this.
-    mapM_ print (makeJSAST pr)
+    -- mapM_ print (makeJSAST pr)
 
     putStrLn ""
     putStrLn $ show $ parseTree pr
+    putStrLn ""
+    printCleanedRulesList
+        ((makeCleanedFunctionRules pr):[]) (makeIndent "") True
     putStrLn ""
 
 
@@ -176,6 +179,11 @@ printASTChild ((LabStatement expr), lab) padding printLab = do
 printASTChild ((LabReturn expr), lab) padding printLab = do
     printLnStrAndLabel (padding ++ " LabReturn") lab printLab
     printExprChild expr (makeIndent padding) printLab
+printASTChild ((LabIf cond child), lab) padding printLab = do
+    printLnStrAndLabel (padding ++ " LabIf") lab printLab
+    let p = makeIndent padding
+    printExprChild cond p printLab
+    printASTChild child p printLab
 printASTChild ((LabForVar decs cond expr child), lab) padding printLab = do
     printLnStrAndLabel (padding ++ " LabForVar") lab printLab
     let p = makeIndent padding
@@ -255,6 +263,9 @@ printExprChild ((LabFunctionExpression vChild args child), lab) padding printLab
     mapPrintVarChild args "" printLab False
     putStrLn " ]"
     printASTChild child (makeIndent padding) printLab
+printExprChild ((LabParenExpression child), lab) padding printLab = do
+    printLnStrAndLabel (padding ++ " LabParenExpression") lab printLab
+    printExprChild child (makeIndent padding) printLab
 printExprChild ((LabCall fid args), lab) padding printLab = do
     printLnStrAndLabel (padding ++ " LabCall") lab printLab
     let p = makeIndent padding
@@ -341,6 +352,8 @@ printLabelledValue (LabInt val) padding _ False =
     putStr (" LabInt " ++ (show val))
 printLabelledValue (LabFloat val) padding _ False =
     putStr (" LabFloat " ++ (show val))
+printLabelledValue (LabString val) padding _ False =
+    putStr (" LabString " ++ (show val))
 printLabelledValue (LabDQString val) padding _ False =
     putStr (" LabDQString " ++ (show val))
 printLabelledValue (LabArray elems) padding printLab False = do

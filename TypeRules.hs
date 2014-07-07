@@ -320,7 +320,7 @@ exprChildRules (LabBinary (op, _) ex1 ex2, n) dIDs | elem op ["-", "%", "*"] =
     ++ (exprChildRules ex1 dIDs)
     ++ (exprChildRules ex2 dIDs)
 -- '/' only operates on numbers. The whole expression has type float.
-exprChildRules (LabBinary (op, _) ex1 ex2, n) dIDs | elem op ["/"] =
+exprChildRules (LabBinary ("/", _) ex1 ex2, n) dIDs =
     [Rule (childToMeta ex1) NumType]
     ++ [Rule (childToMeta ex2) NumType]
     ++ [Rule (Meta n) FloatType]
@@ -355,6 +355,15 @@ exprChildRules (LabBinary (op, _) ex1 ex2, n) dIDs
 -- the compiler.
 exprChildRules (LabBinary (op, _) ex1 ex2, n) dIDs | elem op ["&&", "||"] =
     [Rule (Meta n) BoolType]
+    ++ (exprChildRules ex1 dIDs)
+    ++ (exprChildRules ex2 dIDs)
+-- Tye type of an in expression is bool.
+exprChildRules (LabBinary (" in ", _) ex1 ex2, n) dIDs =
+    [Rule (Meta n) BoolType]
+    -- TODO: For type safety, ex1 must be an object or array; but it doesn't have to contain ex2. I
+    -- might need to introduce another type to represent this.
+    --
+    -- TODO: if ex2 is a variable then ex1 is corruptIfObjectType.
     ++ (exprChildRules ex1 dIDs)
     ++ (exprChildRules ex2 dIDs)
 -- Postfix '++' or '--' only operate on numbers. They type of the expression is number (integer if
