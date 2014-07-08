@@ -3,7 +3,7 @@
 --
 -- TODO: Comment this file.
 
---module PrettyPrint
+-- module PrettyPrint
 module Main
 (
 main
@@ -12,7 +12,7 @@ main
 
 import DeclarationGraph
 import LabelJSAST
-import Language.JavaScript.Parser.AST
+import Language.JavaScript.Parser
 import ParseJS
 import System.Environment
 import TypeRules
@@ -34,8 +34,8 @@ main = do
 	-- Prints the rules, indented base on their scope, plus an optional list
 	-- of the identifiers that are visible at that each scope.
 	-- putStr "Top Level:"
-	printCleanedRulesList
-		((makeCleanedFunctionRules pr):[]) (makeIndent "") True
+	-- printCleanedRulesList
+	-- 	((makeCleanedFunctionRules pr):[]) (makeIndent "") True
 
 	-- TODO: Rule type needs pretty printing
 	-- mapM_ print (makeAllRules pr)
@@ -48,7 +48,7 @@ main = do
 	-- TODO: Experiment with keeping JS code snippets in the tree and printing
 	-- them here.
 	-- mapPrintASTChild (makeLabelledJSAST pr) (makeIndent "") False
-	mapPrintASTChild (makeLabelledJSAST pr) (makeIndent "") True
+	-- mapPrintASTChild (makeLabelledJSAST pr) (makeIndent "") True
 
 	-- Prints the original AST without labels.
 	--
@@ -56,9 +56,15 @@ main = do
 	-- mapM_ print (makeJSAST pr)
 
 	putStrLn ""
-	-- putStrLn $ show $ parseTree pr
-	printParseTree $ parseTree pr
+	putStrLn infile
+	putStrLn $ show $ parse pr infile
 	putStrLn ""
+	mapM_ (putStrLn . show) (getSourceFragments (nodeGetSpan $ parseTree pr) "" [])
+	mapM_ printSourceFragment (getSourceFragments (nodeGetSpan $ parseTree pr) infile [])
+	putStrLn ""
+	-- printParseTreeStripped $ parseTree pr
+	putStrLn ""
+	-- putStrLn $ show $ parseTree pr
 
 
 makeCleanedFunctions :: String -> CleanedFunction
@@ -95,8 +101,31 @@ printLnStrAndLabel str lab printLab = do
 	putStrLn ""
 
 
-printParseTree :: Node -> IO()
-printParseTree (JSSourceElementsTop elements) = mapM_ (putStrLn . show . showStripped) elements
+printParseTreeStripped :: Node -> IO()
+printParseTreeStripped (JSSourceElementsTop elements) =
+	mapM_ (putStrLn . show . showStripped) elements
+
+
+-- TODO: This needs to open fileName, read from (startRow, startCol) to (endRow, endCol) and print
+-- the result.
+printSourceFragment :: SourceFragment -> IO()
+printSourceFragment (fileName, startRow, startCol, endRow, endCol) = do
+	contents <- readFile fileName
+	let singleLines = lines contents
+	let fragment = getRange singleLines startRow startCol endRow endCol
+	putStrLn $ subList 3 7 "123RENEE"
+	mapM_ putStrLn fragment
+	where
+		getRange strings sr sc er ec =
+			if (sr == er) then
+				[subList sc ec (strings!!sr)]
+			else
+				(subList (sr - 1) (er - 2) strings) ++ [subList 0 ec (strings!!(er-1))]
+
+
+subList :: Int -> Int -> [a] -> [a]
+subList start end ls = drop start $ take end ls
+
 
 -- Prints CleanedRules, indented according to their depth in the tree
 printCleanedRulesList :: CleanedRules a => [a] -> String -> Bool -> IO()

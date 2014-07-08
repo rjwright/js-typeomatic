@@ -17,8 +17,11 @@ module ParseJS
 , JSAST(..)
 , Operator
 , PropertyName(..)
+, SourceFragment
 , Value(..)
 , Variable
+, getSourceFragments
+, nodeGetSpan
 , parseTree
 , toJSAST
 ) where
@@ -42,12 +45,16 @@ import Data.Maybe
 import Language.JavaScript.Parser (parse)
 import Language.JavaScript.Parser.AST
 import System.Environment
+import System.IO
 
 
 type Variable = String
 type Index = Int
 type Operator = String
-
+type Row = Int
+type Col = Int
+-- (FileName, StartRow, StartCol, EndRow, EndCol)
+type SourceFragment = (String, Row, Col, Row, Col)
 
 -- Represent an identifier used to index an object property using square branchets. An object
 -- property's identifier can be a string or an integer.
@@ -86,6 +93,8 @@ data Value =
 -- other things have been added where it made sense.
 --
 -- None of these contain JSAST fields except for FunctionExpression.
+--
+-- TODO: Each of these should contain a SourceFragment.
 data Expression =
       Arguments [Expression]
     | Assignment Operator Expression Expression
@@ -130,6 +139,8 @@ data Expression =
 -- FIXME: Also includes a type for return expressions (Return) and a wrapper for instances of the
 -- Expression data type (Statement). I'm not sure how or why that happened, but I'm sure there was
 -- an excellent reason.
+--
+-- TODO: Each of these should contain a SourceFragment.
 data JSAST =
       Block [JSAST]
     | Case Expression JSAST
@@ -161,6 +172,26 @@ jsnGetNode (NS a _) = a
 -- Parse JavaScript source code.
 parseTree :: String -> Node
 parseTree program = jsnGetNode $ (\(Right a) -> a) $ parse program "";
+
+
+nodeGetSpan :: Node -> [SrcSpan]
+nodeGetSpan (JSSourceElementsTop elements) =
+    map jsNodeGetSpan elements
+    where
+        jsNodeGetSpan (NS node srcSpan) = srcSpan
+
+
+getSourceFragments :: [SrcSpan] -> String -> [SourceFragment] -> [SourceFragment]
+getSourceFragments (s1:s2:[]) file result =
+    (getSourceFragment s1 s2 file):result
+getSourceFragments (s1:s2:sx) file result =
+    (getSourceFragments (s2:sx) file result) ++ (getSourceFragment s1 s2 file):result
+
+
+getSourceFragment :: SrcSpan -> SrcSpan -> String -> SourceFragment
+getSourceFragment (SpanPoint _ row1 col1) (SpanPoint _ row2 col2) fileName =
+    (fileName, row1, col1, row2, col2)
+
 
 
 -- Extract the Node from a JSNode and apply toJSAST.
