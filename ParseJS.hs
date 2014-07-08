@@ -16,18 +16,18 @@
 
 module ParseJS
 ( Expression(..)
+, ExprWithSourceSpan(..)
 , Index
 , JSAST(..)
+, JSASTWithSourceSpan(..)
 , Operator
 , PropertyName(..)
 , SourceFileName
 , SourceFragment
 , Value(..)
 , Variable
-, getSourceFragments
 , parseTree
 , toJSAST
-, topNodeGetSpan
 ) where
 
 
@@ -81,7 +81,7 @@ data PropertyName =
 
 -- Represent literal values.
 data Value =
-      JSArray [Expression]
+      JSArray [ExprWithSourceSpan]
     | JSBool Bool
     -- Double quote strings are never treated differently to normal strings.
     -- TODO: Should be merged with JSString
@@ -90,7 +90,7 @@ data Value =
     | JSInt Int
     | JSNull
     -- TODO: Comment on what the expressions can be.
-    | JSObject [Expression]
+    | JSObject [ExprWithSourceSpan]
     | JSString String
     | JSUndefined deriving (Show)
 
@@ -103,11 +103,11 @@ data Value =
 --
 -- TODO: Each of these should contain a SourceFragment.
 data Expression =
-      Arguments [Expression] SrcSpan SourceFileName
-    | Assignment Operator Expression Expression SrcSpan SourceFileName
-    | Binary Operator Expression Expression SrcSpan SourceFileName
-    | Break (Maybe Variable) SrcSpan SourceFileName
-    | Call Expression Expression SrcSpan SourceFileName
+      Arguments [ExprWithSourceSpan]
+    | Assignment Operator ExprWithSourceSpan ExprWithSourceSpan
+    | Binary Operator ExprWithSourceSpan ExprWithSourceSpan
+    | Break (Maybe Variable)
+    | Call ExprWithSourceSpan ExprWithSourceSpan
     -- In Language.JavaScript, a call expression is an expression that calls - or accesses a SrcSpan SourceFileName
     -- property of - a function call. SrcSpan SourceFileName
     -- SrcSpan SourceFileName
@@ -115,29 +115,29 @@ data Expression =
     -- SrcSpan SourceFileName
     -- However, this program treats foo()() as a Call within a Call (as I believe that is a SrcSpan SourceFileName
     -- sufficient description for our purposes). SrcSpan SourceFileName
-    | CallExpression Expression Operator Expression SrcSpan SourceFileName
-    | Continue (Maybe Variable) SrcSpan SourceFileName
+    | CallExpression ExprWithSourceSpan Operator ExprWithSourceSpan
+    | Continue (Maybe Variable)
     -- A function expression occurs when a function definition is on the right hand side of some SrcSpan SourceFileName
     -- statement. SrcSpan SourceFileName
-    | FunctionExpression (Maybe Variable) [Variable] JSAST SrcSpan SourceFileName
-    | Identifier Variable SrcSpan SourceFileName
+    | FunctionExpression (Maybe Variable) [Variable] JSASTWithSourceSpan
+    | Identifier Variable
     -- Represents an index into a structure using square brackets. SrcSpan SourceFileName
-    | Index Expression Expression SrcSpan SourceFileName
+    | Index ExprWithSourceSpan ExprWithSourceSpan
     -- TODO: Needs comment to explain what it is SrcSpan SourceFileName
-    | List [Expression] SrcSpan SourceFileName
-    | New Expression SrcSpan SourceFileName
+    | List [ExprWithSourceSpan]
+    | New ExprWithSourceSpan
     -- TODO: Needs comment to explain what it is. SrcSpan SourceFileName
-    | ParenExpression Expression SrcSpan SourceFileName
+    | ParenExpression ExprWithSourceSpan
     -- Represents a property of an object. SrcSpan SourceFileName
-    | PropNameValue PropertyName Expression SrcSpan SourceFileName
+    | PropNameValue PropertyName ExprWithSourceSpan
     -- Represents a reference to a structure member using a dot. SrcSpan SourceFileName
-    | Reference Expression Expression SrcSpan SourceFileName
-    | Ternary Expression Expression Expression SrcSpan SourceFileName
-    | Throw Expression SrcSpan SourceFileName
-    | UnaryPost Operator Expression SrcSpan SourceFileName
-    | UnaryPre Operator Expression SrcSpan SourceFileName
-    | Value Value SrcSpan SourceFileName
-    | VarDeclaration Variable (Maybe Expression) SrcSpan SourceFileName deriving (Show)
+    | Reference ExprWithSourceSpan ExprWithSourceSpan
+    | Ternary ExprWithSourceSpan ExprWithSourceSpan ExprWithSourceSpan
+    | Throw ExprWithSourceSpan
+    | UnaryPost Operator ExprWithSourceSpan
+    | UnaryPre Operator ExprWithSourceSpan
+    | Value Value
+    | VarDeclaration Variable (Maybe ExprWithSourceSpan) deriving (Show)
 
 
 -- Represent source elements which include a "block" or "body" and thus make logical non-terminal
@@ -149,30 +149,29 @@ data Expression =
 --
 -- TODO: Each of these should contain a SourceFragment.
 data JSAST =
-      Block [JSAST] SrcSpan SourceFileName
-    | Case Expression JSAST SrcSpan SourceFileName
-    | Catch Variable (Maybe Expression) JSAST SrcSpan SourceFileName
-    | Default JSAST SrcSpan SourceFileName
-    | DoWhile JSAST Expression SrcSpan SourceFileName
-    | Finally JSAST SrcSpan SourceFileName
-    | For (Maybe Expression) (Maybe Expression) (Maybe Expression) JSAST SrcSpan SourceFileName
-    | ForIn [Variable] Expression JSAST SrcSpan SourceFileName
-    | ForVar [Expression] (Maybe Expression) (Maybe Expression) JSAST SrcSpan SourceFileName
-    | ForVarIn Expression Expression JSAST SrcSpan SourceFileName
-    | FunctionBody [JSAST] SrcSpan SourceFileName
-    | FunctionDeclaration Variable [Variable] JSAST SrcSpan SourceFileName
-    | If Expression JSAST SrcSpan SourceFileName
-    | IfElse Expression JSAST JSAST SrcSpan SourceFileName
-    | Labelled Variable JSAST SrcSpan SourceFileName
-    | Return Expression SrcSpan SourceFileName
-    | Statement Expression SrcSpan SourceFileName
-    | Switch Expression JSAST SrcSpan SourceFileName
-    | Try JSAST JSAST SrcSpan SourceFileName
-    | While Expression JSAST SrcSpan SourceFileName deriving (Show)
+      Block [JSASTWithSourceSpan]
+    | Case ExprWithSourceSpan JSASTWithSourceSpan
+    | Catch Variable (Maybe ExprWithSourceSpan) JSASTWithSourceSpan
+    | Default JSASTWithSourceSpan
+    | DoWhile JSASTWithSourceSpan ExprWithSourceSpan
+    | Finally JSASTWithSourceSpan
+    | For (Maybe ExprWithSourceSpan) (Maybe ExprWithSourceSpan) (Maybe ExprWithSourceSpan) JSASTWithSourceSpan
+    | ForIn [Variable] ExprWithSourceSpan JSASTWithSourceSpan
+    | ForVar [ExprWithSourceSpan] (Maybe ExprWithSourceSpan) (Maybe ExprWithSourceSpan) JSASTWithSourceSpan
+    | ForVarIn ExprWithSourceSpan ExprWithSourceSpan JSASTWithSourceSpan
+    | FunctionBody [JSASTWithSourceSpan]
+    | FunctionDeclaration Variable [Variable] JSASTWithSourceSpan
+    | If ExprWithSourceSpan JSASTWithSourceSpan
+    | IfElse ExprWithSourceSpan JSASTWithSourceSpan JSASTWithSourceSpan
+    | Labelled Variable JSASTWithSourceSpan
+    | Return ExprWithSourceSpan
+    | Statement ExprWithSourceSpan
+    | Switch ExprWithSourceSpan JSASTWithSourceSpan
+    | Try JSASTWithSourceSpan JSASTWithSourceSpan
+    | While ExprWithSourceSpan JSASTWithSourceSpan deriving (Show)
 
-type JSASTWithSourceSpan = WS JSAST SrcSpan SourceFileName
-type ExprWithSourceSpan = WS Expression SrcSpan SourceFileName
--- data jsastWithSource = NSF JSAST SourceFragment
+data JSASTWithSourceSpan = AWS JSAST SrcSpan SourceFileName deriving (Show)
+data ExprWithSourceSpan = EWS Expression SrcSpan SourceFileName deriving (Show)
 
 -- Extract the Node from a JSNode.
 jsnGetNode :: JSNode -> Node
@@ -200,7 +199,7 @@ parseTree program fileName = (\(Right a) -> a) $ parse program fileName;
 
 -- Most Nodes have a [JSNode] field. astMap applies toJSAST to the Node field of each JSNode in such
 -- a list, putting the results in a new list
-astMap :: [JSNode] -> SourceFileName -> [JSAST]
+astMap :: [JSNode] -> SourceFileName -> [JSASTWithSourceSpan]
 astMap jsnList fileName = concat $ map (\jsn -> toJSAST jsn fileName) jsnList
 -- astMap :: [JSNode] -> SourceFragment -> [JSAST]
 -- astMap jsnList nextFragment =
@@ -214,13 +213,15 @@ astMap jsnList fileName = concat $ map (\jsn -> toJSAST jsn fileName) jsnList
 
 
 -- Extract a list or an expression in parens from a Statement.
-statementToListExp :: [JSAST] -> Expression
-statementToListExp [Statement (List ls srcSpan fileName) _ _] = List ls srcSpan fileName
-statementToListExp [Statement (ParenExpression expr srcSpan fileName) _ _] =
-    ParenExpression expr srcSpan fileName
+-- FIXME: Unsure if I've used the right source spans here.
+statementToListExp :: [JSASTWithSourceSpan] -> ExprWithSourceSpan
+statementToListExp [AWS (Statement (EWS (List ls) _ _)) srcSpan fileName] =
+    EWS (List ls) srcSpan fileName
+statementToListExp [AWS (Statement (EWS (ParenExpression expr) _ _)) srcSpan fileName] =
+    EWS (ParenExpression expr) srcSpan fileName
 
 
-statementToMaybeListExp :: [JSAST] -> Maybe Expression
+statementToMaybeListExp :: [JSASTWithSourceSpan] -> Maybe ExprWithSourceSpan
 statementToMaybeListExp [] = Nothing
 statementToMaybeListExp list = Just $ statementToListExp list
 
@@ -228,11 +229,11 @@ statementToMaybeListExp list = Just $ statementToListExp list
 -- Make an expression list or paren expression Statement from a JSNode and then extract the
 -- expression.
 -- FIXME: Is this needed?
-jsnToListExp :: JSNode -> SourceFileName -> Expression
+jsnToListExp :: JSNode -> SourceFileName -> ExprWithSourceSpan
 jsnToListExp jsn fileName = statementToListExp $ toJSAST jsn fileName
 
 
-jsnToMaybeListExp :: [JSNode] -> SourceFileName -> Maybe Expression
+jsnToMaybeListExp :: [JSNode] -> SourceFileName -> Maybe ExprWithSourceSpan
 jsnToMaybeListExp jsnList fileName = statementToMaybeListExp $ astMap jsnList fileName
 
 
@@ -242,17 +243,17 @@ identifierGetString (JSIdentifier jsid) = jsid
 
 
 -- Make representations of variable declarations in AST.
-toJSASTVarDeclaration :: JSNode -> SourceFileName -> Expression
+toJSASTVarDeclaration :: JSNode -> SourceFileName -> ExprWithSourceSpan
 toJSASTVarDeclaration (NS (JSVarDecl name []) srcSpan) fileName =
-    VarDeclaration
-        (identifierGetString $ jsnGetNode name)
-        Nothing
+    EWS
+        (VarDeclaration (identifierGetString $ jsnGetNode name) Nothing)
         srcSpan
         fileName
 toJSASTVarDeclaration (NS (JSVarDecl name value) srcSpan) fileName =
-    VarDeclaration
-        (identifierGetString $ jsnGetNode name)
-        (Just $ mapListToExpression value fileName)
+    EWS
+        (VarDeclaration
+            (identifierGetString $ jsnGetNode name)
+            (Just $ mapListToExpression value fileName))
         srcSpan
         fileName
 
@@ -263,7 +264,7 @@ toJSASTVarDeclaration (NS (JSVarDecl name value) srcSpan) fileName =
 -- point of the nodes source)
 -- toJSAST :: Node -> [JSAST]
 -- toJSAST :: Node -> SrcSpan -> SourceFragment -> [JSAST]
-toJSAST :: JSNode -> SourceFileName -> [JSAST]
+toJSAST :: JSNode -> SourceFileName -> [JSASTWithSourceSpan]
 -- These ones return a proper list of JSASTs. (Haskell Land) Constructors which use one of these to
 -- fill a field must have a [JSAST] for that field.
 toJSAST (NS (JSSourceElementsTop topList) srcSpan) fileName = astMap topList fileName
@@ -276,7 +277,7 @@ toJSAST (NS (JSVariables _ varDecs) srcSpan) fileName =
     map makeStatement varDecs
     where
         makeStatement jsn =
-            Statement (toJSASTVarDeclaration jsn fileName) srcSpan fileName
+            AWS (Statement (toJSASTVarDeclaration jsn fileName)) srcSpan fileName
 -- These ones always return singleton lists. (Haskell Land) Constructors which use only these to
 -- fill a field can have a JSAST for that field.
 --
@@ -284,14 +285,16 @@ toJSAST (NS (JSVariables _ varDecs) srcSpan) fileName =
 -- seperated (basically the <JSLiteral ','>s need to be stripped. My code to do that is kind of
 -- disgusting.
 toJSAST (NS (JSExpression jsnList) srcSpan) fileName =
-    [Statement
-        (List
-            (map
-                (\l -> listToJSASTExpression l fileName)
-                (jsExpGetSublists jsnList))
-            -- FIXME: Might not be the right source fragment for list.
-            (jsnGetSpan $ head jsnList)
-            fileName)
+    [AWS
+        (Statement
+            (EWS
+                (List
+                    (map
+                        (\l -> listToJSASTExpression l fileName)
+                        (jsExpGetSublists jsnList)))
+                -- FIXME: Might not be the right source fragment for list.
+                (jsnGetSpan $ head jsnList)
+                fileName))
         srcSpan
         fileName
     ]
@@ -306,47 +309,54 @@ toJSAST (NS (JSExpression jsnList) srcSpan) fileName =
         getSublist ((NS (JSLiteral ",") _):rest) = ([], rest)
         getSublist (y:ys) = let (next, rest) = getSublist ys in (y:(next), rest)
 toJSAST (NS (JSFunction name inputs body) srcSpan) fileName =
-    [FunctionDeclaration
-        (identifierGetString $ jsnGetNode name)
-        (map (identifierGetString . jsnGetNode) inputs)
-        (FunctionBody (toJSAST body fileName) (jsnGetSpan body) fileName)
+    [AWS
+        (FunctionDeclaration
+            (identifierGetString $ jsnGetNode name)
+            (map (identifierGetString . jsnGetNode) inputs)
+            (AWS (FunctionBody (toJSAST body fileName)) (jsnGetSpan body) fileName))
         srcSpan
         fileName
     ]
 toJSAST (NS (JSLabelled label body) srcSpan) fileName =
-    [Labelled
-        (identifierGetString $ jsnGetNode label)
-        (Block (toJSAST body fileName) (jsnGetSpan body) fileName)
+    [AWS
+        (Labelled
+            (identifierGetString $ jsnGetNode label)
+            (AWS (Block (toJSAST body fileName)) (jsnGetSpan body) fileName))
         srcSpan
         fileName
     ]
 toJSAST (NS (JSBreak [] _) srcSpan) fileName =
-    [Statement
-        (Break Nothing srcSpan fileName)
+    [AWS
+        (Statement
+            (EWS (Break Nothing) srcSpan fileName))
         srcSpan
         fileName
     ]
 toJSAST (NS (JSBreak [label] _) srcSpan) fileName =
-    [Statement
-        (Break (Just $ identifierGetString $ jsnGetNode label) srcSpan fileName)
+    [AWS
+        (Statement
+            (EWS (Break (Just $ identifierGetString $ jsnGetNode label)) srcSpan fileName))
         srcSpan
         fileName
     ]
 toJSAST (NS (JSContinue [item]) srcSpan) fileName =
-    [Statement
-        (Continue Nothing srcSpan fileName)
+    [AWS
+        (Statement
+            (EWS (Continue Nothing) srcSpan fileName))
         srcSpan
         fileName
     ]
 toJSAST (NS (JSContinue [label, semi]) srcSpan) fileName =
-    [Statement
-        (Continue (Just $ identifierGetString $ jsnGetNode label) srcSpan fileName)
+    [AWS
+        (Statement
+            (EWS (Continue (Just $ identifierGetString $ jsnGetNode label)) srcSpan fileName))
         srcSpan
         fileName
     ]
 toJSAST (NS (JSThrow expr) srcSpan) fileName =
-    [Statement
-        (Throw (toJSASTExpression (jsnGetNode expr) fileName) srcSpan fileName)
+    [AWS
+        (Statement
+            (EWS (Throw (toJSASTExpression (jsnGetNode expr) fileName)) srcSpan fileName))
         srcSpan
         fileName
     ]
@@ -355,144 +365,163 @@ toJSAST (NS (JSThrow expr) srcSpan) fileName =
 -- JSForVar occurs in the case that variables are declared in the loop statement, multiple
 -- predicates and multiple counter operations.
 toJSAST (NS (JSForVar vars test count body) srcSpan) fileName =
-    [ForVar
-        (map (\v -> toJSASTVarDeclaration v fileName) vars)
-        (jsnToMaybeListExp test fileName)
-        (jsnToMaybeListExp count fileName)
-        (Block (toJSAST body fileName) (jsnGetSpan body) fileName)
+    [AWS
+        (ForVar
+            (map (\v -> toJSASTVarDeclaration v fileName) vars)
+            (jsnToMaybeListExp test fileName)
+            (jsnToMaybeListExp count fileName)
+            (AWS (Block (toJSAST body fileName)) (jsnGetSpan body) fileName))
         srcSpan
         fileName
     ]
 -- JSFor occurs when no varibles are declared in the loop (although they may be re-assigned),
 -- multiple predicates and multiple counter operations
 toJSAST (NS (JSFor vars test count body) srcSpan) fileName =
-    [For
-        (jsnToMaybeListExp vars fileName)
-        (jsnToMaybeListExp test fileName)
-        (jsnToMaybeListExp count fileName)
-        (Block (toJSAST body fileName) (jsnGetSpan body) fileName)
+    [AWS
+        (For
+            (jsnToMaybeListExp vars fileName)
+            (jsnToMaybeListExp test fileName)
+            (jsnToMaybeListExp count fileName)
+            (AWS (Block (toJSAST body fileName)) (jsnGetSpan body) fileName))
         srcSpan
         fileName
     ]
 -- JSForIn occurs when no variables are declared inside the for statement, and the loop iterates
 -- over some object (e.g. an array)
 toJSAST (NS (JSForIn vars obj body) srcSpan) fileName =
-    [ForIn
-        (map (identifierGetString . jsnGetNode) vars)
-        (jsnToListExp obj fileName)
-        (Block (toJSAST body fileName) (jsnGetSpan body) fileName)
+    [AWS
+        (ForIn
+            (map (identifierGetString . jsnGetNode) vars)
+            (jsnToListExp obj fileName)
+            (AWS (Block (toJSAST body fileName)) (jsnGetSpan body) fileName))
         srcSpan
         fileName
     ]
 -- JSForVarIn occurs when variables are declared inside the for statement and the loop iterates over
 -- some object (e.g. an array)
 toJSAST (NS (JSForVarIn var obj body) srcSpan) fileName =
-    [ForVarIn
-        (toJSASTVarDeclaration var fileName)
-        (jsnToListExp obj fileName)
-        (Block (toJSAST body fileName) (jsnGetSpan body) fileName)
+    [AWS
+        (ForVarIn
+            (toJSASTVarDeclaration var fileName)
+            (jsnToListExp obj fileName)
+            (AWS (Block (toJSAST body fileName)) (jsnGetSpan body) fileName))
         srcSpan
         fileName
     ]
 toJSAST (NS (JSWhile test body) srcSpan) fileName =
-    [While
-        (jsnToListExp test fileName)
-        (Block (toJSAST body fileName) (jsnGetSpan body) fileName)
+    [AWS
+        (While
+            (jsnToListExp test fileName)
+            (AWS (Block (toJSAST body fileName)) (jsnGetSpan body) fileName))
         srcSpan
         fileName
     ]
 -- TODO: Look at the parser source and find out what "something" actually is
 toJSAST (NS (JSDoWhile body test something) srcSpan) fileName =
-    [DoWhile
-        (Block (toJSAST body fileName) (jsnGetSpan body) fileName)
-        (jsnToListExp test fileName)
+    [AWS
+        (DoWhile
+            (AWS (Block (toJSAST body fileName)) (jsnGetSpan body) fileName)
+            (jsnToListExp test fileName))
         srcSpan
         fileName
     ]
 toJSAST (NS (JSIf test body) srcSpan) fileName =
-    [If
-        (jsnToListExp test fileName)
-        (Block (toJSAST body fileName) (jsnGetSpan body) fileName)
+    [AWS
+        (If
+            (jsnToListExp test fileName)
+            (AWS (Block (toJSAST body fileName)) (jsnGetSpan body) fileName))
         srcSpan
         fileName
     ]
 toJSAST (NS (JSIfElse test trueBody falseBody) srcSpan) fileName =
-    [IfElse
-        (jsnToListExp test fileName)
-        (Block (toJSAST trueBody fileName) (jsnGetSpan trueBody) fileName)
-        (Block (toJSAST falseBody fileName) (jsnGetSpan falseBody) fileName)
+    [AWS
+        (IfElse
+            (jsnToListExp test fileName)
+            (AWS (Block (toJSAST trueBody fileName)) (jsnGetSpan trueBody) fileName)
+            (AWS (Block (toJSAST falseBody fileName)) (jsnGetSpan falseBody) fileName))
         srcSpan
         fileName
     ]
 toJSAST (NS (JSSwitch var cases) srcSpan) fileName =
-    [Switch
-        (jsnToListExp var fileName)
-        -- FIXME: Probably not the right source span for the block
-        (Block
-            (concat $ map (\c -> toJSAST c fileName) cases)
-            (jsnGetSpan $ head cases)
-            fileName)
+    [AWS
+        (Switch
+            (jsnToListExp var fileName)
+            -- FIXME: Probably not the right source span for the block
+            (AWS
+                (Block
+                    (concat $ map (\c -> toJSAST c fileName) cases))
+                (jsnGetSpan $ head cases)
+                fileName))
         srcSpan
         fileName
     ]
 toJSAST (NS (JSCase cs body) srcSpan) fileName =
-    [Case
-        (jsnToListExp cs fileName)
-        (Block (toJSAST body fileName) (jsnGetSpan body) fileName)
+    [AWS
+        (Case
+            (jsnToListExp cs fileName)
+            (AWS (Block (toJSAST body fileName)) (jsnGetSpan body) fileName))
         srcSpan
         fileName
     ]
 toJSAST (NS (JSDefault body) srcSpan) fileName =
-    [Default
-        (Block (toJSAST body fileName) (jsnGetSpan body) fileName)
+    [AWS
+        (Default
+            (AWS (Block (toJSAST body fileName)) (jsnGetSpan body) fileName))
         srcSpan
         fileName
     ]
 toJSAST (NS (JSTry body catchClause) srcSpan) fileName =
-    [Try
-        (Block
-            (toJSAST body fileName)
-            (jsnGetSpan body)
-            fileName)
-        -- FIXME: Probably not the right source span for the block
-        (Block
-            (astMap catchClause fileName)
-            (jsnGetSpan $ head catchClause)
-            fileName)
+    [AWS
+        (Try
+            (AWS
+                (Block
+                    (toJSAST body fileName))
+                (jsnGetSpan body)
+                fileName)
+            -- FIXME: Probably not the right source span for the block
+            (AWS (Block
+                (astMap catchClause fileName))
+                (jsnGetSpan $ head catchClause)
+                fileName))
         srcSpan
         fileName
     ]
 toJSAST (NS (JSCatch var test body) srcSpan) fileName =
-    [Catch
-        (identifierGetString $ jsnGetNode var)
-        (mapListToMaybeExpression test fileName)
-        (Block (toJSAST body fileName) (jsnGetSpan body) fileName)
+    [AWS
+        (Catch
+            (identifierGetString $ jsnGetNode var)
+            (mapListToMaybeExpression test fileName)
+            (AWS (Block (toJSAST body fileName)) (jsnGetSpan body) fileName))
         srcSpan
         fileName
     ]
 toJSAST (NS (JSFinally body) srcSpan) fileName =
-    [Finally
-        (Block (toJSAST body fileName) (jsnGetSpan body) fileName)
+    [AWS
+        (Finally
+            (AWS (Block (toJSAST body fileName)) (jsnGetSpan body) fileName))
         srcSpan
         fileName
     ]
 toJSAST (NS (JSReturn [item]) srcSpan) fileName =
-    [Return
-        (Value JSUndefined srcSpan fileName)
+    [AWS
+        (Return
+            (EWS (Value JSUndefined) srcSpan fileName))
         srcSpan
         fileName
     ]
 toJSAST (NS (JSReturn [val, semi]) srcSpan) fileName =
-    [Return
-        (jsnToListExp val fileName)
+    [AWS
+        (Return
+            (jsnToListExp val fileName))
         srcSpan
         fileName
     ]
 -- TODO: Not 100% sure that this is safe.
 toJSAST (NS (JSLiteral ";") srcSpan) fileName = []
 toJSAST x fileName =
-    [Statement
-        (makeJSASTExpression x fileName)
+    [AWS
+        (Statement
+            (makeJSASTExpression x fileName))
         (jsnGetSpan x)
         fileName
     ]
@@ -551,11 +580,11 @@ jsArrayGetSubarray jsa =
 
 
 -- Takes a list of JSNodes and makes an expression.
-mapListToExpression :: [JSNode] -> SourceFileName -> Expression
+mapListToExpression :: [JSNode] -> SourceFileName -> ExprWithSourceSpan
 mapListToExpression jsn fileName = listToJSASTExpression jsn fileName
 
 
-mapListToMaybeExpression :: [JSNode] -> SourceFileName -> Maybe Expression
+mapListToMaybeExpression :: [JSNode] -> SourceFileName -> Maybe ExprWithSourceSpan
 mapListToMaybeExpression [] _ = Nothing
 mapListToMaybeExpression jsn fileName = Just $ mapListToExpression jsn fileName
 
@@ -563,7 +592,7 @@ mapListToMaybeExpression jsn fileName = Just $ mapListToExpression jsn fileName
 -- Takes a list of Nodes and builds a single expression.
 --
 -- TODO: Add a comment here explaining where these Node lists come from.
-listToJSASTExpression :: [JSNode] -> SourceFileName -> Expression
+listToJSASTExpression :: [JSNode] -> SourceFileName -> ExprWithSourceSpan
 listToJSASTExpression [item] fileName = makeJSASTExpression item fileName
 -- FIXME: This is very ugly
 listToJSASTExpression [(NS (JSUnary operator) srcSpan1), (NS (JSDecimal x) srcSpan2)] fileName
@@ -572,20 +601,22 @@ listToJSASTExpression [(NS (JSUnary operator) srcSpan1), (NS (JSDecimal x) srcSp
                     JSFloat (-1 * (read x))
                 else
                     -- FIXME: Might not be the right source span for the expression
-                    JSInt (-1 * (read x)) in Value y srcSpan1 fileName
+                    JSInt (-1 * (read x)) in EWS (Value y) srcSpan1 fileName
 listToJSASTExpression ((NS (JSUnary operator) srcSpan):x) fileName
     | elem operator ["-", "+", "--", "++", "!", "typeof ", "delete ", "~"] =
-        UnaryPre
-            operator
-            (listToJSASTExpression x fileName)
+        EWS
+            (UnaryPre
+                operator
+                (listToJSASTExpression x fileName))
             srcSpan
             fileName
 listToJSASTExpression ((NS (JSLiteral "new ") srcSpan):x) fileName =
-    New (listToJSASTExpression x fileName) srcSpan fileName
+    EWS (New (listToJSASTExpression x fileName)) srcSpan fileName
 listToJSASTExpression [x, (NS (JSArguments args) srcSpan)] fileName =
-    Call
-        (makeJSASTExpression x fileName)
-        (toJSASTArguments args fileName)
+    EWS
+        (Call
+            (makeJSASTExpression x fileName)
+            (toJSASTArguments args fileName))
         (jsnGetSpan x)
         fileName
 -- FIXME: This is SUPER ugly and isCallExpression isn't being used.
@@ -598,10 +629,10 @@ listToJSASTExpression list fileName =
         getJSASTCallExpression list fileName
 
 -- Makes arguments from a list of lists of JSNodes that represent a list of arguments.
-toJSASTArguments :: [[JSNode]] -> SourceFileName -> Expression
+toJSASTArguments :: [[JSNode]] -> SourceFileName -> ExprWithSourceSpan
 toJSASTArguments args fileName =
     -- FIXME: Might not be the right source span for args
-    Arguments (map getJSASTArgument args) (jsnGetSpan $ head $ head args) fileName
+    EWS (Arguments (map getJSASTArgument args)) (jsnGetSpan $ head $ head args) fileName
     where
         getJSASTArgument [item] = makeJSASTExpression item fileName
         getJSASTArgument nodes = mapListToExpression nodes fileName
@@ -620,14 +651,15 @@ isAssignment (_:ls) = isAssignment ls
 
 
 -- To handle messy assignments
-getJSASTAssignment :: [JSNode] -> SourceFileName -> Expression
+getJSASTAssignment :: [JSNode] -> SourceFileName -> ExprWithSourceSpan
 getJSASTAssignment list fileName =
     -- FIXME: This whole function is a brain drain. Refactor.
     let (pre, op, post) = getPrePost list in
-        Assignment
-            op
-            (listToJSASTExpression pre fileName)
-            (listToJSASTExpression post fileName)
+        EWS
+            (Assignment
+                op
+                (listToJSASTExpression pre fileName)
+                (listToJSASTExpression post fileName))
             -- FIXME: Might not be the right source span for assignment list
             (jsnGetSpan $ head list)
             fileName
@@ -648,11 +680,12 @@ isParenCallExp _ = False
 -- JSArguments but for now I'm just going to hope not.
 --
 -- TODO: Just look at the parser source to work this out
-getJSASTCall :: [JSNode] -> SourceFileName -> Expression
+getJSASTCall :: [JSNode] -> SourceFileName -> ExprWithSourceSpan
 getJSASTCall list fileName =
-    Call
-        (listToJSASTExpression (init list) fileName)
-        (lastGetArgs (argsNode $ jsnGetNode $ last list) fileName)
+    EWS
+        (Call
+            (listToJSASTExpression (init list) fileName)
+            (lastGetArgs (argsNode $ jsnGetNode $ last list) fileName))
         (jsnGetSpan $ head list)
         fileName
     where
@@ -670,12 +703,13 @@ isCallExpression _ = False
 
 -- To handle the case where the last element in the list is a (JSCallExpression "[]" exp) or a
 -- (JSCallExpression "." exp).
-getJSASTCallExpression :: [JSNode] -> SourceFileName -> Expression
+getJSASTCallExpression :: [JSNode] -> SourceFileName -> ExprWithSourceSpan
 getJSASTCallExpression list fileName =
-    CallExpression
-        (listToJSASTExpression (init list) fileName)
-        (callExpOperator $ jsnGetNode $ last list)
-        (callExpProperty $ jsnGetNode $ last list)
+    EWS
+        (CallExpression
+            (listToJSASTExpression (init list) fileName)
+            (callExpOperator $ jsnGetNode $ last list)
+            (callExpProperty $ jsnGetNode $ last list))
         (jsnGetSpan $ head list)
         fileName
     where
@@ -687,18 +721,20 @@ getJSASTCallExpression list fileName =
 
 -- Takes a Node that represents a property of an object and produdes a singleton list containing a
 -- PropNameValue Expression.
-toJSASTPropNameValue :: JSNode -> SourceFileName -> [Expression]
+toJSASTPropNameValue :: JSNode -> SourceFileName -> [ExprWithSourceSpan]
 toJSASTPropNameValue (NS (JSPropertyNameandValue (NS (JSIdentifier name) _) value) srcSpan) fileName =
-    [PropNameValue
-        (VariableProperty name)
-        (listToJSASTExpression value fileName)
+    [EWS
+        (PropNameValue
+            (VariableProperty name)
+            (listToJSASTExpression value fileName))
         srcSpan
         fileName
     ]
 toJSASTPropNameValue (NS (JSPropertyNameandValue (NS (JSDecimal index) _) value) srcSpan) fileName =
-    [PropNameValue
-        (IndexProperty (read index))
-        (listToJSASTExpression value fileName)
+    [EWS
+        (PropNameValue
+            (IndexProperty (read index))
+            (listToJSASTExpression value fileName))
         srcSpan
         fileName
     ]
@@ -725,68 +761,76 @@ toJSASTValue (JSArrayLiteral arr) fileName =
 
 
 -- Takes a single Node and builds a single expression.
-makeJSASTExpression :: JSNode -> SourceFileName -> Expression
+makeJSASTExpression :: JSNode -> SourceFileName -> ExprWithSourceSpan
 makeJSASTExpression (NS (JSExpressionBinary operator left right) srcSpan) fileName =
-    Binary
-        operator
-        -- FIXME: Needs to use the real file name
-        (mapListToExpression left fileName)
-        (mapListToExpression right fileName)
+    EWS
+        (Binary
+            operator
+            -- FIXME: Needs to use the real file name
+            (mapListToExpression left fileName)
+            (mapListToExpression right fileName))
         srcSpan
         fileName
 makeJSASTExpression (NS (JSIdentifier "undefined") srcSpan) fileName =
-    Value JSUndefined srcSpan fileName
+    EWS (Value JSUndefined) srcSpan fileName
 makeJSASTExpression (NS (JSLiteral "null") srcSpan) fileName =
-    Value JSNull srcSpan fileName
+    EWS (Value JSNull) srcSpan fileName
 makeJSASTExpression (NS (JSLiteral "this") srcSpan) fileName =
-    Identifier "this" srcSpan fileName
+    EWS (Identifier "this") srcSpan fileName
 makeJSASTExpression (NS (JSIdentifier identifier) srcSpan) fileName =
-    Identifier identifier srcSpan fileName
+    EWS (Identifier identifier) srcSpan fileName
 makeJSASTExpression (NS (JSExpressionPostfix operator variable) srcSpan) fileName =
-    UnaryPost
-        operator
-        (mapListToExpression variable fileName)
+    EWS
+        (UnaryPost
+            operator
+            (mapListToExpression variable fileName))
         srcSpan
         fileName
 makeJSASTExpression (NS (JSExpressionParen expr) srcSpan) fileName =
-    ParenExpression
-        (jsnToListExp expr fileName)
+    EWS
+        (ParenExpression
+            (jsnToListExp expr fileName))
         srcSpan
         fileName
 makeJSASTExpression (NS (JSExpressionTernary expr ifTrue ifFalse) srcSpan) fileName =
-    Ternary
-        (mapListToExpression expr fileName)
-        (mapListToExpression ifTrue fileName)
-        (mapListToExpression ifFalse fileName)
+    EWS
+        (Ternary
+            (mapListToExpression expr fileName)
+            (mapListToExpression ifTrue fileName)
+            (mapListToExpression ifFalse fileName))
         srcSpan
         fileName
 makeJSASTExpression (NS (JSMemberDot pre post) srcSpan) fileName =
-    Reference
-        (mapListToExpression pre fileName)
-        (makeJSASTExpression post fileName)
+    EWS
+        (Reference
+            (mapListToExpression pre fileName)
+            (makeJSASTExpression post fileName))
         srcSpan
         fileName
 makeJSASTExpression (NS (JSMemberSquare pre post) srcSpan) fileName =
-    Index
-        (mapListToExpression pre fileName)
-        (jsnToListExp post fileName)
+    EWS
+        (Index
+            (mapListToExpression pre fileName)
+            (jsnToListExp post fileName))
         srcSpan
         fileName
 makeJSASTExpression (NS (JSArguments args) srcSpan) fileName = toJSASTArguments args fileName
 makeJSASTExpression (NS (JSFunctionExpression [name] args body) srcSpan) fileName =
-    FunctionExpression
-        (Just $ identifierGetString $ jsnGetNode name)
-        (map (identifierGetString . jsnGetNode) args)
-        (FunctionBody (toJSAST body fileName) (jsnGetSpan body) fileName)
+    EWS
+        (FunctionExpression
+            (Just $ identifierGetString $ jsnGetNode name)
+            (map (identifierGetString . jsnGetNode) args)
+            (AWS (FunctionBody (toJSAST body fileName)) (jsnGetSpan body) fileName))
         srcSpan
         fileName
 makeJSASTExpression (NS (JSFunctionExpression [] args body) srcSpan) fileName =
-    FunctionExpression
-        Nothing
-        (map (identifierGetString . jsnGetNode) args)
-        (FunctionBody (toJSAST body fileName) (jsnGetSpan body) fileName)
+    EWS
+        (FunctionExpression
+            Nothing
+            (map (identifierGetString . jsnGetNode) args)
+            (AWS (FunctionBody (toJSAST body fileName)) (jsnGetSpan body) fileName))
         srcSpan
         fileName
 -- Anything left unmatched here is assumed to be a literal value.
 makeJSASTExpression val fileName =
-    Value (toJSASTValue (jsnGetNode val) fileName) (jsnGetSpan val) fileName
+    EWS (Value (toJSASTValue (jsnGetNode val) fileName)) (jsnGetSpan val) fileName

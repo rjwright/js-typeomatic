@@ -59,8 +59,8 @@ main = do
 	putStrLn infile
 	putStrLn $ show $ parse pr infile
 	putStrLn ""
-	mapM_ (putStrLn . show) (getSourceFragments (topNodeGetSpan $ parseTree pr infile) infile [])
-	mapM_ printSourceFragment (getSourceFragments (topNodeGetSpan $ parseTree pr infile) infile [])
+	-- mapM_ (putStrLn . show) (getSourceFragments (topNodeGetSpan $ parseTree pr infile) infile [])
+	-- mapM_ printSourceFragment (getSourceFragments (topNodeGetSpan $ parseTree pr infile) infile [])
 	putStrLn ""
 	-- printParseTreeStripped $ parseTree pr
 	putStrLn ""
@@ -82,7 +82,7 @@ makeDeclarationGraph input fileName = getDeclarationGraph $ makeLabelledJSAST in
 makeLabelledJSAST :: String -> String -> [ASTChild]
 makeLabelledJSAST input fileName = label $ makeJSAST input fileName
 
-makeJSAST :: String -> SourceFileName -> [JSAST]
+makeJSAST :: String -> SourceFileName -> [JSASTWithSourceSpan]
 makeJSAST input fileName = toJSAST (parseTree input fileName) fileName
 
 makeIndent :: String -> String

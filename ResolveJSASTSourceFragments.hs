@@ -8,50 +8,50 @@ module ResolveJSASTSourceFragments
 import ParseJS
 import System.Environment
 
-data ExprWithSource =
-      WSArguments [ExprWithSource] SourceFragment
-    | WSAssignment Operator ExprWithSource ExprWithSource SourceFragment
-    | WSBinary Operator ExprWithSource ExprWithSource SourceFragment
-    | WSBreak (Maybe Variable) SourceFragment
-    | WSCall ExprWithSource ExprWithSource SourceFragment
-    | WSCallExpression ExprWithSource Operator ExprWithSource SourceFragment
-    | WSContinue (Maybe Variable) SourceFragment
-    | WSFunctionExpression (Maybe Variable) [Variable] JSASTWithSource SourceFragment
-    | WSIdentifier Variable SourceFragment
-    | WSIndex ExprWithSource ExprWithSource SourceFragment
-    | WSList [ExprWithSource] SourceFragment
-    | WSNew ExprWithSource SourceFragment
-    | WSParenExpression ExprWithSource SourceFragment
-    | WSPropNameValue PropertyName ExprWithSource SourceFragment
-    | WSReference ExprWithSource ExprWithSource SourceFragment
-    | WSTernary ExprWithSource ExprWithSource ExprWithSource SourceFragment
-    | WSThrow ExprWithSource SourceFragment
-    | WSUnaryPost Operator ExprWithSource SourceFragment
-    | WSUnaryPre Operator ExprWithSource SourceFragment
-    | WSValue Value SourceFragment
-    | WSVarDeclaration Variable (Maybe ExprWithSource) SourceFragment deriving (Show)
+-- data ExprWithSource =
+--       WSArguments [ExprWithSource] SourceFragment
+--     | WSAssignment Operator ExprWithSource ExprWithSource SourceFragment
+--     | WSBinary Operator ExprWithSource ExprWithSource SourceFragment
+--     | WSBreak (Maybe Variable) SourceFragment
+--     | WSCall ExprWithSource ExprWithSource SourceFragment
+--     | WSCallExpression ExprWithSource Operator ExprWithSource SourceFragment
+--     | WSContinue (Maybe Variable) SourceFragment
+--     | WSFunctionExpression (Maybe Variable) [Variable] JSASTWithSource SourceFragment
+--     | WSIdentifier Variable SourceFragment
+--     | WSIndex ExprWithSource ExprWithSource SourceFragment
+--     | WSList [ExprWithSource] SourceFragment
+--     | WSNew ExprWithSource SourceFragment
+--     | WSParenExpression ExprWithSource SourceFragment
+--     | WSPropNameValue PropertyName ExprWithSource SourceFragment
+--     | WSReference ExprWithSource ExprWithSource SourceFragment
+--     | WSTernary ExprWithSource ExprWithSource ExprWithSource SourceFragment
+--     | WSThrow ExprWithSource SourceFragment
+--     | WSUnaryPost Operator ExprWithSource SourceFragment
+--     | WSUnaryPre Operator ExprWithSource SourceFragment
+--     | WSValue Value SourceFragment
+--     | WSVarDeclaration Variable (Maybe ExprWithSource) SourceFragment deriving (Show)
 
-data JSASTWithSource =
-      WSBlock [JSASTWithSource] SourceFragment
-    | WSCase ExprWithSource JSASTWithSource SourceFragment
-    | WSCatch Variable (Maybe ExprWithSource) JSASTWithSource SourceFragment
-    | WSDefault JSASTWithSource SourceFragment
-    | WSDoWhile JSASTWithSource ExprWithSource SourceFragment
-    | WSFinally JSASTWithSource SourceFragment
-    | WSFor (Maybe ExprWithSource) (Maybe ExprWithSource) (Maybe ExprWithSource) JSASTWithSource SourceFragment
-    | WSForIn [Variable] ExprWithSource JSASTWithSource SourceFragment
-    | WSForVar [ExprWithSource] (Maybe ExprWithSource) (Maybe ExprWithSource) JSASTWithSource SourceFragment
-    | WSForVarIn ExprWithSource ExprWithSource JSASTWithSource SourceFragment
-    | WSFunctionBody [JSASTWithSource] SourceFragment
-    | WSFunctionDeclaration Variable [Variable] JSASTWithSource SourceFragment
-    | WSIf ExprWithSource JSASTWithSource SourceFragment
-    | WSIfElse ExprWithSource JSASTWithSource JSASTWithSource SourceFragment
-    | WSLabelled Variable JSASTWithSource SourceFragment
-    | WSReturn ExprWithSource SourceFragment
-    | WSStatement ExprWithSource SourceFragment
-    | WSSwitch ExprWithSource JSASTWithSource SourceFragment
-    | WSTry JSASTWithSource JSASTWithSource SourceFragment
-    | WSWhile ExprWithSource JSASTWithSource SourceFragment deriving (Show)
+-- data JSASTWithSource =
+--       WSBlock [JSASTWithSource] SourceFragment
+--     | WSCase ExprWithSource JSASTWithSource SourceFragment
+--     | WSCatch Variable (Maybe ExprWithSource) JSASTWithSource SourceFragment
+--     | WSDefault JSASTWithSource SourceFragment
+--     | WSDoWhile JSASTWithSource ExprWithSource SourceFragment
+--     | WSFinally JSASTWithSource SourceFragment
+--     | WSFor (Maybe ExprWithSource) (Maybe ExprWithSource) (Maybe ExprWithSource) JSASTWithSource SourceFragment
+--     | WSForIn [Variable] ExprWithSource JSASTWithSource SourceFragment
+--     | WSForVar [ExprWithSource] (Maybe ExprWithSource) (Maybe ExprWithSource) JSASTWithSource SourceFragment
+--     | WSForVarIn ExprWithSource ExprWithSource JSASTWithSource SourceFragment
+--     | WSFunctionBody [JSASTWithSource] SourceFragment
+--     | WSFunctionDeclaration Variable [Variable] JSASTWithSource SourceFragment
+--     | WSIf ExprWithSource JSASTWithSource SourceFragment
+--     | WSIfElse ExprWithSource JSASTWithSource JSASTWithSource SourceFragment
+--     | WSLabelled Variable JSASTWithSource SourceFragment
+--     | WSReturn ExprWithSource SourceFragment
+--     | WSStatement ExprWithSource SourceFragment
+--     | WSSwitch ExprWithSource JSASTWithSource SourceFragment
+--     | WSTry JSASTWithSource JSASTWithSource SourceFragment
+--     | WSWhile ExprWithSource JSASTWithSource SourceFragment deriving (Show)
 
 -- resolveJSASTTopLevelSources :: [JSAST] -> [JSASTWithSource]
 sfGetFileName :: SourceFragment -> SourceFileName
