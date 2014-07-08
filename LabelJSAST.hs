@@ -232,104 +232,104 @@ labelValue (JSNull) n = (LabNull, n + 1)
 
 -- Label an Expression. Recursively process any child fields.
 labelExpression :: Expression -> JSASTLabel -> ExprChild
-labelExpression (List ex) n =
+labelExpression (List ex _ _) n =
     ((LabList (field1)), (maximum ((listGetLabels field1) ++ [n])) + 1)
     where
         field1 = labelExpressionList ex n
-labelExpression (Binary op ex1 ex2) n =
+labelExpression (Binary op ex1 ex2 _ _) n =
     ((LabBinary field1 field2 field3), (childGetLabel field3) + 1)
     where
         field1 = labelOperator op n
         field2 = labelExpression ex1 (childGetLabel field1)
         field3 = labelExpression ex2 (childGetLabel field2)
-labelExpression (UnaryPost op ex) n =
+labelExpression (UnaryPost op ex _ _) n =
     ((LabUnaryPost field1 field2), (childGetLabel field2) + 1)
     where
         field1 = labelOperator op n
         field2 = labelExpression ex (childGetLabel field1)
-labelExpression (UnaryPre op ex) n =
+labelExpression (UnaryPre op ex _ _) n =
     ((LabUnaryPre field1 field2), (childGetLabel field2) + 1)
     where
         field1 = labelOperator op n
         field2 = labelExpression ex (childGetLabel field1)
-labelExpression (Ternary ex1 ex2 ex3) n =
+labelExpression (Ternary ex1 ex2 ex3 _ _) n =
     ((LabTernary field1 field2 field3), (childGetLabel field3) + 1)
     where
         field1 = labelExpression ex1 n
         field2 = labelExpression ex2 (childGetLabel field1)
         field3 = labelExpression ex3 (childGetLabel field2)
-labelExpression (Assignment op ex1 ex2) n =
+labelExpression (Assignment op ex1 ex2 _ _) n =
     ((LabAssignment field1 field2 field3), (childGetLabel field3) + 1)
     where
         field1 = labelOperator op n
         field2 = labelExpression ex1 (childGetLabel field1)
         field3 = labelExpression ex2 (childGetLabel field2)
-labelExpression (Identifier ident) n =
+labelExpression (Identifier ident _ _) n =
     ((LabIdentifier field1), (childGetLabel field1) + 1)
     where
         field1 = labelVariable ident n
-labelExpression (Reference ex1 ex2) n =
+labelExpression (Reference ex1 ex2 _ _) n =
     ((LabReference field1 field2), (childGetLabel field2) + 1)
     where
         field1 = labelExpression ex1 n
         field2 = labelExpression ex2 (childGetLabel field1)
-labelExpression (Index ex1 ex2) n =
+labelExpression (Index ex1 ex2 _ _) n =
     ((LabIndex field1 field2), (childGetLabel field2) + 1)
     where
         field1 = labelExpression ex1 n
         field2 = labelExpression ex2 (childGetLabel field1)
-labelExpression (Value val) n =
+labelExpression (Value val _ _) n =
     ((LabValue field1), (childGetLabel field1) + 1)
     where
         field1 = labelValue val n
-labelExpression (PropNameValue name ex) n =
+labelExpression (PropNameValue name ex _ _) n =
     ((LabPropNameValue field1 field2), (childGetLabel field2) + 1)
     where
         field1 = labelPropertyName name n
         field2 = labelExpression ex (childGetLabel field1)
-labelExpression (Call ex1 ex2) n =
+labelExpression (Call ex1 ex2 _ _) n =
     ((LabCall field1 field2), (childGetLabel field2) + 1)
     where
         field1 = labelExpression ex1 n
         field2 = labelExpression ex2 (childGetLabel field1)
-labelExpression (Arguments args) n =
+labelExpression (Arguments args _ _) n =
     ((LabArguments (field1)), (maximum ((listGetLabels field1) ++ [n])) + 1)
     where
         field1 = labelExpressionList args n
-labelExpression (ParenExpression ex) n =
+labelExpression (ParenExpression ex _ _) n =
     ((LabParenExpression field1), (childGetLabel field1) + 1)
     where
         field1 = labelExpression ex n
-labelExpression (Break vars) n =
+labelExpression (Break vars _ _) n =
     ((LabBreak field1), (maxMaybeLabel field1 n) + 1)
     where
         field1 = labelMaybeVar vars n
-labelExpression (Continue vars) n =
+labelExpression (Continue vars _ _) n =
     ((LabContinue field1), (maxMaybeLabel field1 n) + 1)
     where
         field1 = labelMaybeVar vars n
-labelExpression (Throw ex) n =
+labelExpression (Throw ex _ _) n =
     ((LabThrow field1), (childGetLabel field1) + 1)
     where
         field1 = labelExpression ex n
-labelExpression (CallExpression ex1 op ex2) n =
+labelExpression (CallExpression ex1 op ex2 _ _) n =
     ((LabCallExpression field1 field2 field3), (childGetLabel field3) + 1)
     where
         field1 = labelExpression ex1 n
         field2 = labelOperator op (childGetLabel field1)
         field3 = labelExpression ex2 (childGetLabel field2)
-labelExpression (FunctionExpression var vars ast) n =
+labelExpression (FunctionExpression var vars ast _ _) n =
     ((LabFunctionExpression field1 field2 field3), (childGetLabel field3) + 1)
     where
         field1 = labelMaybeVar var n
         field2 = labelVarList vars (maxMaybeLabel field1 n)
         field3 = labelJSAST ast (maximum ((listGetLabels field2) ++ [n]))
-labelExpression (VarDeclaration var ex) n =
+labelExpression (VarDeclaration var ex _ _) n =
     ((LabVarDeclaration field1 field2), (maxMaybeLabel field2 (childGetLabel field1)) + 1)
     where
         field1 = labelVariable var n
         field2 = labelMaybeExpression ex (childGetLabel field1)
-labelExpression (New ex) n =
+labelExpression (New ex _ _) n =
     ((LabNew field1), (childGetLabel field1) + 1)
     where
         field1 = labelExpression ex n

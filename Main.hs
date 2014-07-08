@@ -57,7 +57,7 @@ main = do
 
 	putStrLn ""
 	putStrLn infile
-	-- putStrLn $ show $ parse pr infile
+	putStrLn $ show $ parse pr infile
 	putStrLn ""
 	mapM_ (putStrLn . show) (getSourceFragments (topNodeGetSpan $ parseTree pr infile) infile [])
 	mapM_ printSourceFragment (getSourceFragments (topNodeGetSpan $ parseTree pr infile) infile [])
