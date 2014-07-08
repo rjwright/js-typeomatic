@@ -164,28 +164,37 @@ data JSAST =
     | While Expression JSAST deriving (Show)
 
 
+-- data jsastWithSource = NSF JSAST SourceFragment
+
 -- Extract the Node from a JSNode.
 jsnGetNode :: JSNode -> Node
 jsnGetNode (NS a _) = a
 
+jsnGetSpan :: JSNode -> SrcSpan
+jsnGetSpan (NS _ s) = s
+
+-- jsnToNodeWithSource :: JSNode -> NodeWithSource
+-- jsnToNodeWithSource (NS node srcSpan) = NSF node
 
 -- Parse JavaScript source code.
-parseTree :: String -> Node
-parseTree program = jsnGetNode $ (\(Right a) -> a) $ parse program "";
+parseTree :: String -> String -> Node
+parseTree program fileName = jsnGetNode $ (\(Right a) -> a) $ parse program fileName;
 
 
 nodeGetSpan :: Node -> [SrcSpan]
 nodeGetSpan (JSSourceElementsTop elements) =
-    map jsNodeGetSpan elements
-    where
-        jsNodeGetSpan (NS node srcSpan) = srcSpan
+    map jsnGetSpan elements
 
-
+-- FIXME: Currently for the last code point we just make the start equal to the end and process it
+-- as a special case. Should find a better solution.
 getSourceFragments :: [SrcSpan] -> String -> [SourceFragment] -> [SourceFragment]
+getSourceFragments (s1:[]) file result =
+    (getSourceFragment s1 s1 file):result
 getSourceFragments (s1:s2:[]) file result =
-    (getSourceFragment s1 s2 file):result
+    -- (getSourceFragments (s2:[]) file result) ++ (getSourceFragment s1 s2 file):result
+    (getSourceFragment s1 s2 file):result ++ (getSourceFragments (s2:[]) file result)
 getSourceFragments (s1:s2:sx) file result =
-    (getSourceFragments (s2:sx) file result) ++ (getSourceFragment s1 s2 file):result
+    (getSourceFragment s1 s2 file):result ++ (getSourceFragments (s2:sx) file result)
 
 
 getSourceFragment :: SrcSpan -> SrcSpan -> String -> SourceFragment
@@ -245,6 +254,7 @@ toJSASTVarDeclaration (JSVarDecl name value) =
 
 -- Take a node in the parse tree output from language.javascript.Parser and make an abstract syntax
 -- tree.
+-- toJSAST :: (Node, SourceFragment) -> [JSAST]
 toJSAST :: Node -> [JSAST]
 -- These ones return a proper list of JSASTs. (Haskell Land) Constructors which use one of these to
 -- fill a field must have a [JSAST] for that field.

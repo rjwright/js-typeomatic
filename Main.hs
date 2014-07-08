@@ -59,32 +59,31 @@ main = do
 	putStrLn infile
 	putStrLn $ show $ parse pr infile
 	putStrLn ""
-	mapM_ (putStrLn . show) (getSourceFragments (nodeGetSpan $ parseTree pr) "" [])
-	mapM_ printSourceFragment (getSourceFragments (nodeGetSpan $ parseTree pr) infile [])
+	mapM_ (putStrLn . show) (getSourceFragments (nodeGetSpan $ parseTree pr infile) infile [])
+	mapM_ printSourceFragment (getSourceFragments (nodeGetSpan $ parseTree pr infile) infile [])
 	putStrLn ""
 	-- printParseTreeStripped $ parseTree pr
 	putStrLn ""
 	-- putStrLn $ show $ parseTree pr
 
 
-makeCleanedFunctions :: String -> CleanedFunction
-makeCleanedFunctions input = cleanFunction $ makeCleanedFunctionRules input
+makeCleanedFunctions :: String -> String -> CleanedFunction
+makeCleanedFunctions input fileName = cleanFunction $ makeCleanedFunctionRules input fileName
 
-makeCleanedFunctionRules :: String -> CleanedFunctionRules
-makeCleanedFunctionRules input = cleanFunctionRules $ makeDeclarationGraph input
+makeCleanedFunctionRules :: String -> String -> CleanedFunctionRules
+makeCleanedFunctionRules input fileName = cleanFunctionRules $ makeDeclarationGraph input fileName
 
-makeAllRules :: String -> [Rule]
-makeAllRules input = graphGetAllRules $ makeDeclarationGraph input
+makeAllRules :: String -> String -> [Rule]
+makeAllRules input fileName = graphGetAllRules $ makeDeclarationGraph input fileName
 
-makeDeclarationGraph :: String -> FunctionRules
-makeDeclarationGraph input = getDeclarationGraph $ makeLabelledJSAST input
+makeDeclarationGraph :: String -> String -> FunctionRules
+makeDeclarationGraph input fileName = getDeclarationGraph $ makeLabelledJSAST input fileName
 
-makeLabelledJSAST :: String -> [ASTChild]
-makeLabelledJSAST input = label $ makeJSAST input
+makeLabelledJSAST :: String -> String -> [ASTChild]
+makeLabelledJSAST input fileName = label $ makeJSAST input fileName
 
-makeJSAST :: String -> [JSAST]
-makeJSAST input = toJSAST $ parseTree input
-
+makeJSAST :: String -> String -> [JSAST]
+makeJSAST input fileName = toJSAST $ parseTree input fileName
 
 makeIndent :: String -> String
 makeIndent s = s ++ "..."
@@ -113,14 +112,19 @@ printSourceFragment (fileName, startRow, startCol, endRow, endCol) = do
 	contents <- readFile fileName
 	let singleLines = lines contents
 	let fragment = getRange singleLines startRow startCol endRow endCol
-	putStrLn $ subList 3 7 "123RENEE"
+	-- putStrLn $ subList 3 7 "123RENEE"
 	mapM_ putStrLn fragment
 	where
 		getRange strings sr sc er ec =
 			if (sr == er) then
-				[subList sc ec (strings!!sr)]
+				if (sc == ec) then
+					subList (sr - 1) (length strings) strings
+				else
+					["@" ++ subList (sc - 1) (ec - 1) (strings!!(sr - 1))]
+			else if (ec == 1) then
+				(subList (sr - 1) (er - 1) strings)
 			else
-				(subList (sr - 1) (er - 2) strings) ++ [subList 0 ec (strings!!(er-1))]
+				(subList (sr - 1) (er - 2) strings) ++ ["@" ++ subList 0 (ec - 1) (strings!!(er-1))]
 
 
 subList :: Int -> Int -> [a] -> [a]
