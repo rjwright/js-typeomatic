@@ -23,11 +23,11 @@ module ParseJS
 , Operator
 , PropertyName(..)
 , SourceFileName
-, SourceFragment
 , Value(..)
 , Variable
 , parseTree
 , toJSAST
+, topNodeGetSpan
 ) where
 
 
@@ -55,13 +55,7 @@ import System.IO
 type Variable = String
 type Index = Int
 type Operator = String
-type Row = Int
-type Col = Int
 type SourceFileName = String
-
-
--- (FileName, StartRow, StartCol, EndRow, EndCol)
-type SourceFragment = (String, Row, Col, Row, Col)
 
 -- Represent an identifier used to index an object property using square branchets. An object
 -- property's identifier can be a string or an integer.
@@ -180,8 +174,10 @@ jsnGetNode (NS a _) = a
 jsnGetSpan :: JSNode -> SrcSpan
 jsnGetSpan (NS _ s) = s
 
--- jsnToNodeWithSource :: JSNode -> NodeWithSource
--- jsnToNodeWithSource (NS node srcSpan) = NSF node
+topNodeGetSpan :: JSNode -> [SrcSpan]
+topNodeGetSpan (NS (JSSourceElementsTop elements) _) =
+    map jsnGetSpan elements
+
 
 -- Parse JavaScript source code.
 -- parseTree :: String -> String -> Node

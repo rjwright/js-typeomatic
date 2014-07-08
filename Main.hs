@@ -14,6 +14,7 @@ import DeclarationGraph
 import LabelJSAST
 import Language.JavaScript.Parser
 import ParseJS
+import ResolveJSASTSourceFragments
 import System.Environment
 import TypeRules
 
@@ -59,8 +60,11 @@ main = do
 	putStrLn infile
 	putStrLn $ show $ parse pr infile
 	putStrLn ""
-	-- mapM_ (putStrLn . show) (getSourceFragments (topNodeGetSpan $ parseTree pr infile) infile [])
-	-- mapM_ printSourceFragment (getSourceFragments (topNodeGetSpan $ parseTree pr infile) infile [])
+	mapM_ (putStrLn . show) (getSourceFragments (topNodeGetSpan $ parseTree pr infile) infile [])
+	map
+		(mapM_ putStrLn)
+		(map printSourceFragment
+			(getSourceFragments (topNodeGetSpan $ parseTree pr infile) infile []))
 	putStrLn ""
 	-- printParseTreeStripped $ parseTree pr
 	putStrLn ""
@@ -107,13 +111,14 @@ printParseTreeStripped (JSSourceElementsTop elements) =
 
 -- TODO: This needs to open fileName, read from (startRow, startCol) to (endRow, endCol) and print
 -- the result.
-printSourceFragment :: SourceFragment -> IO()
-printSourceFragment (fileName, startRow, startCol, endRow, endCol) = do
-	contents <- readFile fileName
-	let singleLines = lines contents
-	let fragment = getRange singleLines startRow startCol endRow endCol
-	-- putStrLn $ subList 3 7 "123RENEE"
-	mapM_ putStrLn fragment
+printSourceFragment :: SourceFragment -> [String]
+printSourceFragment (fileName, startRow, startCol, endRow, endCol) =
+	-- let contents = readFile fileName in
+	-- let singleLines = lines contents in
+	-- let fragment = getRange singleLines startRow startCol endRow endCol in
+	-- mapM_ putStrLn fragment
+	-- return fragment
+	getRange (lines $ readFile fileName) startRow startCol endRow endCol
 	where
 		getRange strings sr sc er ec =
 			if (sr == er) then
