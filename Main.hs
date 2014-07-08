@@ -48,19 +48,19 @@ main = do
 	-- TODO: Experiment with keeping JS code snippets in the tree and printing
 	-- them here.
 	-- mapPrintASTChild (makeLabelledJSAST pr) (makeIndent "") False
-	-- mapPrintASTChild (makeLabelledJSAST pr) (makeIndent "") True
+	mapPrintASTChild (makeLabelledJSAST pr infile) (makeIndent "") True
 
 	-- Prints the original AST without labels.
 	--
 	-- TODO: Add pretty printing for this.
-	-- mapM_ print (makeJSAST pr)
+	mapM_ print (makeJSAST pr infile)
 
 	putStrLn ""
 	putStrLn infile
-	putStrLn $ show $ parse pr infile
+	-- putStrLn $ show $ parse pr infile
 	putStrLn ""
-	mapM_ (putStrLn . show) (getSourceFragments (nodeGetSpan $ parseTree pr infile) infile [])
-	mapM_ printSourceFragment (getSourceFragments (nodeGetSpan $ parseTree pr infile) infile [])
+	mapM_ (putStrLn . show) (getSourceFragments (topNodeGetSpan $ parseTree pr infile) infile [])
+	mapM_ printSourceFragment (getSourceFragments (topNodeGetSpan $ parseTree pr infile) infile [])
 	putStrLn ""
 	-- printParseTreeStripped $ parseTree pr
 	putStrLn ""
@@ -82,8 +82,8 @@ makeDeclarationGraph input fileName = getDeclarationGraph $ makeLabelledJSAST in
 makeLabelledJSAST :: String -> String -> [ASTChild]
 makeLabelledJSAST input fileName = label $ makeJSAST input fileName
 
-makeJSAST :: String -> String -> [JSAST]
-makeJSAST input fileName = toJSAST $ parseTree input fileName
+makeJSAST :: String -> SourceFileName -> [JSAST]
+makeJSAST input fileName = toJSAST (parseTree input fileName) fileName
 
 makeIndent :: String -> String
 makeIndent s = s ++ "..."
@@ -120,11 +120,11 @@ printSourceFragment (fileName, startRow, startCol, endRow, endCol) = do
 				if (sc == ec) then
 					subList (sr - 1) (length strings) strings
 				else
-					["@" ++ subList (sc - 1) (ec - 1) (strings!!(sr - 1))]
+					[subList (sc - 1) (ec - 1) (strings!!(sr - 1))]
 			else if (ec == 1) then
 				(subList (sr - 1) (er - 1) strings)
 			else
-				(subList (sr - 1) (er - 2) strings) ++ ["@" ++ subList 0 (ec - 1) (strings!!(er-1))]
+				(subList (sr - 1) (er - 2) strings) ++ [subList 0 (ec - 1) (strings!!(er-1))]
 
 
 subList :: Int -> Int -> [a] -> [a]
