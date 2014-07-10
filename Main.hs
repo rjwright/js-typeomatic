@@ -46,28 +46,34 @@ main = do
 
 	-- Prints the cleaned ATS, indented, with optional labels.
 	--
-	-- TODO: Experiment with keeping JS code snippets in the tree and printing
-	-- them here.
 	-- mapPrintASTChild (makeLabelledJSAST pr) (makeIndent "") False
+	putStrLn "The cleaned AST with labels"
 	mapPrintASTChild (makeLabelledJSAST pr infile) (makeIndent "") True
 
 	-- Prints the original AST without labels.
 	--
 	-- TODO: Add pretty printing for this.
+	putStrLn ""
+	putStrLn "The the original JSAST"
 	mapM_ print (makeJSAST pr infile)
 
 	putStrLn ""
+	putStrLn "The input file"
+	putStrLn ""
 	putStrLn infile
+	putStrLn "The raw parse tree"
 	putStrLn $ show $ parse pr infile
 	putStrLn ""
+	putStrLn "The source fragments"
 	mapM_ (putStrLn . show) (getSourceFragments (topNodeGetSpan $ parseTree pr infile) infile [])
-	map
-		(mapM_ putStrLn)
-		(map printSourceFragment
-			(getSourceFragments (topNodeGetSpan $ parseTree pr infile) infile []))
+	putStrLn ""
+	putStrLn "The resolved source fragments"
+	mapM_
+		printSourceFragment
+			(getSourceFragments (topNodeGetSpan $ parseTree pr infile) infile [])
 	putStrLn ""
 	-- printParseTreeStripped $ parseTree pr
-	putStrLn ""
+	-- putStrLn ""
 	-- putStrLn $ show $ parseTree pr
 
 
@@ -111,14 +117,13 @@ printParseTreeStripped (JSSourceElementsTop elements) =
 
 -- TODO: This needs to open fileName, read from (startRow, startCol) to (endRow, endCol) and print
 -- the result.
-printSourceFragment :: SourceFragment -> [String]
-printSourceFragment (fileName, startRow, startCol, endRow, endCol) =
-	-- let contents = readFile fileName in
-	-- let singleLines = lines contents in
-	-- let fragment = getRange singleLines startRow startCol endRow endCol in
-	-- mapM_ putStrLn fragment
-	-- return fragment
-	getRange (lines $ readFile fileName) startRow startCol endRow endCol
+printSourceFragment :: SourceFragment -> IO()
+printSourceFragment (fileName, startRow, startCol, endRow, endCol) = do
+	contents <- readFile fileName
+	let singleLines = lines contents
+	let fragment = getRange singleLines startRow startCol endRow endCol
+	mapM_ putStrLn fragment
+	-- getRange (lines $ readFile fileName) startRow startCol endRow endCol
 	where
 		getRange strings sr sc er ec =
 			if (sr == er) then

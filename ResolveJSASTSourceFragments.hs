@@ -20,54 +20,54 @@ type SourceFragment = (String, Row, Col, Row, Col)
 
 
 data ExprWS =
-      WSArguments [ExprWithSource]
-    | WSAssignment Operator ExprWithSource ExprWithSource
-    | WSBinary Operator ExprWithSource ExprWithSource
+      WSArguments [ExprWithSourceFragment]
+    | WSAssignment Operator ExprWithSourceFragment ExprWithSourceFragment
+    | WSBinary Operator ExprWithSourceFragment ExprWithSourceFragment
     | WSBreak (Maybe Variable)
-    | WSCall ExprWithSource ExprWithSource
-    | WSCallExpression ExprWithSource Operator ExprWithSource
+    | WSCall ExprWithSourceFragment ExprWithSourceFragment
+    | WSCallExpression ExprWithSourceFragment Operator ExprWithSourceFragment
     | WSContinue (Maybe Variable)
-    | WSFunctionExpression (Maybe Variable) [Variable] JSASTWithSource
+    | WSFunctionExpression (Maybe Variable) [Variable] JSASTWithSourceFragment
     | WSIdentifier Variable
-    | WSIndex ExprWithSource ExprWithSource
-    | WSList [ExprWithSource]
-    | WSNew ExprWithSource
-    | WSParenExpression ExprWithSource
-    | WSPropNameValue PropertyName ExprWithSource
-    | WSReference ExprWithSource ExprWithSource
-    | WSTernary ExprWithSource ExprWithSource ExprWithSource
-    | WSThrow ExprWithSource
-    | WSUnaryPost Operator ExprWithSource
-    | WSUnaryPre Operator ExprWithSource
+    | WSIndex ExprWithSourceFragment ExprWithSourceFragment
+    | WSList [ExprWithSourceFragment]
+    | WSNew ExprWithSourceFragment
+    | WSParenExpression ExprWithSourceFragment
+    | WSPropNameValue PropertyName ExprWithSourceFragment
+    | WSReference ExprWithSourceFragment ExprWithSourceFragment
+    | WSTernary ExprWithSourceFragment ExprWithSourceFragment ExprWithSourceFragment
+    | WSThrow ExprWithSourceFragment
+    | WSUnaryPost Operator ExprWithSourceFragment
+    | WSUnaryPre Operator ExprWithSourceFragment
     | WSValue Value
-    | WSVarDeclaration Variable (Maybe ExprWithSource) deriving (Show)
+    | WSVarDeclaration Variable (Maybe ExprWithSourceFragment) deriving (Show)
 
 data JSASTWS =
-      WSBlock [JSASTWithSource]
-    | WSCase ExprWithSource JSASTWithSource
-    | WSCatch Variable (Maybe ExprWithSource) JSASTWithSource
-    | WSDefault JSASTWithSource
-    | WSDoWhile JSASTWithSource ExprWithSource
-    | WSFinally JSASTWithSource
-    | WSFor (Maybe ExprWithSource) (Maybe ExprWithSource) (Maybe ExprWithSource) JSASTWithSource
-    | WSForIn [Variable] ExprWithSource JSASTWithSource
-    | WSForVar [ExprWithSource] (Maybe ExprWithSource) (Maybe ExprWithSource) JSASTWithSource
-    | WSForVarIn ExprWithSource ExprWithSource JSASTWithSource
-    | WSFunctionBody [JSASTWithSource]
-    | WSFunctionDeclaration Variable [Variable] JSASTWithSource
-    | WSIf ExprWithSource JSASTWithSource
-    | WSIfElse ExprWithSource JSASTWithSource JSASTWithSource
-    | WSLabelled Variable JSASTWithSource
-    | WSReturn ExprWithSource
-    | WSStatement ExprWithSource
-    | WSSwitch ExprWithSource JSASTWithSource
-    | WSTry JSASTWithSource JSASTWithSource
-    | WSWhile ExprWithSource JSASTWithSource deriving (Show)
+      WSBlock [JSASTWithSourceFragment]
+    | WSCase ExprWithSourceFragment JSASTWithSourceFragment
+    | WSCatch Variable (Maybe ExprWithSourceFragment) JSASTWithSourceFragment
+    | WSDefault JSASTWithSourceFragment
+    | WSDoWhile JSASTWithSourceFragment ExprWithSourceFragment
+    | WSFinally JSASTWithSourceFragment
+    | WSFor (Maybe ExprWithSourceFragment) (Maybe ExprWithSourceFragment) (Maybe ExprWithSourceFragment) JSASTWithSourceFragment
+    | WSForIn [Variable] ExprWithSourceFragment JSASTWithSourceFragment
+    | WSForVar [ExprWithSourceFragment] (Maybe ExprWithSourceFragment) (Maybe ExprWithSourceFragment) JSASTWithSourceFragment
+    | WSForVarIn ExprWithSourceFragment ExprWithSourceFragment JSASTWithSourceFragment
+    | WSFunctionBody [JSASTWithSourceFragment]
+    | WSFunctionDeclaration Variable [Variable] JSASTWithSourceFragment
+    | WSIf ExprWithSourceFragment JSASTWithSourceFragment
+    | WSIfElse ExprWithSourceFragment JSASTWithSourceFragment JSASTWithSourceFragment
+    | WSLabelled Variable JSASTWithSourceFragment
+    | WSReturn ExprWithSourceFragment
+    | WSStatement ExprWithSourceFragment
+    | WSSwitch ExprWithSourceFragment JSASTWithSourceFragment
+    | WSTry JSASTWithSourceFragment JSASTWithSourceFragment
+    | WSWhile ExprWithSourceFragment JSASTWithSourceFragment deriving (Show)
 
-data JSASTWithSource =
-      AWSR JSASTWS SourceFragment deriving (Show)
-data ExprWithSource =
-      EWSR ExprWS SourceFragment deriving (Show)
+data JSASTWithSourceFragment =
+      AWSF JSASTWS SourceFragment deriving (Show)
+data ExprWithSourceFragment =
+      EWSF ExprWS SourceFragment deriving (Show)
 
 -- resolveJSASTTopLevelSources :: [JSAST] -> [JSASTWithSource]
 sfGetFileName :: SourceFragment -> SourceFileName
@@ -126,9 +126,9 @@ makeNextFragment (SpanPoint _ startRow startCol) (fileName, nextRow, nextCol, _,
 --     head reversed
 
 
-resolveJSASTSource :: JSASTWithSourceSpan -> SourceFragment -> JSASTWithSource
+resolveJSASTSource :: JSASTWithSourceSpan -> SourceFragment -> JSASTWithSourceFragment
 resolveJSASTSource (AWS (FunctionDeclaration var args body) srcSpan fileName) parentFragment =
-    AWSR
+    AWSF
         (WSFunctionDeclaration
             var
             args
@@ -136,3 +136,49 @@ resolveJSASTSource (AWS (FunctionDeclaration var args body) srcSpan fileName) pa
         fragment
     where
         fragment = makeNextFragment srcSpan parentFragment
+
+
+fa :: [JSASTWithSourceSpan] -> SourceFragment -> [JSASTWithSourceFragment]
+fa (x:y:z) parentFragment =
+    [fb x (makeSourceFragment (jsastGetSpan x) (jsastGetSpan y))]:(fa (y:z) parentFragment)
+fa (x:[]) parentFragment = [fb x (makeSourceFragment (jsastGetSpan x) (parentFragment))]
+
+fb :: JSASTWithSourceSpan -> SourceFragment -> JSASTWithSourceFragment
+fb (AWS (FunctionDeclaration var args body) srcSpan fileName) myFragment =
+    AWSF
+        (WSFunctionDeclaration
+            var
+            args
+            (fb body (makeSourceFragment myFragment (getSpan body))))
+        myFragment
+
+fb (AWS (FunctionBody list) srcSpan fileName) myFragment =
+    AWSF
+        (WSFunctionBody
+            (reverse $ fa (reverse list) myFragment))
+    myFragment
+-- And so on
+
+-- nextSpan is the list's parent's next sibling (or the end of the file, if the parent has no next sibling)
+fa :: [JSASTWithSourceSpan] -> SrcSpan -> [JSASTWithSourceFragment]
+fa (x:y:z) nextSpan =
+    [fb x (jsastGetSpan y)]:(fa (y:z) nextSpan)
+fa (x:[]) nextSpan = [fb x nextSpan]
+
+-- Here nextSpan is just the end of my fragment
+fb :: JSASTWithSourceSpan -> SrcSpan -> JSASTWithSourceFragment
+fb (AWS (FunctionDeclaration var args body) srcSpan fileName) nextSpan =
+    AWSF
+        (WSFunctionDeclaration
+            var
+            args
+            -- The body is the last child of the function declaration,so it has the same end point.
+            (fb body nextSpan))
+        (makeSourceFragment srcSpan nextSpan)
+
+fb (AWS (FunctionBody list) srcSpan fileName) nextSpan =
+    AWSF
+        (WSFunctionBody
+            (reverse $ fa (reverse list) nextSpan))
+    (makeSourceFragment srcSpan nextSpan)
+-- And so on
