@@ -1,8 +1,11 @@
 
 module ResolveJSASTSourceFragments
-( SourceFragment(..)
+( ExprWithSourceFragment
+, JSASTWithSourceFragment
+, SourceFragment(..)
 , getSourceFragments
-, resolveJSASTSource
+, jsastListMakeSourceFragments
+, jsastMakeSourceFragment
 ) where
 
 
@@ -19,7 +22,7 @@ type Col = Int
 type SourceFragment = (String, Row, Col, Row, Col)
 
 
-data ExprWS =
+data ExprWSF =
       WSArguments [ExprWithSourceFragment]
     | WSAssignment Operator ExprWithSourceFragment ExprWithSourceFragment
     | WSBinary Operator ExprWithSourceFragment ExprWithSourceFragment
@@ -42,7 +45,7 @@ data ExprWS =
     | WSValue Value
     | WSVarDeclaration Variable (Maybe ExprWithSourceFragment) deriving (Show)
 
-data JSASTWS =
+data JSASTWSF =
       WSBlock [JSASTWithSourceFragment]
     | WSCase ExprWithSourceFragment JSASTWithSourceFragment
     | WSCatch Variable (Maybe ExprWithSourceFragment) JSASTWithSourceFragment
@@ -65,9 +68,9 @@ data JSASTWS =
     | WSWhile ExprWithSourceFragment JSASTWithSourceFragment deriving (Show)
 
 data JSASTWithSourceFragment =
-      AWSF JSASTWS SourceFragment deriving (Show)
+      AWSF JSASTWSF SourceFragment deriving (Show)
 data ExprWithSourceFragment =
-      EWSF ExprWS SourceFragment deriving (Show)
+      EWSF ExprWSF SourceFragment deriving (Show)
 
 -- resolveJSASTTopLevelSources :: [JSAST] -> [JSASTWithSource]
 sfGetFileName :: SourceFragment -> SourceFileName
@@ -86,16 +89,16 @@ sfGetEndCol :: SourceFragment -> Col
 sfGetEndCol (_, _, _, _, endCol) = endCol
 
 jsastGetSpan :: JSASTWithSourceSpan -> SrcSpan
-jsastGetSpan (AWS _ srcSpan _) = srcSpan
+jsastGetSpan (AWSS _ srcSpan _) = srcSpan
 
 exprGetSpan :: ExprWithSourceSpan -> SrcSpan
-exprGetSpan (EWS _ srcSpan _) = srcSpan
+exprGetSpan (EWSS _ srcSpan _) = srcSpan
 
 jsastGetFile :: JSASTWithSourceSpan -> SourceFileName
-jsastGetFile (AWS _ _ fileName) = fileName
+jsastGetFile (AWSS _ _ fileName) = fileName
 
 exprGetFile :: ExprWithSourceSpan -> SourceFileName
-exprGetFile (EWS _ _ fileName) = fileName
+exprGetFile (EWSS _ _ fileName) = fileName
 
 
 -- FROM OLD STUFF
@@ -120,65 +123,88 @@ makeNextFragment :: SrcSpan -> SourceFragment -> SourceFragment
 makeNextFragment (SpanPoint _ startRow startCol) (fileName, nextRow, nextCol, _, _) =
     (fileName, startRow, startCol, nextRow, nextCol)
 
--- resolveJSASTSiblingSources :: [JSAST] -> SourceFragment -> [JSASTWithSource]
--- resolveJSASTSiblingSources siblings parentSource =
---     let reversed = reverse siblings in
---     head reversed
 
+---------------------------------------------------------------------------------------------------
 
-resolveJSASTSource :: JSASTWithSourceSpan -> SourceFragment -> JSASTWithSourceFragment
-resolveJSASTSource (AWS (FunctionDeclaration var args body) srcSpan fileName) parentFragment =
-    AWSF
-        (WSFunctionDeclaration
-            var
-            args
-            (resolveJSASTSource body fragment))
-        fragment
-    where
-        fragment = makeNextFragment srcSpan parentFragment
-
-
-fa :: [JSASTWithSourceSpan] -> SourceFragment -> [JSASTWithSourceFragment]
-fa (x:y:z) parentFragment =
-    [fb x (makeSourceFragment (jsastGetSpan x) (jsastGetSpan y))]:(fa (y:z) parentFragment)
-fa (x:[]) parentFragment = [fb x (makeSourceFragment (jsastGetSpan x) (parentFragment))]
-
-fb :: JSASTWithSourceSpan -> SourceFragment -> JSASTWithSourceFragment
-fb (AWS (FunctionDeclaration var args body) srcSpan fileName) myFragment =
-    AWSF
-        (WSFunctionDeclaration
-            var
-            args
-            (fb body (makeSourceFragment myFragment (getSpan body))))
-        myFragment
-
-fb (AWS (FunctionBody list) srcSpan fileName) myFragment =
-    AWSF
-        (WSFunctionBody
-            (reverse $ fa (reverse list) myFragment))
-    myFragment
--- And so on
+makeSourceFragment :: SrcSpan -> SrcSpan -> SourceFileName -> SourceFragment
+makeSourceFragment (SpanPoint _ startRow startCol) (SpanPoint _ nextRow nextCol) fileName =
+    (fileName, startRow, startCol, nextRow, nextCol)
 
 -- nextSpan is the list's parent's next sibling (or the end of the file, if the parent has no next sibling)
-fa :: [JSASTWithSourceSpan] -> SrcSpan -> [JSASTWithSourceFragment]
-fa (x:y:z) nextSpan =
-    [fb x (jsastGetSpan y)]:(fa (y:z) nextSpan)
-fa (x:[]) nextSpan = [fb x nextSpan]
+jsastListMakeSourceFragments :: [JSASTWithSourceSpan] -> SrcSpan -> [JSASTWithSourceFragment]
+jsastListMakeSourceFragments (x:y:z) nextSpan =
+    (jsastMakeSourceFragment x (jsastGetSpan y)):(jsastListMakeSourceFragments (y:z) nextSpan)
+jsastListMakeSourceFragments (x:[]) nextSpan = [jsastMakeSourceFragment x nextSpan]
 
--- Here nextSpan is just the end of my fragment
-fb :: JSASTWithSourceSpan -> SrcSpan -> JSASTWithSourceFragment
-fb (AWS (FunctionDeclaration var args body) srcSpan fileName) nextSpan =
+-- Here nextSpan is just the end of this fragment
+jsastMakeSourceFragment :: JSASTWithSourceSpan -> SrcSpan -> JSASTWithSourceFragment
+jsastMakeSourceFragment (AWSS (FunctionBody list) srcSpan fileName) nextSpan =
+    AWSF
+        (WSFunctionBody
+            (reverse $ jsastListMakeSourceFragments (reverse list) nextSpan))
+    (makeSourceFragment srcSpan nextSpan fileName)
+jsastMakeSourceFragment (AWSS (FunctionDeclaration var args body) srcSpan fileName) nextSpan =
     AWSF
         (WSFunctionDeclaration
             var
             args
             -- The body is the last child of the function declaration,so it has the same end point.
-            (fb body nextSpan))
-        (makeSourceFragment srcSpan nextSpan)
-
-fb (AWS (FunctionBody list) srcSpan fileName) nextSpan =
+            (jsastMakeSourceFragment body nextSpan))
+        (makeSourceFragment srcSpan nextSpan fileName)
+jsastMakeSourceFragment (AWSS (Return expr) srcSpan fileName) nextSpan =
     AWSF
-        (WSFunctionBody
-            (reverse $ fa (reverse list) nextSpan))
-    (makeSourceFragment srcSpan nextSpan)
--- And so on
+        (WSReturn (exprMakeSourceFragment expr nextSpan))
+    (makeSourceFragment srcSpan nextSpan fileName)
+jsastMakeSourceFragment (AWSS (Statement expr) srcSpan fileName) nextSpan =
+    AWSF
+        (WSStatement (exprMakeSourceFragment expr nextSpan))
+        (makeSourceFragment srcSpan nextSpan fileName)
+
+
+exprListMakeSourceFragments :: [ExprWithSourceSpan] -> SrcSpan -> [ExprWithSourceFragment]
+exprListMakeSourceFragments (x:y:z) nextSpan =
+    (exprMakeSourceFragment x (exprGetSpan y)):(exprListMakeSourceFragments (y:z) nextSpan)
+exprListMakeSourceFragments (x:[]) nextSpan = [exprMakeSourceFragment x nextSpan]
+
+maybeExprMakeSourceFragment :: Maybe ExprWithSourceSpan -> SrcSpan -> Maybe ExprWithSourceFragment
+maybeExprMakeSourceFragment (Just exprWithSourceSpan) srcSpan =
+    Just (exprMakeSourceFragment exprWithSourceSpan srcSpan)
+maybeExprMakeSourceFragment Nothing _ = Nothing
+
+exprMakeSourceFragment :: ExprWithSourceSpan -> SrcSpan -> ExprWithSourceFragment
+exprMakeSourceFragment (EWSS (Arguments list) srcSpan fileName) nextSpan =
+    EWSF
+        (WSArguments (exprListMakeSourceFragments list nextSpan))
+        (makeSourceFragment srcSpan nextSpan fileName)
+exprMakeSourceFragment (EWSS (Binary op expr1 expr2) srcSpan fileName) nextSpan =
+    EWSF
+        (WSBinary
+            op
+            (exprMakeSourceFragment expr1 (exprGetSpan expr2))
+            (exprMakeSourceFragment expr2 nextSpan))
+        (makeSourceFragment srcSpan nextSpan fileName)
+exprMakeSourceFragment (EWSS (Call expr1 expr2) srcSpan fileName) nextSpan =
+    EWSF
+        (WSCall
+            (exprMakeSourceFragment expr1 (exprGetSpan expr2))
+            (exprMakeSourceFragment expr2 nextSpan))
+        (makeSourceFragment srcSpan nextSpan fileName)
+exprMakeSourceFragment (EWSS (Identifier var) srcSpan fileName) nextSpan =
+    EWSF
+        (WSIdentifier var)
+        (makeSourceFragment srcSpan nextSpan fileName)
+exprMakeSourceFragment (EWSS (List list) srcSpan fileName) nextSpan =
+    EWSF
+        (WSList
+            (reverse $ exprListMakeSourceFragments (reverse list) nextSpan))
+        (makeSourceFragment srcSpan nextSpan fileName)
+exprMakeSourceFragment (EWSS (Value val) srcSpan fileName) nextSpan =
+    EWSF
+        (WSValue val)
+        (makeSourceFragment srcSpan nextSpan fileName)
+exprMakeSourceFragment (EWSS (VarDeclaration var expr) srcSpan fileName) nextSpan =
+    EWSF
+        (WSVarDeclaration
+            var
+            (maybeExprMakeSourceFragment expr nextSpan))
+        (makeSourceFragment srcSpan nextSpan fileName)

@@ -23,6 +23,7 @@ module LabelJSAST
 
 
 import ParseJS
+import ResolveJSASTSourceFragments
 import System.Environment
 
 -- A type for the labels.
@@ -58,7 +59,7 @@ type ExprChild = (LabelledExpression, JSASTLabel)
 
 
 -- A LabelledJSAST (which is a labelled subree) an a label.
-type ASTChild = (LabelledJSAST, JSASTLabel)
+type ASTChild = (LabelledJSAST, JSASTLabel, SourceFragment)
 
 
 -- A wrapper for a VarChild or IndexChild that identifies it as a name for a an object property.
@@ -134,7 +135,7 @@ data LabelledJSAST =
 
 
 -- Takes an unlabelled AST and labels the whole thing.
-label :: [JSASTWithSourceSpan] -> [ASTChild]
+label :: [JSASTWithSourceFragment] -> [ASTChild]
 label list = labelJSASTList list 0
 
 
@@ -232,104 +233,104 @@ labelValue (JSNull) n = (LabNull, n + 1)
 
 -- Label an Expression. Recursively process any child fields.
 labelExpression :: ExprWithSourceSpan -> JSASTLabel -> ExprChild
-labelExpression (EWS (List ex) _ _) n =
+labelExpression (EWSS (List ex) _ _) n =
     ((LabList (field1)), (maximum ((listGetLabels field1) ++ [n])) + 1)
     where
         field1 = labelExpressionList ex n
-labelExpression (EWS (Binary op ex1 ex2) _ _) n =
+labelExpression (EWSS (Binary op ex1 ex2) _ _) n =
     ((LabBinary field1 field2 field3), (childGetLabel field3) + 1)
     where
         field1 = labelOperator op n
         field2 = labelExpression ex1 (childGetLabel field1)
         field3 = labelExpression ex2 (childGetLabel field2)
-labelExpression (EWS (UnaryPost op ex) _ _) n =
+labelExpression (EWSS (UnaryPost op ex) _ _) n =
     ((LabUnaryPost field1 field2), (childGetLabel field2) + 1)
     where
         field1 = labelOperator op n
         field2 = labelExpression ex (childGetLabel field1)
-labelExpression (EWS (UnaryPre op ex) _ _) n =
+labelExpression (EWSS (UnaryPre op ex) _ _) n =
     ((LabUnaryPre field1 field2), (childGetLabel field2) + 1)
     where
         field1 = labelOperator op n
         field2 = labelExpression ex (childGetLabel field1)
-labelExpression (EWS (Ternary ex1 ex2 ex3) _ _) n =
+labelExpression (EWSS (Ternary ex1 ex2 ex3) _ _) n =
     ((LabTernary field1 field2 field3), (childGetLabel field3) + 1)
     where
         field1 = labelExpression ex1 n
         field2 = labelExpression ex2 (childGetLabel field1)
         field3 = labelExpression ex3 (childGetLabel field2)
-labelExpression (EWS (Assignment op ex1 ex2) _ _) n =
+labelExpression (EWSS (Assignment op ex1 ex2) _ _) n =
     ((LabAssignment field1 field2 field3), (childGetLabel field3) + 1)
     where
         field1 = labelOperator op n
         field2 = labelExpression ex1 (childGetLabel field1)
         field3 = labelExpression ex2 (childGetLabel field2)
-labelExpression (EWS (Identifier ident) _ _) n =
+labelExpression (EWSS (Identifier ident) _ _) n =
     ((LabIdentifier field1), (childGetLabel field1) + 1)
     where
         field1 = labelVariable ident n
-labelExpression (EWS (Reference ex1 ex2) _ _) n =
+labelExpression (EWSS (Reference ex1 ex2) _ _) n =
     ((LabReference field1 field2), (childGetLabel field2) + 1)
     where
         field1 = labelExpression ex1 n
         field2 = labelExpression ex2 (childGetLabel field1)
-labelExpression (EWS (Index ex1 ex2) _ _) n =
+labelExpression (EWSS (Index ex1 ex2) _ _) n =
     ((LabIndex field1 field2), (childGetLabel field2) + 1)
     where
         field1 = labelExpression ex1 n
         field2 = labelExpression ex2 (childGetLabel field1)
-labelExpression (EWS (Value val) _ _) n =
+labelExpression (EWSS (Value val) _ _) n =
     ((LabValue field1), (childGetLabel field1) + 1)
     where
         field1 = labelValue val n
-labelExpression (EWS (PropNameValue name ex) _ _) n =
+labelExpression (EWSS (PropNameValue name ex) _ _) n =
     ((LabPropNameValue field1 field2), (childGetLabel field2) + 1)
     where
         field1 = labelPropertyName name n
         field2 = labelExpression ex (childGetLabel field1)
-labelExpression (EWS (Call ex1 ex2) _ _) n =
+labelExpression (EWSS (Call ex1 ex2) _ _) n =
     ((LabCall field1 field2), (childGetLabel field2) + 1)
     where
         field1 = labelExpression ex1 n
         field2 = labelExpression ex2 (childGetLabel field1)
-labelExpression (EWS (Arguments args) _ _) n =
+labelExpression (EWSS (Arguments args) _ _) n =
     ((LabArguments (field1)), (maximum ((listGetLabels field1) ++ [n])) + 1)
     where
         field1 = labelExpressionList args n
-labelExpression (EWS (ParenExpression ex) _ _) n =
+labelExpression (EWSS (ParenExpression ex) _ _) n =
     ((LabParenExpression field1), (childGetLabel field1) + 1)
     where
         field1 = labelExpression ex n
-labelExpression (EWS (Break vars) _ _) n =
+labelExpression (EWSS (Break vars) _ _) n =
     ((LabBreak field1), (maxMaybeLabel field1 n) + 1)
     where
         field1 = labelMaybeVar vars n
-labelExpression (EWS (Continue vars) _ _) n =
+labelExpression (EWSS (Continue vars) _ _) n =
     ((LabContinue field1), (maxMaybeLabel field1 n) + 1)
     where
         field1 = labelMaybeVar vars n
-labelExpression (EWS (Throw ex) _ _) n =
+labelExpression (EWSS (Throw ex) _ _) n =
     ((LabThrow field1), (childGetLabel field1) + 1)
     where
         field1 = labelExpression ex n
-labelExpression (EWS (CallExpression ex1 op ex2) _ _) n =
+labelExpression (EWSS (CallExpression ex1 op ex2) _ _) n =
     ((LabCallExpression field1 field2 field3), (childGetLabel field3) + 1)
     where
         field1 = labelExpression ex1 n
         field2 = labelOperator op (childGetLabel field1)
         field3 = labelExpression ex2 (childGetLabel field2)
-labelExpression (EWS (FunctionExpression var vars ast) _ _) n =
+labelExpression (EWSS (FunctionExpression var vars ast) _ _) n =
     ((LabFunctionExpression field1 field2 field3), (childGetLabel field3) + 1)
     where
         field1 = labelMaybeVar var n
         field2 = labelVarList vars (maxMaybeLabel field1 n)
         field3 = labelJSAST ast (maximum ((listGetLabels field2) ++ [n]))
-labelExpression (EWS (VarDeclaration var ex) _ _) n =
+labelExpression (EWSS (VarDeclaration var ex) _ _) n =
     ((LabVarDeclaration field1 field2), (maxMaybeLabel field2 (childGetLabel field1)) + 1)
     where
         field1 = labelVariable var n
         field2 = labelMaybeExpression ex (childGetLabel field1)
-labelExpression (EWS (New ex) _ _) n =
+labelExpression (EWSS (New ex) _ _) n =
     ((LabNew field1), (childGetLabel field1) + 1)
     where
         field1 = labelExpression ex n
@@ -343,26 +344,26 @@ labelMaybeExpression (Just ex) n = Just $ labelExpression ex n
 
 -- Label a JSAST. Recursively process any child fields.
 labelJSAST :: JSASTWithSourceSpan -> JSASTLabel -> ASTChild
-labelJSAST (AWS (Block jsastLs) srcSpan fileName) n =
+labelJSAST (AWSS (Block jsastLs) srcSpan fileName) n =
     ((LabBlock field1), (maximum ((listGetLabels field1) ++ [n])) + 1)
     where
         field1 = labelJSASTList jsastLs n
-labelJSAST (AWS (FunctionBody jsastLs) srcSpan fileName) n =
+labelJSAST (AWSS (FunctionBody jsastLs) srcSpan fileName) n =
     ((LabFunctionBody field1), (maximum ((listGetLabels field1) ++ [n])) + 1)
     where
         field1 = labelJSASTList jsastLs n
-labelJSAST (AWS (FunctionDeclaration var args body) srcSpan fileName) n =
+labelJSAST (AWSS (FunctionDeclaration var args body) srcSpan fileName) n =
     ((LabFunctionDeclaration field1 field2 field3), (childGetLabel field3) + 1)
     where
         field1 = labelVariable var n
         field2 = labelVarList args (childGetLabel field1)
         field3 = labelJSAST body $ maximum ((listGetLabels field2) ++ [childGetLabel field1])
-labelJSAST (AWS (Labelled var body) srcSpan fileName) n =
+labelJSAST (AWSS (Labelled var body) srcSpan fileName) n =
     ((LabLabelled field1 field2), (childGetLabel field2) + 1)
     where
         field1 = labelVariable var n
         field2 = labelJSAST body (childGetLabel field1)
-labelJSAST (AWS (ForVar ex1 ex2 ex3 body) srcSpan fileName) n =
+labelJSAST (AWSS (ForVar ex1 ex2 ex3 body) srcSpan fileName) n =
     ((LabForVar field1 field2 field3 field4), (childGetLabel field4) + 1)
     where
         field1 = labelExpressionList ex1 n
@@ -376,7 +377,7 @@ labelJSAST (AWS (ForVar ex1 ex2 ex3 body) srcSpan fileName) n =
                     ((listGetLabels field1)
                     ++ [maxMaybeLabel field2 n]
                     ++ [maxMaybeLabel field3 n])
-labelJSAST (AWS (For ex1 ex2 ex3 body) srcSpan fileName) n =
+labelJSAST (AWSS (For ex1 ex2 ex3 body) srcSpan fileName) n =
     ((LabFor field1 field2 field3 field4), (childGetLabel field4) + 1)
     where
         field1 = labelMaybeExpression ex1 n
@@ -390,73 +391,73 @@ labelJSAST (AWS (For ex1 ex2 ex3 body) srcSpan fileName) n =
                     ([maxMaybeLabel field1 n]
                     ++ [maxMaybeLabel field2 n]
                     ++ [maxMaybeLabel field3 n])
-labelJSAST (AWS (ForIn vars ex body) srcSpan fileName) n =
+labelJSAST (AWSS (ForIn vars ex body) srcSpan fileName) n =
     ((LabForIn field1 field2 field3), (childGetLabel field3) + 1)
     where
         field1 = labelVarList vars n
         field2 = labelExpression ex $ maximum ((listGetLabels field1) ++ [n])
         field3 = labelJSAST body (childGetLabel field2)
-labelJSAST (AWS (ForVarIn ex1 ex2 body) srcSpan fileName) n =
+labelJSAST (AWSS (ForVarIn ex1 ex2 body) srcSpan fileName) n =
     ((LabForVarIn field1 field2 field3), (childGetLabel field3) + 1)
     where
         field1 = labelExpression ex1 n
         field2 = labelExpression ex2 (childGetLabel field1)
         field3 = labelJSAST body (childGetLabel field2)
-labelJSAST (AWS (While ex body) srcSpan fileName) n =
+labelJSAST (AWSS (While ex body) srcSpan fileName) n =
     ((LabWhile field1 field2), (childGetLabel field2) + 1)
     where
         field1 = labelExpression ex n
         field2 = labelJSAST body (childGetLabel field1)
-labelJSAST (AWS (DoWhile body ex )srcSpan fileName) n  =
+labelJSAST (AWSS (DoWhile body ex )srcSpan fileName) n  =
     ((LabDoWhile field1 field2), (childGetLabel field2) + 1)
     where
         field1 = labelJSAST body n
         field2 = labelExpression ex (childGetLabel field1)
-labelJSAST (AWS (If ex body) srcSpan fileName) n =
+labelJSAST (AWSS (If ex body) srcSpan fileName) n =
     ((LabIf field1 field2), (childGetLabel field2) + 1)
     where
         field1 = labelExpression ex n
         field2 = labelJSAST body (childGetLabel field1)
-labelJSAST (AWS (IfElse ex bodyT bodyF) srcSpan fileName) n =
+labelJSAST (AWSS (IfElse ex bodyT bodyF) srcSpan fileName) n =
     ((LabIfElse field1 field2 field3), (childGetLabel field3) + 1)
     where
         field1 = labelExpression ex n
         field2 = labelJSAST bodyT (childGetLabel field1)
         field3 = labelJSAST bodyF (childGetLabel field2)
-labelJSAST (AWS (Switch ex cs) srcSpan fileName) n =
+labelJSAST (AWSS (Switch ex cs) srcSpan fileName) n =
     ((LabSwitch field1 field2), (childGetLabel field2) + 1)
     where
         field1 = labelExpression ex n
         field2 = labelJSAST cs (childGetLabel field1)
-labelJSAST (AWS (Case ex body) srcSpan fileName) n =
+labelJSAST (AWSS (Case ex body) srcSpan fileName) n =
     ((LabCase field1 field2), (childGetLabel field2) + 1)
     where
         field1 = labelExpression ex n
         field2 = labelJSAST body (childGetLabel field1)
-labelJSAST (AWS (Default body) srcSpan fileName) n =
+labelJSAST (AWSS (Default body) srcSpan fileName) n =
     ((LabDefault field1), (childGetLabel field1) + 1)
     where
         field1 = labelJSAST body n
-labelJSAST (AWS (Try body ctch) srcSpan fileName) n =
+labelJSAST (AWSS (Try body ctch) srcSpan fileName) n =
     ((LabTry field1 field2), (childGetLabel field2) + 1)
     where
         field1 = labelJSAST body n
         field2 = labelJSAST ctch (childGetLabel field1)
-labelJSAST (AWS (Catch var ex body) srcSpan fileName) n =
+labelJSAST (AWSS (Catch var ex body) srcSpan fileName) n =
     ((LabCatch field1 field2 field3), (childGetLabel field3) + 1)
     where
         field1 = labelVariable var n
         field2 = labelMaybeExpression ex (childGetLabel field1)
         field3 = labelJSAST body (maxMaybeLabel field2 (childGetLabel field1))
-labelJSAST (AWS (Finally body) srcSpan fileName) n =
+labelJSAST (AWSS (Finally body) srcSpan fileName) n =
     ((LabFinally field1), (childGetLabel field1) + 1)
     where
         field1 = labelJSAST body n
-labelJSAST (AWS (Return ex) srcSpan fileName) n =
+labelJSAST (AWSS (Return ex) srcSpan fileName) n =
     ((LabReturn field1), (childGetLabel field1) + 1)
     where
         field1 = labelExpression ex n
-labelJSAST (AWS (Statement ex) srcSpan fileName) n =
+labelJSAST (AWSS (Statement ex) srcSpan fileName) n =
     ((LabStatement field1), (childGetLabel field1) + 1)
     where
         field1 = labelExpression ex n

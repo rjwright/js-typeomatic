@@ -72,25 +72,33 @@ main = do
 		printSourceFragment
 			(getSourceFragments (topNodeGetSpan $ parseTree pr infile) infile [])
 	putStrLn ""
+	putStrLn "Make JSAST with source fragments"
+	putStrLn $ show $ makeJSASTWithSourceFragments pr infile
 	-- printParseTreeStripped $ parseTree pr
 	-- putStrLn ""
 	-- putStrLn $ show $ parseTree pr
 
 
-makeCleanedFunctions :: String -> String -> CleanedFunction
+makeCleanedFunctions :: String -> SourceFileName -> CleanedFunction
 makeCleanedFunctions input fileName = cleanFunction $ makeCleanedFunctionRules input fileName
 
-makeCleanedFunctionRules :: String -> String -> CleanedFunctionRules
+makeCleanedFunctionRules :: String -> SourceFileName -> CleanedFunctionRules
 makeCleanedFunctionRules input fileName = cleanFunctionRules $ makeDeclarationGraph input fileName
 
-makeAllRules :: String -> String -> [Rule]
+makeAllRules :: String -> SourceFileName -> [Rule]
 makeAllRules input fileName = graphGetAllRules $ makeDeclarationGraph input fileName
 
-makeDeclarationGraph :: String -> String -> FunctionRules
+makeDeclarationGraph :: String -> SourceFileName -> FunctionRules
 makeDeclarationGraph input fileName = getDeclarationGraph $ makeLabelledJSAST input fileName
 
-makeLabelledJSAST :: String -> String -> [ASTChild]
+makeLabelledJSAST :: String -> SourceFileName -> [ASTChild]
 makeLabelledJSAST input fileName = label $ makeJSAST input fileName
+
+-- FIXME: Passing the file name here might mean that we don't need to thread it through the whole
+-- AST.
+makeJSASTWithSourceFragments :: String -> SourceFileName -> [JSASTWithSourceFragment]
+makeJSASTWithSourceFragments input fileName =
+	jsastListMakeSourceFragments (makeJSAST input fileName) (SpanPoint fileName ((length $ lines input) + 1) 1)
 
 makeJSAST :: String -> SourceFileName -> [JSASTWithSourceSpan]
 makeJSAST input fileName = toJSAST (parseTree input fileName) fileName
