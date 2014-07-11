@@ -144,7 +144,8 @@ valueMakeSourceFragment (JSObject list) nextSpan =
 valueMakeSourceFragment (JSString val) _ = WSString val
 valueMakeSourceFragment  JSUndefined _ = WSUndefined
 
--- nextSpan is the list's parent's next sibling (or the end of the file, if the parent has no next sibling)
+-- nextSpan is the list's parent's next sibling (or the end of the file, if the parent has no next
+-- sibling)
 jsastListMakeSourceFragments :: [JSASTWithSourceSpan] -> SrcSpan -> [JSASTWithSourceFragment]
 jsastListMakeSourceFragments (x:y:z) nextSpan =
     (jsastMakeSourceFragment x (jsastGetSpan y)):(jsastListMakeSourceFragments (y:z) nextSpan)
