@@ -143,31 +143,38 @@ printSourceCode (fileName, startRow, startCol, endRow, endCol) padding = do
 	contents <- readFile fileName
 	let singleLines = lines contents
 	let fragment = getRange singleLines startRow startCol endRow endCol []
-	putStr (padding ++ " * SOURCE")
-	printSourceFragment (fileName, startRow, startCol, endRow, endCol) ""
-	mapM_ (putStrLn . ((padding ++ " * ") ++) . stripEnd)  (filter (\f -> not (isPrefixOf "//" (stripStart f))) (filter (\f -> not (f == "")) fragment))
+	let heading = " * SOURCE "
+	let sf = prettifySourceFragment (fileName, startRow, startCol, endRow, endCol)
+	let maxLen = max
+		(length (heading ++ sf))
+		((maximum $ map length (filter (\f -> not (isPrefixOf "//" (stripStart f))) (filter (\f -> not (f == "")) fragment))) + 3)
+	let spacer = take maxLen (cycle ['*'])
+	putStrLn (padding ++ " " ++ spacer)
+	putStr (padding ++ heading)
+	putStrLn sf
+	mapM_
+		(putStrLn . ((padding ++ " * ") ++) . stripEnd)
+		(filter (\f -> not (isPrefixOf "//" (stripStart f))) (filter (\f -> not (f == "")) fragment))
+	putStrLn (padding ++ " " ++ spacer)
 	where
 		getRange strings sr sc er ec result =
 			if (sr == er) then
 				if (sc == ec) then
 					result
 				else
-					result ++ [subList (sc - 1) (ec - 1) (strings!!(sr - 1))]
+					-- result ++ [(show sr) ++ "   " ++ (subList (sc - 1) (ec - 1) (strings!!(sr - 1)))]
+					result ++ [(subList (sc - 1) (ec - 1) (strings!!(sr - 1)))]
 			else if (ec == 1) then
-				-- [drop (sc - 1) (strings!!(sr - 1))] ++ (subList sr (er - 2) strings)
+				-- getRange strings (sr + 1) 1 er ec (result ++ [(show sr) ++ "   " ++ drop (sc - 1) (strings!!(sr - 1))])
 				getRange strings (sr + 1) 1 er ec (result ++ [drop (sc - 1) (strings!!(sr - 1))])
 			else
 				result ++ (subList (sr - 1) (er - 1) strings) ++ [subList 0 (ec - 1) (strings!!(er-1))]
 
 
-printSourceFragment :: SourceFragment -> String -> IO()
-printSourceFragment (fileName, sr, sc, er, ec) padding = do
-	putStr (padding ++ " " ++ (reverse $ takeWhile (\c -> not (c == '/')) (reverse fileName)))
-	putStrLn (" (" ++
-		(show sr) ++
-		", " ++ (show sc) ++
-		", " ++ (show er) ++
-		", " ++ (show ec) ++ ")")
+prettifySourceFragment :: SourceFragment -> String
+prettifySourceFragment (fileName, sr, sc, er, ec) =
+	(reverse $ takeWhile (\c -> not (c == '/')) (reverse fileName))
+	++ (" (" ++ (show sr) ++ ", " ++ (show sc) ++ ", " ++ (show er) ++ ", " ++ (show ec) ++ ")")
 
 -- Prints CleanedRules, indented according to their depth in the tree
 printCleanedRulesList :: CleanedRules a => [a] -> String -> Bool -> IO()
@@ -554,7 +561,7 @@ printSource :: SourceFragment -> String -> SourceFlag -> IO()
 printSource sourceFragment padding printSrc =
 	if printSrc then
 		-- FIXME: Move indenting into caller!
-		printSourceCode sourceFragment (makeIndent padding)
+		printSourceCode sourceFragment padding
 	else
 		return()
 
