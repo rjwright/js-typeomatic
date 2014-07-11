@@ -145,16 +145,17 @@ printSourceCode (fileName, startRow, startCol, endRow, endCol) padding = do
 	let fragment = getRange singleLines startRow startCol endRow endCol []
 	let heading = " * SOURCE "
 	let sf = prettifySourceFragment (fileName, startRow, startCol, endRow, endCol)
+	let cleanedSF = (filter (\f -> not (isPrefixOf "//" (stripStart f))) (filter (\f -> not (f == "")) fragment))
 	let maxLen = max
 		(length (heading ++ sf))
-		((maximum $ map length (filter (\f -> not (isPrefixOf "//" (stripStart f))) (filter (\f -> not (f == "")) fragment))) + 3)
+		((maximum $ map length cleanedSF) + 3)
 	let spacer = take maxLen (cycle ['*'])
 	putStrLn (padding ++ " " ++ spacer)
 	putStr (padding ++ heading)
 	putStrLn sf
 	mapM_
 		(putStrLn . ((padding ++ " * ") ++) . stripEnd)
-		(filter (\f -> not (isPrefixOf "//" (stripStart f))) (filter (\f -> not (f == "")) fragment))
+		(cleanedSF)
 	putStrLn (padding ++ " " ++ spacer)
 	where
 		getRange strings sr sc er ec result =
