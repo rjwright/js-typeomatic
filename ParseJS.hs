@@ -612,7 +612,7 @@ listToJSASTExpression [x, (NS (JSArguments args) srcSpan)] fileName =
     EWSS
         (Call
             (makeJSASTExpression x fileName)
-            (toJSASTArguments args fileName))
+            (toJSASTArguments args fileName srcSpan))
         (jsnGetSpan x)
         fileName
 -- FIXME: This is SUPER ugly and isCallExpression isn't being used.
@@ -625,13 +625,21 @@ listToJSASTExpression list fileName =
         getJSASTCallExpression list fileName
 
 -- Makes arguments from a list of lists of JSNodes that represent a list of arguments.
-toJSASTArguments :: [[JSNode]] -> SourceFileName -> ExprWithSourceSpan
-toJSASTArguments args fileName =
+toJSASTArguments :: [[JSNode]] -> SourceFileName -> SrcSpan -> ExprWithSourceSpan
+-- toJSASTArguments args fileName =
+--     -- FIXME: Might not be the right source span for args
+--     EWSS (Arguments (map getJSASTArgument args)) (jsnGetSpan $ head $ head args) fileName
+--     where
+--         getJSASTArgument [item] = makeJSASTExpression item fileName
+--         getJSASTArgument nodes = mapListToExpression nodes fileName
+toJSASTArguments args fileName srcSpan =
     -- FIXME: Might not be the right source span for args
-    EWSS (Arguments (map getJSASTArgument args)) (jsnGetSpan $ head $ head args) fileName
+    -- EWSS (Arguments (map getJSASTArgument args)) (jsnGetSpan $ head $ head args) fileName
+    EWSS (Arguments (map getJSASTArgument args)) srcSpan fileName
     where
         getJSASTArgument [item] = makeJSASTExpression item fileName
         getJSASTArgument nodes = mapListToExpression nodes fileName
+
 
 -- Determine if a Node is an assignment operator
 isAssignmentOperator :: String -> Bool
@@ -681,12 +689,13 @@ getJSASTCall list fileName =
     EWSS
         (Call
             (listToJSASTExpression (init list) fileName)
-            (lastGetArgs (argsNode $ jsnGetNode $ last list) fileName))
+            (lastGetArgs (jsnGetNode args) fileName))
         (jsnGetSpan $ head list)
         fileName
     where
-        argsNode (JSCallExpression _ [args]) = jsnGetNode args
-        lastGetArgs (JSArguments ar) fileName = toJSASTArguments ar fileName
+        argsList (JSCallExpression _ [ar]) = ar
+        args = argsList $ jsnGetNode $ last list
+        lastGetArgs (JSArguments ar) fileName = toJSASTArguments ar fileName (jsnGetSpan args)
 
 
 -- Determine whether a node is a JSCallExpression with a dot or with square brackets.
@@ -810,7 +819,7 @@ makeJSASTExpression (NS (JSMemberSquare pre post) srcSpan) fileName =
             (jsnToListExp post fileName))
         srcSpan
         fileName
-makeJSASTExpression (NS (JSArguments args) srcSpan) fileName = toJSASTArguments args fileName
+makeJSASTExpression (NS (JSArguments args) srcSpan) fileName = toJSASTArguments args fileName srcSpan
 makeJSASTExpression (NS (JSFunctionExpression [name] args body) srcSpan) fileName =
     EWSS
         (FunctionExpression
