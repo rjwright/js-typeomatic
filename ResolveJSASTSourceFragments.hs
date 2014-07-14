@@ -155,7 +155,21 @@ jsastListMakeSourceFragments (x:y:z) nextSpan =
 jsastListMakeSourceFragments (x:[]) nextSpan = [jsastMakeSourceFragment x nextSpan]
 jsastListMakeSourceFragments [] nextSpan = []
 
+
 -- Here nextSpan is just the end of this fragment
+-- Still to do
+--      WSCase ExprWithSourceFragment JSASTWithSourceFragment
+--      WSCatch Variable (Maybe ExprWithSourceFragment) JSASTWithSourceFragment
+--      WSDefault JSASTWithSourceFragment
+--      WSDoWhile JSASTWithSourceFragment ExprWithSourceFragment
+--      WSFinally JSASTWithSourceFragment
+--      WSForIn [Variable] ExprWithSourceFragment JSASTWithSourceFragment
+--      WSIf ExprWithSourceFragment JSASTWithSourceFragment
+--      WSIfElse ExprWithSourceFragment JSASTWithSourceFragment JSASTWithSourceFragment
+--      WSLabelled Variable JSASTWithSourceFragment
+--      WSSwitch ExprWithSourceFragment JSASTWithSourceFragment
+--      WSTry JSASTWithSourceFragment JSASTWithSourceFragment
+--      WSWhile ExprWithSourceFragment JSASTWithSourceFragment
 jsastMakeSourceFragment :: JSASTWithSourceSpan -> SrcSpan -> JSASTWithSourceFragment
 -- jsastMakeSourceFragment (AWSS () srcSpan fileName) nextSpan =
 --     AWSF
@@ -254,22 +268,30 @@ maybeExprMakeSourceFragment (Just exprWithSourceSpan) srcSpan =
     Just (exprMakeSourceFragment exprWithSourceSpan srcSpan)
 maybeExprMakeSourceFragment Nothing _ = Nothing
 
+
+-- Still to do
+--      WSBreak (Maybe Variable)
+--      WSContinue (Maybe Variable)
+--      WSNew ExprWithSourceFragment
+--      WSParenExpression ExprWithSourceFragment
+--      WSTernary ExprWithSourceFragment ExprWithSourceFragment ExprWithSourceFragment
+--      WSThrow ExprWithSourceFragment
 exprMakeSourceFragment :: ExprWithSourceSpan -> SrcSpan -> ExprWithSourceFragment
 -- exprMakeSourceFragment (EWSS () srcSpan fileName) nextSpan =
 --     EWSF
 --         (WS...)
 --         (makeSourceFragment srcSpan nextSpan fileName)
+exprMakeSourceFragment (EWSS (Arguments list) srcSpan fileName) nextSpan =
+    EWSF
+        (WSArguments
+            (exprListMakeSourceFragments list nextSpan))
+        (makeSourceFragment srcSpan nextSpan fileName)
 exprMakeSourceFragment (EWSS (Assignment op expr1 expr2) srcSpan fileName) nextSpan =
     EWSF
         (WSAssignment
             op
             (exprMakeSourceFragment expr1 (exprGetSpan expr2))
             (exprMakeSourceFragment expr2 nextSpan))
-        (makeSourceFragment srcSpan nextSpan fileName)
-exprMakeSourceFragment (EWSS (Arguments list) srcSpan fileName) nextSpan =
-    EWSF
-        (WSArguments
-            (exprListMakeSourceFragments list nextSpan))
         (makeSourceFragment srcSpan nextSpan fileName)
 exprMakeSourceFragment (EWSS (Binary op expr1 expr2) srcSpan fileName) nextSpan =
     EWSF
