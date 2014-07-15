@@ -18,6 +18,7 @@ module LabelJSAST
 , ValueChild
 , VarChild
 , childGetLabel
+, childGetSource
 , childWSGetLabel
 , label
 ) where
@@ -148,6 +149,8 @@ childGetLabel (child, lab) = lab
 childWSGetLabel :: (a, JSASTLabel, b) -> JSASTLabel
 childWSGetLabel (child, lab, srcSpan) = lab
 
+childGetSource :: (a, b, SourceFragment) -> SourceFragment
+childGetSource (_, _, sf) = sf
 
 -- Extract the labels from a list of VarChild, IndexChild etc.
 listGetLabels :: [(a, JSASTLabel)] -> [JSASTLabel]

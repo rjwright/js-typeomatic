@@ -6,7 +6,6 @@ module ResolveJSASTSourceFragments
 , JSASTWSF(..)
 , SourceFragment(..)
 , ValueWithSourceFragment(..)
-, getSourceFragments
 , jsastListMakeSourceFragments
 , jsastMakeSourceFragment
 ) where
@@ -25,7 +24,6 @@ type Col = Int
 type SourceFragment = (String, Row, Col, Row, Col)
 
 -- Represent literal values.
--- data ValueWSF =
 data ValueWithSourceFragment =
       WSArray [ExprWithSourceFragment]
     | WSBool Bool
@@ -85,8 +83,7 @@ data JSASTWSF =
     | WSTry JSASTWithSourceFragment JSASTWithSourceFragment
     | WSWhile ExprWithSourceFragment JSASTWithSourceFragment deriving (Show)
 
--- data ValueWithSourceFragment =
---       VWSF ValueWSF SourceFragment deriving (Show)
+
 data JSASTWithSourceFragment =
       AWSF JSASTWSF SourceFragment deriving (Show)
 data ExprWithSourceFragment =
@@ -103,29 +100,6 @@ maybeExprGetSpan :: Maybe ExprWithSourceSpan -> Maybe SrcSpan
 maybeExprGetSpan (Just (EWSS _ srcSpan _)) = Just srcSpan
 maybeExprGetSpan Nothing = Nothing
 
-
--- FROM OLD STUFF
-getSourceFragments :: [SrcSpan] -> SourceFileName -> [SourceFragment] -> [SourceFragment]
-getSourceFragments (s1:[]) fileName result =
-    (getSourceFragment s1 s1 fileName):result
-getSourceFragments (s1:s2:[]) fileName result =
-    -- (getSourceFragments (s2:[]) file result) ++ (getSourceFragment s1 s2 file):result
-    (getSourceFragment s1 s2 fileName):result ++ (getSourceFragments (s2:[]) fileName result)
-getSourceFragments (s1:s2:sx) fileName result =
-    (getSourceFragment s1 s2 fileName):result ++ (getSourceFragments (s2:sx) fileName result)
-
--- FROM OLD STUFF
-getSourceFragment :: SrcSpan -> SrcSpan -> SourceFileName -> SourceFragment
-getSourceFragment (SpanPoint _ row1 col1) (SpanPoint _ row2 col2) fileName =
-    (fileName, row1, col1, row2, col2)
-
--- FROM OLD STUFF
-makeNextFragment :: SrcSpan -> SourceFragment -> SourceFragment
-makeNextFragment (SpanPoint _ startRow startCol) (fileName, nextRow, nextCol, _, _) =
-    (fileName, startRow, startCol, nextRow, nextCol)
-
-
----------------------------------------------------------------------------------------------------
 
 makeSourceFragment :: SrcSpan -> SrcSpan -> SourceFileName -> SourceFragment
 makeSourceFragment (SpanPoint _ startRow startCol) (SpanPoint _ nextRow nextCol) fileName =

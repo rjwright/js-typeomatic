@@ -171,6 +171,7 @@ data ExprWithSourceSpan = EWSS Expression SrcSpan SourceFileName deriving (Show)
 jsnGetNode :: JSNode -> Node
 jsnGetNode (NS a _) = a
 
+-- TODO Rename to "*getSource"
 jsnGetSpan :: JSNode -> SrcSpan
 jsnGetSpan (NS _ s) = s
 

@@ -11,17 +11,17 @@
 -- built.
 --
 -- Top level functions are
---        > (getDeclarationGraph label . toJSAST . parseTree)
+--        > (getDeclarationGraph $ label . toJSAST . parseTree)
 --          Which takes a labelled AST and uses it to generate type rules. It
 --          produces a new AST, augmented with the type rules.
 --
---        > (graphGetAllRules . getDeclarationGraph label . toJSAST . parseTree)
+--        > (graphGetAllRules $ getDeclarationGraph . label . toJSAST . parseTree)
 --          Which puts all of the Rules in a flat list.
 --
---        > (cleanFunctionRules . getDeclarationGraph label . toJSAST . parseTree)
+--        > (cleanFunctionRules $ getDeclarationGraph label . toJSAST . parseTree)
 --          Which removes the parent field from a DeclarationGraph.
 --
---        > (cleanFunction . cleanFunctionRules . getDeclarationGraph label . toJSAST . parseTree)
+--        > (cleanFunction $ cleanFunctionRules . getDeclarationGraph . label . toJSAST . parseTree)
 --          Which removes the Rules, leaving just a function tree with identifiers.
 
 
@@ -44,6 +44,7 @@
 
 import LabelJSAST
 import ParseJS
+import ResolveJSASTSourceFragments
 import System.Environment
 import TypeRules
 
@@ -79,6 +80,7 @@ data FunctionRules =
         [FunctionRules]
         [FunctionExpressionRules]
         [DeclaredIdentifier]
+        SourceFragment
         ParentFunction deriving (Show)
 
 
@@ -91,6 +93,7 @@ data FunctionExpressionRules =
         [FunctionRules]
         [FunctionExpressionRules]
         [DeclaredIdentifier]
+        SourceFragment
         ParentFunction deriving (Show)
 
 
@@ -101,7 +104,8 @@ data CleanedFunctionRules =
         [Rule]
         [CleanedFunctionRules]
         [CleanedFunctionExpressionRules]
-        [DeclaredIdentifier] deriving (Show)
+        [DeclaredIdentifier]
+        SourceFragment deriving (Show)
 
 
 -- A FunctionExpressionRules with the parent field removed.
@@ -111,7 +115,8 @@ data CleanedFunctionExpressionRules =
         [Rule]
         [CleanedFunctionRules]
         [CleanedFunctionExpressionRules]
-        [DeclaredIdentifier] deriving (Show)
+        [DeclaredIdentifier]
+        SourceFragment deriving (Show)
 
 
 class CleanedRules a where
@@ -120,27 +125,31 @@ class CleanedRules a where
     crCleanedFunctionRuleList :: a -> [CleanedFunctionRules]
     crCleanedFunctionExpressionRuleList :: a -> [CleanedFunctionExpressionRules]
     crDeclaredIdentifierList :: a -> [DeclaredIdentifier]
+    crSourceFragment :: a -> SourceFragment
     crName :: a -> String
 
 
 instance CleanedRules CleanedFunctionRules where
-    crFunctionIdentifier (CleanedFunctionRules fid _ _ _ _) = Just fid
-    crRuleList (CleanedFunctionRules _ rules _ _ _) = rules
-    crCleanedFunctionRuleList (CleanedFunctionRules _ _ fRules _ _) = fRules
-    crCleanedFunctionExpressionRuleList (CleanedFunctionRules _ _ _ feRules _) = feRules
-    crDeclaredIdentifierList (CleanedFunctionRules _ _ _ _ dIDs) = dIDs
+    -- FIXME: Why is this "Just"?
+    crFunctionIdentifier (CleanedFunctionRules fid _ _ _ _ _) = Just fid
+    crRuleList (CleanedFunctionRules _ rules _ _ _ _) = rules
+    crCleanedFunctionRuleList (CleanedFunctionRules _ _ fRules _ _ _) = fRules
+    crCleanedFunctionExpressionRuleList (CleanedFunctionRules _ _ _ feRules _ _) = feRules
+    crDeclaredIdentifierList (CleanedFunctionRules _ _ _ _ dIDs _) = dIDs
+    crSourceFragment (CleanedFunctionRules _ _ _ _ _ fragment) = fragment
     crName _ = "Function Rules"
 
 
 instance CleanedRules CleanedFunctionExpressionRules where
-    crFunctionIdentifier (CleanedFunctionExpressionRules fid _ _ _ _) = fid
-    crRuleList (CleanedFunctionExpressionRules _ rules _ _ _) = rules
+    crFunctionIdentifier (CleanedFunctionExpressionRules fid _ _ _ _ _) = fid
+    crRuleList (CleanedFunctionExpressionRules _ rules _ _ _ _) = rules
     crCleanedFunctionRuleList
-        (CleanedFunctionExpressionRules _ _ fRules _ _) = fRules
+        (CleanedFunctionExpressionRules _ _ fRules _ _ _) = fRules
     crCleanedFunctionExpressionRuleList
-        (CleanedFunctionExpressionRules _ _ _ feRules _) = feRules
+        (CleanedFunctionExpressionRules _ _ _ feRules _ _) = feRules
     crDeclaredIdentifierList
-        (CleanedFunctionExpressionRules _ _ _ _ dIDs) = dIDs
+        (CleanedFunctionExpressionRules _ _ _ _ dIDs _) = dIDs
+    crSourceFragment (CleanedFunctionExpressionRules _ _ _ _ _ fragment) = fragment
     crName _ = "Function Expression Rules"
 
 
@@ -150,7 +159,8 @@ data CleanedFunction =
         FunctionIdentifier
         [CleanedFunction]
         [CleanedFunctionExpression]
-        [DeclaredIdentifier] deriving (Show)
+        [DeclaredIdentifier]
+        SourceFragment deriving (Show)
 
 
 -- A FunctionExpressionRules with the parent and rules fields removed.
@@ -159,7 +169,8 @@ data CleanedFunctionExpression =
         (Maybe FunctionIdentifier)
         [CleanedFunction]
         [CleanedFunctionExpression]
-        [DeclaredIdentifier] deriving (Show)
+        [DeclaredIdentifier]
+        SourceFragment deriving (Show)
 
 
 class CleanedElement a where
@@ -167,64 +178,75 @@ class CleanedElement a where
     ceCleanedFunctionList :: a -> [CleanedFunction]
     ceCleanedFunctionExpressionList :: a -> [CleanedFunctionExpression]
     ceDeclaredIdentifierList :: a -> [DeclaredIdentifier]
+    ceSourceFragment :: a -> SourceFragment
     ceName :: a -> String
 
 
 instance CleanedElement CleanedFunction where
-    ceFunctionIdentifier (CleanedFunction fid _ _ _) = Just fid
-    ceCleanedFunctionList (CleanedFunction _ fList _ _) = fList
-    ceCleanedFunctionExpressionList (CleanedFunction _ _ feList _) = feList
-    ceDeclaredIdentifierList (CleanedFunction _ _ _ dIDs) = dIDs
+    ceFunctionIdentifier (CleanedFunction fid _ _ _ _) = Just fid
+    ceCleanedFunctionList (CleanedFunction _ fList _ _ _) = fList
+    ceCleanedFunctionExpressionList (CleanedFunction _ _ feList _ _) = feList
+    ceDeclaredIdentifierList (CleanedFunction _ _ _ dIDs _) = dIDs
+    ceSourceFragment (CleanedFunction _ _ _ _ fragment) = fragment
     ceName _ = "Function"
 
 
 instance CleanedElement CleanedFunctionExpression where
-    ceFunctionIdentifier (CleanedFunctionExpression fid _ _ _) = fid
-    ceCleanedFunctionList (CleanedFunctionExpression _ fList _ _) = fList
-    ceCleanedFunctionExpressionList (CleanedFunctionExpression _ _ feList _) = feList
-    ceDeclaredIdentifierList (CleanedFunctionExpression _ _ _ dIDs) = dIDs
+    ceFunctionIdentifier (CleanedFunctionExpression fid _ _ _ _) = fid
+    ceCleanedFunctionList (CleanedFunctionExpression _ fList _ _ _) = fList
+    ceCleanedFunctionExpressionList (CleanedFunctionExpression _ _ feList _ _) = feList
+    ceDeclaredIdentifierList (CleanedFunctionExpression _ _ _ dIDs _) = dIDs
+    ceSourceFragment (CleanedFunctionExpression _ _ _ _ fragment) = fragment
     ceName _ = "Function Expression"
 
 
 -- Remove the parent field from a FunctionRules so that the tree is more legible when printed.
 cleanFunctionRules :: FunctionRules -> CleanedFunctionRules
-cleanFunctionRules (FunctionRules fid rules fRules feRules dIDs parent) =
+cleanFunctionRules (FunctionRules fid rules fRules feRules dIDs fragment parent) =
     CleanedFunctionRules
         fid
         rules
         (map cleanFunctionRules fRules)
         (map cleanFunctionExpressionRules feRules)
         dIDs
+        fragment
 
 
 -- Remove the parent field from a FunctionExpressionRules so that the tree is more legible when
 -- printed.
 cleanFunctionExpressionRules ::
     FunctionExpressionRules -> CleanedFunctionExpressionRules
-cleanFunctionExpressionRules (FunctionExpressionRules mid rules fRules feRules dIDs parent) =
+cleanFunctionExpressionRules (FunctionExpressionRules mid rules fRules feRules dIDs fragment parent) =
     CleanedFunctionExpressionRules
         mid
         rules
         (map cleanFunctionRules fRules)
         (map cleanFunctionExpressionRules feRules)
         dIDs
+        fragment
 
 
 -- Remove the rules field from a CleanedFunctionRules so that the tree is more legible when printed.
 cleanFunction :: CleanedFunctionRules -> CleanedFunction
-cleanFunction (CleanedFunctionRules fid rules cfRules cfeRules dIDs) =
-    CleanedFunction fid (map cleanFunction cfRules) (map cleanFunctionExpression cfeRules) dIDs
+cleanFunction (CleanedFunctionRules fid rules cfRules cfeRules dIDs fragment) =
+    CleanedFunction
+        fid
+        (map cleanFunction cfRules)
+        (map cleanFunctionExpression cfeRules)
+        dIDs
+        fragment
 
 
 -- Remove the rules field from a CleanedFunctionExpressionRules so that the tree is more legible
 -- when printed.
 cleanFunctionExpression :: CleanedFunctionExpressionRules -> CleanedFunctionExpression
-cleanFunctionExpression (CleanedFunctionExpressionRules mid rules cfRules cfeRules dIDs) =
+cleanFunctionExpression (CleanedFunctionExpressionRules mid rules cfRules cfeRules dIDs fragment) =
     CleanedFunctionExpression
         mid
         (map cleanFunction cfRules)
         (map cleanFunctionExpression cfeRules)
         dIDs
+        fragment
 
 
 -- Take all of the rules in the scope tree and put then in one list.
@@ -235,7 +257,7 @@ graphGetAllRules funrl = funGetAllRules funrl []
 -- Get all the rules out of a subtree rooted at a FunctionRules node and add them to the provided
 -- list of rules ("old" parameter).
 funGetAllRules :: FunctionRules -> [Rule] -> [Rule]
-funGetAllRules (FunctionRules fid rules funs funExs dIDs parent) old =
+funGetAllRules (FunctionRules fid rules funs funExs dIDs frament parent) old =
     funExsRules
     where
         -- Add the rules in the parameter node to the old rules.
@@ -258,7 +280,7 @@ mapFunGetAllRules [] rules = rules
 -- Get all the rules out of a subtree that is rooted at a FunctionExpressionRules node and add them
 -- to the provided list of rules ("old" parameter).
 funExprGetAllRules :: FunctionExpressionRules -> [Rule] -> [Rule]
-funExprGetAllRules (FunctionExpressionRules fid rules funs funExs dIDs parent) old =
+funExprGetAllRules (FunctionExpressionRules fid rules funs funExs dIDs fragment parent) old =
     funExsRules
     where
         -- Add the rules in the parameter node to the old rules.
@@ -283,16 +305,18 @@ mapFunExprGetAllRules [] rules = rules
 -- new scope when entered. Each node includes the type rules gathered from within that block. The
 -- rules are expressed with unique identifiers so that they can later be extracted from the tree and
 -- placed in a set without identifier collisions occuring.
-getDeclarationGraph :: [ASTChild] -> FunctionRules
+getDeclarationGraph :: [ASTChild] -> SourceFragment -> FunctionRules
 -- Make a dummy global function, with all global level functions and variables declared in the
 -- "body" of the global function.
-getDeclarationGraph jsastLab =
+getDeclarationGraph jsastLab fragment =
     FunctionRules
         GlobalID
         (mapASTChildRules jsastLab dIDs)
         (mapASTGetFR jsastLab (ParentGlobal jsastLab) dIDs)
         (mapASTGetFER jsastLab (ParentGlobal jsastLab) dIDs)
-        (concat $ map astGetVarDecs jsastLab) TopLevel
+        (concat $ map astGetVarDecs jsastLab)
+        fragment
+        TopLevel
     where
         -- Get identifiers for everything declared at the global level.
         dIDs = (concat $ map astGetVarDecs jsastLab)
@@ -394,7 +418,9 @@ astGetFunRules (LabFunctionDeclaration (fid, x) args body, n, sourceFragment) pa
         (astGetFunExprRules body newParent declaredIDs)
         -- Declared identifiers visible inside this function's body, plus this function's parent
         -- AST.
-        declaredIDs parent
+        declaredIDs
+        sourceFragment
+        parent
     ]
     where
         -- Gives a name to the argument. I find myself doing this a lot when pattern matching on
@@ -559,7 +585,9 @@ exprGetFunExprRules (LabFunctionExpression mv vls body, n, sourceFragment) paren
         (astGetFunExprRules body newParent declaredIDs)
         -- Declared identifiers visible inside this function expression's body, plus this function
         -- expression's parent AST.
-        declaredIDs parent
+        declaredIDs
+        sourceFragment
+        parent
     ]
     where
         -- Give a name to the (Haskell Land) argument.

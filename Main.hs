@@ -37,9 +37,9 @@ main = do
 
 	-- Prints the rules, indented base on their scope, plus an optional list
 	-- of the identifiers that are visible at that each scope.
-	-- putStr "Top Level:"
-	-- printCleanedRulesList
-	-- 	((makeCleanedFunctionRules pr):[]) (makeIndent "") True
+	putStr "Top Level:"
+	printCleanedRulesList
+		((makeCleanedFunctionRules pr infile):[]) (makeIndent "") True True
 
 	-- TODO: Rule type needs pretty printing
 	-- mapM_ print (makeAllRules pr)
@@ -96,7 +96,10 @@ makeAllRules :: String -> SourceFileName -> [Rule]
 makeAllRules input fileName = graphGetAllRules $ makeDeclarationGraph input fileName
 
 makeDeclarationGraph :: String -> SourceFileName -> FunctionRules
-makeDeclarationGraph input fileName = getDeclarationGraph $ makeLabelledJSAST input fileName
+makeDeclarationGraph input fileName =
+	getDeclarationGraph
+		(makeLabelledJSAST input fileName)
+		(fileName, 1, 1, ((length $ lines input) + 1), 1)
 
 makeLabelledJSAST :: String -> SourceFileName -> [ASTChild]
 makeLabelledJSAST input fileName = label $ makeJSASTWithSourceFragments input fileName
@@ -198,18 +201,28 @@ prettifySourceFragment (fileName, sr, sc, er, ec) =
 	(reverse $ takeWhile (\c -> not (c == '/')) (reverse fileName))
 	++ (" (" ++ (show sr) ++ ", " ++ (show sc) ++ ", " ++ (show er) ++ ", " ++ (show ec) ++ ")")
 
+
+printRule :: Rule -> String -> SourceFlag -> IO()
+printRule (Rule type1 type2 (Just fragment)) padding printSrc = do
+	putStrLn (padding ++ " Rule (" ++ (show type1) ++ " " ++ (show type2) ++ ")")
+	printSource fragment padding printSrc
+printRule (Rule type1 type2 Nothing) padding _ =
+	putStrLn (padding ++ " Rule (" ++ (show type1) ++ " " ++ (show type2) ++ ")")
+
+
 -- Prints CleanedRules, indented according to their depth in the tree
-printCleanedRulesList :: CleanedRules a => [a] -> String -> Bool -> IO()
-printCleanedRulesList (hx:fx) padding printIdentifiers = do
+printCleanedRulesList :: CleanedRules a => [a] -> String -> SourceFlag -> Bool -> IO()
+printCleanedRulesList (hx:fx) padding printSrc printIdentifiers = do
 	putStrLn (" " ++ (show fid))
+	printSource source padding printSrc
 	if printIdentifiers == True then do
 		putStrLn (padding ++ " IDENTIFIERS:")
 		mapM_ (putStrLn . ((padding ++ " ") ++) . show) dIDs
 	else
 		return()
 	putStrLn (padding ++ " RULES:")
-	mapM_ (putStrLn . ((padding ++ " ") ++) . show) rules
-	-- mapM_ (\r -> printRule r padding) rules
+	-- mapM_ (putStrLn . ((padding ++ " ") ++) . show) rules
+	mapM_ (\r -> printRule r padding printSrc) rules
 	let newPadding = makeIndent padding
 	printList fRules newPadding
 	printList feRules newPadding
@@ -220,14 +233,15 @@ printCleanedRulesList (hx:fx) padding printIdentifiers = do
 		fRules = crCleanedFunctionRuleList hx
 		feRules = crCleanedFunctionExpressionRuleList hx
 		dIDs = crDeclaredIdentifierList hx
+		source = crSourceFragment hx
 		printHeading _ [] = return()
 		printHeading p (f:fx) = do
 			putStrLn ""
 			putStr (p ++ " " ++ (crName f) ++ ":")
 		printList l p = do
 			printHeading p l
-			printCleanedRulesList l p printIdentifiers
-printCleanedRulesList [] _ _ = return()
+			printCleanedRulesList l p printSrc printIdentifiers
+printCleanedRulesList [] _ _ _ = return()
 
 
 -- Prints CleanedElements, indented according to their depth in the tree
