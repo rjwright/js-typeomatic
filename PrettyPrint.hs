@@ -14,7 +14,31 @@
 -- limitations under the License.
 
 
--- Module prints human-legible output from the various layers of the pipeline
+-- This module prints human-legible output from the various layers of the pipeline
+--
+--
+-- Top level functions are:
+--
+--		mapPrintASTWS
+--			(jsastListMakeSourceFragments (toJSAST (parseTree program file) file) span)
+--			padding
+--			printSrc
+--
+--		mapPrintASTChild
+--			(label (jsastListMakeSourceFragments (toJSAST (parseTree program file) file) span))
+--			padding
+--			printSrc
+--			printLab
+--
+--		printCleanedRulesList
+--			(cleanFunctionRules (getDeclarationGraph ...))
+--			padding
+--			printSrc
+--			printIdentifiers
+--
+--		printCleanedElementList
+--			(cleanFunction (cleanFunctionRules (getDeclarationGraph ...)))
+--			padding
 --
 -- TODO: Comment this file.
 -- TODO:
@@ -34,6 +58,7 @@ module PrettyPrint
 , printRule
 ) where
 
+
 import Data.Char
 import Data.List
 import DeclarationGraph
@@ -43,6 +68,7 @@ import ParseJS
 import ResolveSourceFragments
 import System.Environment
 import TypeRules
+
 
 -- TODO: Consider turn combinations of these into macros, to make function calls less confusing.
 type SourceFlag = Bool
@@ -143,6 +169,7 @@ printRule (Rule type1 type2 Nothing) padding _ =
 
 
 -- Prints CleanedRules, indented according to their depth in the tree
+-- TODO: Add a flag type for printIdentifiers.
 printCleanedRulesList :: CleanedRules a => [a] -> String -> SourceFlag -> Bool -> IO()
 printCleanedRulesList (hx:fx) padding printSrc printIdentifiers = do
 	putStrLn (" " ++ (show fid))

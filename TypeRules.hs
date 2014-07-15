@@ -1,3 +1,4 @@
+
 -- Copyright 2014 Google Inc. All rights reserved.
 
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -28,6 +29,7 @@
 -- in a more abstract context. I'm just hoping they will be in a convenient format for unification.
 --
 -- This module is not directly in the pipeline. It is called by methods in DeclarationGraph.
+
 
 module TypeRules
 ( DeclaredIdentifier(..)

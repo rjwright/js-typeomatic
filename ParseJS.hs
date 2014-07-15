@@ -1,3 +1,4 @@
+
 -- Copyright 2014 Google Inc. All rights reserved.
 
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,7 +23,7 @@
 -- of its data types contain a lot of different (and meaningful) constructors that don't show up in
 -- the doc. Best approach is to look at the source.
 --
--- Top level function is (toJSAST . parseTree)
+-- Top level function is (toJSAST (parseTree program file) file)
 --
 -- FIXME: File name is threaded throughout because the parser doesn't actually use the file name -_-
 -- This threading can be removed if the parser is forked.
@@ -73,6 +74,7 @@ type Variable = String
 type Index = Int
 type Operator = String
 type SourceFileName = String
+
 
 -- Represent an identifier used to index an object property using square branchets. An object
 -- property's identifier can be a string or an integer.

@@ -1,3 +1,4 @@
+
 -- Copyright 2014 Google Inc. All rights reserved.
 
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,10 +14,11 @@
 -- limitations under the License.
 
 
--- Module takes a JSAST and gives each vertex a unique integer label. The label counter is simply
+-- This module takes a JSAST and gives each vertex a unique integer label. The label counter is simply
 -- threaded through the tree. Traversal is depth first. It's all fairly straight-forward.
 --
--- Top level function is (label . toJSAST . parseTree).
+-- Top level function is (label (jsastListMakeSourceFragments (toJSAST (parseTree program file) file) span))
+
 
 module LabelJSAST
 ( ASTChild
@@ -41,6 +43,7 @@ module LabelJSAST
 import ParseJS
 import ResolveSourceFragments
 import System.Environment
+
 
 -- A type for the labels.
 type JSASTLabel = Int

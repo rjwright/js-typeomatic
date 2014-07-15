@@ -1,3 +1,4 @@
+
 -- Copyright 2014 Google Inc. All rights reserved.
 
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,6 +15,7 @@
 -- Module takes a JSAST and gives each vertex a unique integer label. The label counter is simply
 -- threaded through the tree. Traversal is depth first. It's all fairly straight-forward.
 
+
 -- This module takes an AST containing SrcSpans from the original AST (output from
 -- Language.Javascript.Parser), and produces an AST with SourceFragments. SourceFragments are a
 -- source file name and a range. The range is described by a start row and start column, and an end
@@ -24,6 +26,8 @@
 -- change or be removed in the course of the program, so that retrieved source code will no longer
 -- match what's expected. However, this program is intended to be short-running and infrequently
 -- run, so I doubt this issue will be a problem in real-world usage.
+--
+-- Top level function is (jsastListMakeSourceFragments (toJSAST (parseTree program file) file) span)
 
 module ResolveSourceFragments
 ( ExprWithSourceFragment(..)
@@ -44,7 +48,6 @@ import System.Environment
 
 type Row = Int
 type Col = Int
-
 
 -- (FileName, StartRow, StartCol, EndRow, EndCol)
 type SourceFragment = (String, Row, Col, Row, Col)

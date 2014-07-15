@@ -1,3 +1,4 @@
+
 -- Copyright 2014 Google Inc. All rights reserved.
 
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,6 +26,7 @@
 -- 		DeclarationGraph.cleanFunctionRules (optional)
 -- 		DeclarationGraph.cleanFunction (optional)
 
+
 module Main
 (
 main
@@ -39,6 +41,7 @@ import PrettyPrint
 import ResolveSourceFragments
 import System.Environment
 import TypeRules
+
 
 -- TODO: Reverse these so that the earlier layers come first.
 -- TODO: Put these sections into functions.

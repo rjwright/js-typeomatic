@@ -25,19 +25,29 @@
 -- the tree and lumped into a list. Type rules are extracted and added to the tree as the tree is
 -- built.
 --
--- Top level functions are
---        > (getDeclarationGraph $ label . toJSAST . parseTree)
---          Which takes a labelled AST and uses it to generate type rules. It
---          produces a new AST, augmented with the type rules.
+-- Top level functions are:
 --
---        > (graphGetAllRules $ getDeclarationGraph . label . toJSAST . parseTree)
---          Which puts all of the Rules in a flat list.
+--        (getDeclarationGraph
+--           (label
+--               (jsastListMakeSourceFragments
+--                   (toJSAST
+--                       (parseTree
+--                           program
+--                           file)
+--                       file)
+--                   span))
+--           fragment)
+--        Which takes a labelled AST and uses it to generate type rules. It
+--        produces a new AST, augmented with the type rules.
 --
---        > (cleanFunctionRules $ getDeclarationGraph label . toJSAST . parseTree)
---          Which removes the parent field from a DeclarationGraph.
+--        (graphGetAllRules (getDeclarationGraph ...))
+--        Which puts all of the Rules in a flat list.
 --
---        > (cleanFunction $ cleanFunctionRules . getDeclarationGraph . label . toJSAST . parseTree)
---          Which removes the Rules, leaving just a function tree with identifiers.
+--        (cleanFunctionRules (getDeclarationGraph ...))
+--        Which removes the parent field from a DeclarationGraph.
+--
+--        (cleanFunction (getDeclarationGraph ...))
+--        Which removes the Rules, leaving just a function tree with identifiers.
 
 
  module DeclarationGraph
