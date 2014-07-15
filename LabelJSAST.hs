@@ -39,7 +39,7 @@ module LabelJSAST
 
 
 import ParseJS
-import ResolveJSASTSourceFragments
+import ResolveSourceFragments
 import System.Environment
 
 -- A type for the labels.

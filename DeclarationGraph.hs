@@ -59,7 +59,7 @@
 
 import LabelJSAST
 import ParseJS
-import ResolveJSASTSourceFragments
+import ResolveSourceFragments
 import System.Environment
 import TypeRules
 

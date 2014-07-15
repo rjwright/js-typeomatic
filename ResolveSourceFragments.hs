@@ -25,7 +25,7 @@
 -- match what's expected. However, this program is intended to be short-running and infrequently
 -- run, so I doubt this issue will be a problem in real-world usage.
 
-module ResolveJSASTSourceFragments
+module ResolveSourceFragments
 ( ExprWithSourceFragment(..)
 , ExprWSF(..)
 , JSASTWithSourceFragment(..)

@@ -36,7 +36,7 @@ import LabelJSAST
 import Language.JavaScript.Parser
 import ParseJS
 import PrettyPrint
-import ResolveJSASTSourceFragments
+import ResolveSourceFragments
 import System.Environment
 import TypeRules
 

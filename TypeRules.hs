@@ -46,7 +46,7 @@ module TypeRules
 
 import LabelJSAST
 import ParseJS
-import ResolveJSASTSourceFragments
+import ResolveSourceFragments
 
 
 -- NOTE FOR THIS MODULE: Try to preserve info about when a variable is an integer. E.g. if we have
