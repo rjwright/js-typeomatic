@@ -1,3 +1,29 @@
+-- Copyright 2014 Google Inc. All rights reserved.
+
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+
+--     http://www.apache.org/licenses/LICENSE-2.0
+
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+-- Module takes a JSAST and gives each vertex a unique integer label. The label counter is simply
+-- threaded through the tree. Traversal is depth first. It's all fairly straight-forward.
+
+-- This module takes an AST containing SrcSpans from the original AST (output from
+-- Language.Javascript.Parser), and produces an AST with SourceFragments. SourceFragments are a
+-- source file name and a range. The range is described by a start row and start column, and an end
+-- row and end column. I chose this approach over carrying actual source code as strings, because I
+-- would need to do unsafe IO to get the source fragments and turn then into Strings. This way we
+-- just carry the range, and read the actual source code any time that we need its contents. The
+-- only problem with this (other than being a bit weird) is that the underlying source file might
+-- change or be removed in the course of the program, so that retrieved source code will no longer
+-- match what's expected. However, this program is intended to be short-running and infrequently
+-- run, so I doubt this issue will be a problem in real-world usage.
 
 module ResolveJSASTSourceFragments
 ( ExprWithSourceFragment(..)
