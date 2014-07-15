@@ -100,14 +100,14 @@ main = do
 	mapPrintASTChild (makeLabelledJSAST pr infile) (makeIndent "") True True
 
 	-- **PRETTY PRINTED**
-	-- Pretty print the JSASTWithSource with source fragments
+	-- Pretty print the JSASTWithSourceFragment with source fragments
 	putStrLn ""
-	putStrLn "Pretty print JSASTWithSource with source fragments"
+	putStrLn "Pretty print JSASTWithSourceFragment with source fragments"
 	mapPrintASTWS (makeJSASTWithSourceFragments pr infile) (makeIndent "") True
 	-- **PRETTY PRINTED**
-	-- Pretty print the JSASTWithSource without source fragments
+	-- Pretty print the JSASTWithSourceFragment without source fragments
 	putStrLn ""
-	putStrLn "Pretty print JSASTWithSource without source fragments"
+	putStrLn "Pretty print JSASTWithSourceFragment without source fragments"
 	mapPrintASTWS (makeJSASTWithSourceFragments pr infile) (makeIndent "") False
 
 	-- Prints the first JSAST (pre-labels).

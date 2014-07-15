@@ -41,11 +41,13 @@
 --			padding
 --
 -- TODO: Comment this file.
+--
 -- TODO:
---		ParseJS.parseTree needs pretty printing
--- 		ParseJS.toJSAST needs pretty printing
--- 		DeclarationGraph.getDeclarationGraph needs pretty printing
--- 		DeclarationGraph.graphGetAllRules would look better with pretty-printed Types
+--		ParseJS.parseTree (JSNode)
+-- 		ParseJS.toJSAST (JSASTWithSource*Span*)
+-- 		DeclarationGraph.getDeclarationGraph (FunctionRules) - Might not be useful.
+--		DeclarationGraph.graphGetAllRules (Rule Type Type Maybe SourceFragment) would
+-- 		look better with pretty-printed Types.
 
 
 module PrettyPrint
