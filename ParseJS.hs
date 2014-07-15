@@ -41,6 +41,7 @@ module ParseJS
 , SourceFileName
 , Value(..)
 , Variable
+, jsnGetNode
 , parseTree
 , toJSAST
 , topNodeGetSpan

@@ -35,6 +35,7 @@ import ResolveJSASTSourceFragments
 import System.Environment
 import TypeRules
 
+-- TODO: Consider turn combinations of these into macros, to make function calls less confusing.
 type SourceFlag = Bool
 type LabFlag = Bool
 type LineFlag = Bool
@@ -48,26 +49,42 @@ main = do
 
 	-- Prints declared functions and function expressions, and the identifiers
 	-- that are visible to each one.
+	-- putStrLn ""
 	-- putStr "Top Level:"
-	-- printCleanedElementList ((makeCleanedFunctions pr):[]) (makeIndent "")
+	-- printCleanedElementList ((makeCleanedFunctions pr infile):[]) (makeIndent "")
 
-	-- Prints the rules, indented base on their scope, plus an optional list
-	-- of the identifiers that are visible at that each scope.
-	putStr "Top Level:"
-	printCleanedRulesList
-		((makeCleanedFunctionRules pr infile):[]) (makeIndent "") True True
+	-- Prints the rules, indented base on their scope, with optional source code, and an optional
+	-- list of the identifiers that are visible at that each scope.
+	--- ******
+	-- putStrLn ""
+	-- putStr "Top Level:"
+	-- printCleanedRulesList ((makeCleanedFunctionRules pr infile):[]) (makeIndent "") True True
+	--- ******
 
-	-- TODO: Rule type needs pretty printing
-	-- mapM_ print (makeAllRules pr)
+	-- Print all the rules, optionally with source code.
+	-- TODO: Rule type pretty printing needs work.
+	-- TODO: Types need pretty printing.
+	-- putStrLn ""
+	-- mapM_ (\r -> printRule r "" True) (makeAllRules pr infile)
 
-	-- Raw output with a lot of details.
-	-- putStrLn $ show $ makeDeclarationGraph pr
+	-- Print the raw declaration graph with rules.
+	-- WARNING: Large and more-or-less illegible.
+	-- TODO: This needs pretty printing
+	-- putStrLn ""
+	-- putStrLn $ show $ makeDeclarationGraph pr infile
 
-	-- Prints the cleaned ATS, indented, with optional labels.
-	--
-	-- mapPrintASTChild (makeLabelledJSAST pr infile) (makeIndent "") False
-	-- putStrLn "The cleaned AST with labels"
-	-- mapPrintASTChild (makeLabelledJSAST pr infile) (makeIndent "") True
+	-- Print the cleaned ATS.
+	-- putStrLn ""
+	-- mapPrintASTChild (makeLabelledJSAST pr infile) (makeIndent "") False False
+	-- Print the cleaned ATS with labels.
+	-- putStrLn ""
+	-- mapPrintASTChild (makeLabelledJSAST pr infile) (makeIndent "") False True
+	-- Print the cleaned ATS with source.
+	-- putStrLn ""
+	-- mapPrintASTChild (makeLabelledJSAST pr infile) (makeIndent "") True False
+	-- Print the cleaned ATS with labels and source.
+	-- putStrLn ""
+	-- mapPrintASTChild (makeLabelledJSAST pr infile) (makeIndent "") True True
 
 	-- Prints the original AST without labels.
 	--
@@ -76,37 +93,42 @@ main = do
 	-- putStrLn "The the original JSAST"
 	-- mapM_ print (makeJSAST pr infile)
 
-	putStrLn ""
-	-- putStrLn "The input file"
-	putStrLn ""
-	putStrLn infile
-	putStrLn "The raw parse tree"
-	putStrLn $ show $ parse pr infile
+	--- ******
+	-- Print the raw parse tree.
 	-- putStrLn ""
-	-- putStrLn "The source fragments"
-	-- mapM_ (putStrLn . show) (getSourceFragments (topNodeGetSpan $ parseTree pr infile) infile [])
+	-- putStrLn ("The raw parse tree for " ++ (show infile))
+	-- putStrLn $ show $ parse pr infile
+	--- ******
+
+	--- ******
+	-- Pretty print the JSAST with source fragments
 	-- putStrLn ""
-	-- putStrLn "The resolved source fragments"
-	-- mapM_
-	-- 	(\sf -> printSourceCode sf "")
-	-- 		(getSourceFragments (topNodeGetSpan $ parseTree pr infile) infile [])
+	-- putStrLn "Pretty print JSASTWithSource with source fragments"
+	-- mapPrintASTWS (makeJSASTWithSourceFragments pr infile) (makeIndent "") True
+	-- Pretty print the JSAST without source fragments
 	-- putStrLn ""
-	-- putStrLn "Make JSAST with source fragments"
-	-- mapM_ (putStrLn . show) (makeJSASTWithSourceFragments pr infile)
+	-- putStrLn "Pretty print JSASTWithSource without source fragments"
+	-- mapPrintASTWS (makeJSASTWithSourceFragments pr infile) (makeIndent "") False
+	--- ******
+
+	-- Rudimentary. Prints the parse tree using Language.JavaScript's showStripped function. Prints
+	-- one top-level parse tree node per line.
+	--  TODO: Add pretty printing for the parse tree.
 	putStrLn ""
+	printParseTreeStripped $ jsnGetNode $ parseTree pr infile
+
+	-- Prints the raw parse tree.
 	putStrLn ""
-	putStrLn "Pretty print JSAST with source fragments"
-	mapPrintASTWS (makeJSASTWithSourceFragments pr infile) (makeIndent "") True
-	-- printParseTreeStripped $ parseTree pr
-	-- putStrLn ""
-	-- putStrLn $ show $ parseTree pr
+	putStrLn $ show $ parseTree pr infile
 
 
 makeCleanedFunctions :: String -> SourceFileName -> CleanedFunction
 makeCleanedFunctions input fileName = cleanFunction $ makeCleanedFunctionRules input fileName
 
+
 makeCleanedFunctionRules :: String -> SourceFileName -> CleanedFunctionRules
 makeCleanedFunctionRules input fileName = cleanFunctionRules $ makeDeclarationGraph input fileName
+
 
 makeAllRules :: String -> SourceFileName -> [Rule]
 makeAllRules input fileName = graphGetAllRules $ makeDeclarationGraph input fileName
@@ -117,8 +139,10 @@ makeDeclarationGraph input fileName =
 		(makeLabelledJSAST input fileName)
 		(fileName, 1, 1, ((length $ lines input) + 1), 1)
 
+
 makeLabelledJSAST :: String -> SourceFileName -> [ASTChild]
 makeLabelledJSAST input fileName = label $ makeJSASTWithSourceFragments input fileName
+
 
 -- FIXME: Passing the file name here might mean that we don't need to thread it through the whole
 -- AST.
@@ -126,8 +150,10 @@ makeJSASTWithSourceFragments :: String -> SourceFileName -> [JSASTWithSourceFrag
 makeJSASTWithSourceFragments input fileName =
 	jsastListMakeSourceFragments (makeJSAST input fileName) (SpanPoint fileName ((length $ lines input) + 1) 1)
 
+
 makeJSAST :: String -> SourceFileName -> [JSASTWithSourceSpan]
 makeJSAST input fileName = toJSAST (parseTree input fileName) fileName
+
 
 makeIndent :: String -> String
 makeIndent s = s ++ "..."
@@ -148,29 +174,23 @@ printParseTreeStripped :: Node -> IO()
 printParseTreeStripped (JSSourceElementsTop elements) =
 	mapM_ (putStrLn . show . showStripped) elements
 
+
 stripEnd :: String -> String
 stripEnd string  = reverse . dropWhile isSpace $ reverse string
+
 
 stripStart :: String -> String
 stripStart string  = dropWhile isSpace string
 
+
 subList :: Int -> Int -> [a] -> [a]
 subList start end ls = drop start $ take end ls
+
 
 cleanFragment :: String -> String
 cleanFragment fragment =
 	stripStart $ drop 1 (dropWhile isNumber fragment)
 
-
--- printSourceFragment :: SourceFragment -> IO()
--- printSourceFragment (fileName, sr, sc, er, ec) =
--- 	putStrLn (
--- 		"(" ++ fileName
--- 			++ ", " ++ (show sr)
--- 			++ ", " ++ (show sc)
--- 			++ ", " ++ (show er)
--- 			++ ", " ++ (show ec)
--- 			++ ")")
 
 printSourceCode :: SourceFragment -> String -> IO()
 printSourceCode (fileName, startRow, startCol, endRow, endCol) padding = do
@@ -432,16 +452,16 @@ printExprChild ((LabCallExpression call op expr), lab, sourceFragment) padding p
 	printExprChild expr p printSrc printLab
 printExprChild ((LabFunctionExpression vChild args child), lab, sourceFragment) padding printSrc printLab = do
 	printStrAndLabel (padding ++ " LabFunctionExpression") lab printLab
-	printSource sourceFragment padding printSrc
 	maybePrintVarChild vChild "" printLab False
 	putStr " ["
 	mapPrintVarChild args "" printLab False
 	putStrLn " ]"
+	printSource sourceFragment padding printSrc
 	printASTChild child (makeIndent padding) printSrc printLab
 printExprChild ((LabIdentifier var), lab, sourceFragment) padding printSrc printLab = do
 	printStrAndLabel (padding ++ " LabIdentifier") lab printLab
-	printSource sourceFragment padding printSrc
 	printVarChild var "" printLab True
+	printSource sourceFragment padding printSrc
 printExprChild ((LabIndex obj prop), lab, sourceFragment) padding printSrc printLab = do
 	printLnStrAndLabel (padding ++ " LabIndex") lab printLab
 	printSource sourceFragment padding printSrc
@@ -497,10 +517,18 @@ printExprChild ((LabUnaryPre op expr), lab, sourceFragment) padding printSrc pri
 	let p = makeIndent padding
 	printOpChild op p printLab True
 	printExprChild expr p printSrc printLab
+printExprChild ((LabValue (LabObject props, objLab)), lab, sourceFragment) padding printSrc printLab = do
+	printLnStrAndLabel (padding ++ " LabValue") lab printLab
+	printSource sourceFragment padding printSrc
+	printValueChild (LabObject props, objLab) (makeIndent padding) printSrc printLab True
+printExprChild ((LabValue (LabArray elems, arLab)), lab, sourceFragment) padding printSrc printLab = do
+	printLnStrAndLabel (padding ++ " LabValue") lab printLab
+	printSource sourceFragment padding printSrc
+	printValueChild (LabArray elems, arLab) (makeIndent padding) printSrc printLab True
 printExprChild ((LabValue val), lab, sourceFragment) padding printSrc printLab = do
 	printStrAndLabel (padding ++ " LabValue") lab printLab
-	printSource sourceFragment padding printSrc
 	printValueChild val (makeIndent padding) printSrc printLab True
+	printSource sourceFragment padding printSrc
 printExprChild ((LabVarDeclaration var expr), lab, sourceFragment) padding printSrc printLab = do
 	printLnStrAndLabel (padding ++ " LabVarDeclaration") lab printLab
 	printSource sourceFragment padding printSrc
@@ -581,7 +609,6 @@ printPropertyNameChild ((LabVariableProperty var), lab) padding printLab = do
 
 printLabelledValue :: LabelledValue -> String -> SourceFlag -> LabFlag -> LineFlag -> IO()
 printLabelledValue (LabArray elems) padding printSrc printLab False = do
-	putStrLn ""
 	putStrLn (padding ++ " LabArray")
 	-- TODO: Print the source?
 	let p = makeIndent padding
@@ -599,7 +626,6 @@ printLabelledValue (LabInt val) padding _ _ False =
 printLabelledValue (LabNull) padding _ _ False =
 	putStr (" LabNull")
 printLabelledValue (LabObject exprs) padding printSrc printLab _ = do
-	putStrLn ""
 	putStrLn (padding ++ " LabObject")
 	-- TODO: Print the source?
 	mapPrintExprChild exprs (makeIndent padding) printSrc printLab
@@ -916,7 +942,6 @@ printPropertyName (VariableProperty var) padding = do
 	printVariable var "" True
 
 
-
 printValueWS :: ValueWithSourceFragment -> String -> SourceFlag -> LineFlag -> IO()
 printValueWS (WSArray elems) padding printSrc False = do
 	putStrLn ""
@@ -946,16 +971,3 @@ printValueWS (WSUndefined) padding _ False =
 printValueWS val padding printSrc True = do
 	printValueWS val padding printSrc False
 	putStrLn ""
-
--- TODO: Implement pretty printing for Rules
--- printRule :: Rule -> String -> IO()
--- printRule (Rule type1 type2) padding = do
---     -- putStrLn (padding ++ "Rule:")
---     putStr (padding ++ " (" ++ (show type1) ++ ") ")
---     putStrLn ("(" ++ (show type2) ++ ")")
---     putStrLn ""
-
--- TODO: Implement pretty printing for Types
--- printType :: Type -> String -> IO()
--- printType (IdentifierType var lab) padding =
---     putStrLn (padding ++ "IdentifierType " ++ (show var) ++ (show lab))
