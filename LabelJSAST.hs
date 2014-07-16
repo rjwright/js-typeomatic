@@ -164,7 +164,7 @@ childGetLabel (child, lab) = lab
 
 -- Extract the JSASTLabel from a ASTChild, ExprChild etc.
 childWSGetLabel :: (a, JSASTLabel, b) -> JSASTLabel
-childWSGetLabel (child, lab, srcSpan) = lab
+childWSGetLabel (_, lab, _) = lab
 
 childGetSource :: (a, b, SourceFragment) -> SourceFragment
 childGetSource (_, _, sf) = sf
