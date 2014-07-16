@@ -117,9 +117,9 @@ main = do
 
 	-- Rudimentary. Prints the parse tree using Language.JavaScript's showStripped function. Prints
 	-- one top-level parse tree node per line.
-	-- putStrLn ""
-	-- putStrLn "Print the stripped parse tree"
-	-- printParseTreeStripped $ jsnGetNode $ parseTree pr infile
+	putStrLn ""
+	putStrLn "Print the stripped parse tree"
+	printParseTreeStripped $ jsnGetNode $ parseTree pr infile
 
 	-- Print the raw parse tree.
 	-- putStrLn ""
