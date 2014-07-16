@@ -93,8 +93,8 @@ data PropertyName =
 data Value =
       JSArray [ExprWithSourceSpan]
     | JSBool Bool
-    -- Double quote strings are never treated differently to normal strings.
-    -- TODO: Should be merged with JSString
+    -- TODO: Double quote strings are never treated differently to normal strings and should be
+    -- merged with JSString when pipeline is complete.
     | JSDQString String
     | JSFloat Double
     | JSInt Int
@@ -105,11 +105,12 @@ data Value =
     | JSUndefined deriving (Show)
 
 
--- Represent source elements that can approximately be described as expressions. Initially this was
--- for elements that appeared as expressions in the output from language.javascript.parser, but some
--- other things have been added where it made sense.
+-- Represent, approximately, source elements that are expressions. Initially this was for elements
+-- that appeared as expressions in the output from language.javascript.parser, but some other things
+-- have been added where it made sense. (TODO: What things?)
 --
--- None of these contain JSAST fields except for FunctionExpression.
+-- None of these contain JSAST fields except for FunctionExpression. TODO: Should FunctionExpression
+-- be moved into JSAST?
 data Expression =
       Arguments [ExprWithSourceSpan]
     | Assignment Operator ExprWithSourceSpan ExprWithSourceSpan
@@ -121,17 +122,17 @@ data Expression =
     --
     -- E.g. foo()(); Or foo().bar;
     --
-    -- However, this program treats foo()() as a Call within a Call (as I believe that is a
-    -- sufficient description for our purposes).
+    -- However, this program treats foo()() as a Call within a Call (I think that is a sufficient
+    -- description for our purposes).
     | CallExpression ExprWithSourceSpan Operator ExprWithSourceSpan
     | Continue (Maybe Variable)
     -- A function expression occurs when a function definition is on the right hand side of some
-    -- statement.
+    -- statement. TODO: Move into JSAST.
     | FunctionExpression (Maybe Variable) [Variable] JSASTWithSourceSpan
     | Identifier Variable
     -- Represents an index into a structure using square brackets.
     | Index ExprWithSourceSpan ExprWithSourceSpan
-    -- TODO: Needs comment to explain what it is
+    -- TODO: Needs comment to explain what it is.
     | List [ExprWithSourceSpan]
     | New ExprWithSourceSpan
     -- TODO: Needs comment to explain what it is.
@@ -151,9 +152,8 @@ data Expression =
 -- Represent source elements which include a "block" or "body" and thus make logical non-terminal
 -- nodes for an abstract syntax tree.
 --
--- FIXME: Also includes a type for return expressions (Return) and a wrapper for instances of the
--- Expression data type (Statement). I'm not sure how or why that happened, but I'm sure there was
--- an excellent reason.
+-- TODO: Also includes a type for return expressions (Return) and a wrapper for instances of the
+-- Expression data type (Statement). They should be moved into Expression.
 data JSAST =
       Block [JSASTWithSourceSpan]
     | Case ExprWithSourceSpan JSASTWithSourceSpan
@@ -176,10 +176,12 @@ data JSAST =
     | Try JSASTWithSourceSpan JSASTWithSourceSpan
     | While ExprWithSourceSpan JSASTWithSourceSpan deriving (Show)
 
+
 -- These two data types were added later, when I decided I wanted to keep source code information in
 -- the tree. The approach might not be the best. An oppinion from a fresh reviewer could be helpful.
 data JSASTWithSourceSpan = AWSS JSAST SrcSpan SourceFileName deriving (Show)
 data ExprWithSourceSpan = EWSS Expression SrcSpan SourceFileName deriving (Show)
+
 
 -- Extract the Node from a JSNode.
 jsnGetNode :: JSNode -> Node
@@ -195,14 +197,13 @@ parseTree :: String -> SourceFileName -> JSNode
 parseTree program fileName = (\(Right a) -> a) $ parse program fileName;
 
 
-
 -- TODO: Is this still needed?
 -- FIXME: Expecially won't be needed if the fileName argument is removed from toJSAST.
 astMap :: [JSNode] -> SourceFileName -> [JSASTWithSourceSpan]
 astMap jsnList fileName = concat $ map (\jsn -> toJSAST jsn fileName) jsnList
 
 
--- Make a List or a ParenExpression from a JSNode.
+-- Make a List or a ParenExpression from a Statement JSNode.
 jsnToListExp :: JSNode -> SourceFileName -> ExprWithSourceSpan
 jsnToListExp jsn fileName =
     statementToListExp $ toJSAST jsn fileName
@@ -210,7 +211,7 @@ jsnToListExp jsn fileName =
         statementToListExp [AWSS (Statement expr) _ _] = expr
 
 
--- Extract a Maybe List or a Maybe ParenExpression or Nothing. Assumes that the first parameter is
+-- Extract a (Maybe List), a (Maybe ParenExpression) or Nothing. Assumes that the first parameter is
 -- always a singleton list or empty.
 jsnToMaybeListExp :: [JSNode] -> SourceFileName -> Maybe ExprWithSourceSpan
 jsnToMaybeListExp (jsn:[]) fileName = Just $ jsnToListExp jsn fileName
@@ -222,56 +223,41 @@ identifierGetString :: Node -> String
 identifierGetString (JSIdentifier jsid) = jsid
 
 
--- Make representations of variable declarations in AST.
+-- Make AST representation of a variable declaration.
 toJSASTVarDeclaration :: JSNode -> SourceFileName -> ExprWithSourceSpan
-toJSASTVarDeclaration (NS (JSVarDecl name []) srcSpan) fileName =
-    EWSS
-        (VarDeclaration (identifierGetString $ jsnGetNode name) Nothing)
-        srcSpan
-        fileName
 toJSASTVarDeclaration (NS (JSVarDecl name value) srcSpan) fileName =
     EWSS
         (VarDeclaration
             (identifierGetString $ jsnGetNode name)
-            (Just $ mapListToExpression value fileName))
+            (maybeValue value))
         srcSpan
         fileName
+    where
+        maybeValue [] = Nothing
+        maybeValue val = Just $ mapListToExpression val fileName
 
 
--- Take a node in the parse tree output from language.javascript.Parser and make an abstract syntax
--- tree. toJSAST :: (Node, SourceFragment) -> [JSAST] Takes a node, the node's SrcSpan, and either
--- the node's next sibling's SrcSpan OR the node's parent's next sibling's SrcSpan (i.e. the end
--- point of the nodes source)
--- toJSAST :: Node -> [JSAST]
--- toJSAST :: Node -> SrcSpan -> SourceFragment -> [JSAST]
+-- Take a node in the parse tree and make an abstract syntax tree.
 toJSAST :: JSNode -> SourceFileName -> [JSASTWithSourceSpan]
 -- These ones return a proper list of JSASTs. (Haskell Land) Constructors which use one of these to
 -- fill a field must have a [JSAST] for that field.
-toJSAST (NS (JSSourceElementsTop topList) srcSpan) fileName = astMap topList fileName
-toJSAST (NS (JSSourceElements elementsList) srcSpan) fileName = astMap elementsList fileName
-toJSAST (NS (JSFunctionBody bodyList) srcSpan) fileName = astMap bodyList fileName
-toJSAST (NS (JSStatementList statList) srcSpan) fileName = astMap statList fileName
-toJSAST (NS (JSBlock jsnode) srcSpan) fileName = toJSAST jsnode fileName
-toJSAST (NS (JSStatementBlock item) srcSpan) fileName = toJSAST item fileName
+toJSAST (NS (JSSourceElementsTop topList) _) fileName = astMap topList fileName
+toJSAST (NS (JSSourceElements elementsList) _) fileName = astMap elementsList fileName
+toJSAST (NS (JSFunctionBody bodyList) _) fileName = astMap bodyList fileName
+toJSAST (NS (JSStatementList statList) _) fileName = astMap statList fileName
+toJSAST (NS (JSBlock jsnode) _) fileName = toJSAST jsnode fileName
+toJSAST (NS (JSStatementBlock item) _) fileName = toJSAST item fileName
 toJSAST (NS (JSVariables _ varDecs) srcSpan) fileName =
-    map makeStatement varDecs
-    where
-        makeStatement jsn =
-            AWSS (Statement (toJSASTVarDeclaration jsn fileName)) srcSpan fileName
+    map (\jsn -> AWSS (Statement (toJSASTVarDeclaration jsn fileName)) srcSpan fileName) varDecs
 -- These ones always return singleton lists. (Haskell Land) Constructors which use only these to
 -- fill a field can have a JSAST for that field.
---
--- A JSExpression contains a list of JSNodes, separated by <JSLiteral ','>. These need to be
--- seperated (basically the <JSLiteral ','>s need to be stripped. My code to do that is kind of
--- disgusting.
+
+-- TODO: Comment on where these come from!
 toJSAST (NS (JSExpression jsnList) srcSpan) fileName =
     [AWSS
         (Statement
             (EWSS
-                (List
-                    (map
-                        (\l -> listToJSASTExpression l fileName)
-                        (jsExpGetSublists jsnList)))
+                (List (map (\l -> listToJSASTExpression l fileName) (getSublists jsnList [])))
                 -- FIXME: Might not be the right source fragment for list.
                 (jsnGetSource $ head jsnList)
                 fileName))
@@ -279,15 +265,18 @@ toJSAST (NS (JSExpression jsnList) srcSpan) fileName =
         fileName
     ]
     where
-        -- TODO: This could be improved.
-        jsExpGetSublists [] = []
-        jsExpGetSublists [item] = [[item]]
-        jsExpGetSublists ls =
-            let (nextSub, rest) = getSublist ls in ([nextSub] ++ (jsExpGetSublists rest))
-        getSublist [] = ([], [])
-        getSublist [item] = ([item], [])
-        getSublist ((NS (JSLiteral ",") _):rest) = ([], rest)
-        getSublist (y:ys) = let (next, rest) = getSublist ys in (y:(next), rest)
+        -- A JSExpression contains a list of JSNodes, separated by <JSLiteral ','>. These need to be
+        -- seperated (basically the <JSLiteral ','>s need to be stripped).
+        -- getSublists :: [JSNode] -> [JSNode] -> [[JSNode]] -> [[JSNode]]
+        -- getSublists ((NS (JSLiteral ",") _):rest) current result =
+        --     getSublists rest [] (result ++ [current])
+        -- getSublists (node:rest) current result = getSublists rest (current ++ [node]) result
+        -- getSublists [] current result = result ++ [current]
+        -- getSublists :: [JSNode] -> [JSNode] -> [[JSNode]] -> [[JSNode]]
+        getSublists ((NS (JSLiteral ",") _):rest) current =
+            [current] ++ (getSublists rest [])
+        getSublists (node:rest) current = getSublists rest (current ++ [node])
+        getSublists [] current = [current]
 toJSAST (NS (JSFunction name inputs body) srcSpan) fileName =
     [AWSS
         (FunctionDeclaration
