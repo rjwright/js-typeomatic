@@ -22,12 +22,18 @@
 -- The doc for Language.Javascript.Parser is at hackage.haskell.org/package/language-javascript, but
 -- it isn't particularly useful. The library's main data type - Node - has many constructors, and
 -- the documentation doesn't tell you what javascript source code elements they correspond to. Best
--- approach is to look at the source.
+-- approach is to look at the parser source.
+--
+-- TODO: Parser Node types that aren't handled yet are:
+--      JSEmpty
+--      JSHexInteger
+--      JSPropertyAccessor
+--      JSRegEx
+--      JSWith
+--
 --
 -- Top level function is (getJSASTWithSource (parseTree program file) file)
 --
---
--- TODO: Does this file need more comments?
 
 
 module ParseJS
@@ -72,19 +78,19 @@ type SourceFileName = String
 type Variable = String
 
 
--- Represent an identifier used to index an object property using square brackets. An object
--- property's identifier can be a string or an integer.
+-- Represent an object property identifiers. Can be a string or an integer.
 data PropertyName =
-    --  Index is an integer literal.
+    --  Identifier is an integer literal.
       IndexProperty Index
-    -- This is used in the TypeRules module when an object or array is indexed using a variable
-    -- insead of a string/integer literal.
+    -- This is used in the TypeRules module when an object or array is indexed  with square brackets
+    -- using a variable insead of a string/integer literal.
     --
     -- If the structure being indexed is an array then this will be resolved to an IntType. If the
     -- structure is an object, then the object is not type safe (so we no longer care about the type
     -- of this index)
     | UnknownProperty
-    --  Index is a string literal.
+    --  Identifier is a string literal.
+    -- FIXME: This could have a better name.
     | VariableProperty Variable deriving (Show)
 
 
@@ -98,17 +104,14 @@ data Value =
     | JSFloat Double
     | JSInt Int
     | JSNull
-    -- TODO: Comment on what the expressions can be.
+    -- Objects contain a list of PropNameValues.
     | JSObject [ExprWithSourceSpan]
     | JSString String
     | JSUndefined deriving (Show)
 
 
--- Represent, approximately, source elements that are expressions. Initially this was for elements
--- that appeared as expressions in the output from language.javascript.parser, but some other things
--- have been added where it made sense. (TODO: What things?)
---
--- None of these contain JSAST fields except for FunctionExpression.
+-- Represent, approximately, source elements that are expressions. None of these contain JSAST
+-- fields except for FunctionExpression.
 --
 -- TODO: Can FunctionExpression be moved into JSAST? (probably not).
 data Expression =
@@ -118,28 +121,25 @@ data Expression =
     | Break (Maybe Variable)
     | Call ExprWithSourceSpan ExprWithSourceSpan
     -- In Language.JavaScript, a call expression is an expression that calls - or accesses a
-    -- property of - a function call.
+    -- property of - a function call. (E.g. foo()(); foo().bar;)
     --
-    -- E.g. foo()(); Or foo().bar;
-    --
-    -- However, this program treats foo()() as a Call within a Call (I think that is a sufficient
+    -- This program treats foo()() as a Call within a Call (I think that is a sufficient
     -- description for our purposes).
     | CallExpression ExprWithSourceSpan Operator ExprWithSourceSpan
     | Continue (Maybe Variable)
-    -- A function expression occurs when a function definition is on the right hand side of some
-    -- statement. TODO: Move into JSAST.
+    -- A function definition on the right hand side of some statement.
     | FunctionExpression (Maybe Variable) [Variable] JSASTWithSourceSpan
     | Identifier Variable
-    -- Represents an index into a structure using square brackets.
+    -- An index into a structure using square brackets.
     | Index ExprWithSourceSpan ExprWithSourceSpan
     -- TODO: Needs comment to explain what it is.
     | List [ExprWithSourceSpan]
     | New ExprWithSourceSpan
     -- TODO: Needs comment to explain what it is.
     | ParenExpression ExprWithSourceSpan
-    -- Represents a property of an object.
+    -- A property of an object.
     | PropNameValue PropertyName ExprWithSourceSpan
-    -- Represents a reference to a structure member using a dot.
+    -- A reference into a structure using a dot.
     | Reference ExprWithSourceSpan ExprWithSourceSpan
     | Ternary ExprWithSourceSpan ExprWithSourceSpan ExprWithSourceSpan
     | Throw ExprWithSourceSpan
@@ -193,18 +193,17 @@ getJSASTWithSource :: JSNode -> SourceFileName -> ([JSASTWithSourceSpan], Source
 getJSASTWithSource jsn fileName = ((toJSAST jsn), fileName)
 
 
--- Extract the Node from a JSNode.
-jsnGetNode :: JSNode -> Node
-jsnGetNode (NS a _) = a
-
-
-jsnGetSource :: JSNode -> SrcSpan
-jsnGetSource (NS _ s) = s
-
-
 -- Parse JavaScript source code.
 parseTree :: String -> SourceFileName -> JSNode
 parseTree program fileName = (\(Right a) -> a) $ parse program fileName;
+
+
+jsnGetNode :: JSNode -> Node
+jsnGetNode (NS node _) = node
+
+
+jsnGetSource :: JSNode -> SrcSpan
+jsnGetSource (NS _ srcSpan) = srcSpan
 
 
 -- Make a List or a ParenExpression from a Statement JSNode.
@@ -223,12 +222,10 @@ jsnToMaybeListExp (jsn:[]) = Just $ jsnToListExp jsn
 jsnToMaybeListExp [] = Nothing
 
 
--- Extract the String value from a JSIdentifier
 identifierGetString :: Node -> String
 identifierGetString (JSIdentifier jsid) = jsid
 
 
--- Make AST representation of a variable declaration.
 toJSASTVarDeclaration :: JSNode -> ExprWithSourceSpan
 toJSASTVarDeclaration (NS (JSVarDecl name value) srcSpan) =
     EWSS
@@ -242,9 +239,8 @@ toJSASTVarDeclaration (NS (JSVarDecl name value) srcSpan) =
         maybeValue val = Just $ listToJSASTExpression val
 
 
--- Takes a list of Nodes and builds a single expression.
---
--- TODO: Add a comment here explaining where these Node lists come from.
+-- Some parser nodes contain lists of JSNodes that represent whole expressions. This function takes
+-- such a list of Nodes and builds a single expression.
 listToJSASTExpression :: [JSNode] -> ExprWithSourceSpan
 listToJSASTExpression [item] = makeJSASTExpression item
 listToJSASTExpression [(NS (JSUnary operator) srcSpan), (NS (JSDecimal x) _)]
@@ -284,7 +280,7 @@ listToJSASTExpression list | (isParenCallExp $ last list) =
         isParenCallExp :: JSNode -> Bool
         isParenCallExp (NS (JSCallExpression "()" _) _) = True
         isParenCallExp _ = False
--- FIXME: Anything else is assumed to be an assignment. Verify that this is correct.
+-- FIXME: Anything else is assumed to be an assignment. Verify that that assumption is correct.
 listToJSASTExpression list =
     getJSASTAssignment list []
     where
@@ -303,14 +299,8 @@ listToJSASTExpression list =
                         (listToJSASTExpression xs))
                     (jsnGetSource $ head preCurrent)
         getJSASTAssignment (x:xs) preCurrent = getJSASTAssignment xs (preCurrent ++ [x])
-        -- FIXME: Not used. Remove?
-        isAssignment :: [JSNode] -> Bool
-        isAssignment [] = False
-        isAssignment ((NS (JSOperator op) _):ls) = (isAssignmentOperator op) || (isAssignment ls)
-        isAssignment (_:ls) = isAssignment ls
 
 
--- Makes arguments from a list of lists of JSNodes that represent a list of arguments.
 toJSASTArguments :: [[JSNode]] -> SrcSpan -> ExprWithSourceSpan
 toJSASTArguments args srcSpan =
     EWSS (Arguments (map getJSASTArgument args)) srcSpan
@@ -324,7 +314,7 @@ toJSASTArguments args srcSpan =
 -- _]) I don't know if the second field can be anything other than a singleton list containing a
 -- JSArguments but for now I'm just going to hope not.
 --
--- TODO: Just look at the parser source to work this out
+-- TODO: Find out what values the arguments list can have.
 getJSASTCall :: [JSNode] -> ExprWithSourceSpan
 getJSASTCall list =
     EWSS
@@ -358,9 +348,8 @@ getJSASTCallExpression list =
             makeJSASTExpression expr
 
 
--- Take a node in the parse tree and make an abstract syntax tree.
 toJSAST :: JSNode -> [JSASTWithSourceSpan]
--- These ones return a proper list of JSASTs. (Haskell Land) Constructors which use one of these to
+-- These ones return a proper list of JSASTs. (Haskell) Constructors which use one of these to
 -- fill a field must have a [JSAST] for that field.
 toJSAST (NS (JSBlock jsnode) _) = toJSAST jsnode
 toJSAST (NS (JSFunctionBody bodyList) _) = concat $ map toJSAST bodyList
@@ -370,7 +359,7 @@ toJSAST (NS (JSStatementBlock item) _) = toJSAST item
 toJSAST (NS (JSStatementList statList) _) = concat $ map toJSAST statList
 toJSAST (NS (JSVariables _ varDecs) srcSpan) =
     map (\jsn -> AWSS (Statement (toJSASTVarDeclaration jsn)) srcSpan) varDecs
--- These ones always return singleton lists. (Haskell Land) Constructors which use only these to
+-- These ones always return singleton lists. (Haskell) Constructors which use only these to
 -- fill a field can have a JSAST for that field.
 toJSAST (NS (JSBreak [] _) srcSpan) =
     [AWSS
@@ -421,8 +410,7 @@ toJSAST (NS (JSDefault body) srcSpan) =
             (AWSS (Block (toJSAST body)) (jsnGetSource body)))
         srcSpan
     ]
--- TODO: Look at the parser source and find out what "something" actually is
-toJSAST (NS (JSDoWhile body test something) srcSpan) =
+toJSAST (NS (JSDoWhile body test semi) srcSpan) =
     [AWSS
         (DoWhile
             (AWSS (Block (toJSAST body)) (jsnGetSource body))
@@ -435,7 +423,6 @@ toJSAST (NS (JSExpression jsnList) srcSpan) =
         (Statement
             (EWSS
                 (List (map listToJSASTExpression (getSublists jsnList [])))
-                -- FIXME: Might not be the right source fragment for list.
                 (jsnGetSource $ head jsnList)))
         srcSpan
     ]
@@ -524,8 +511,8 @@ toJSAST (NS (JSLabelled label body) srcSpan) =
             (AWSS (Block (toJSAST body)) (jsnGetSource body)))
         srcSpan
     ]
--- TODO: Not 100% sure that this is safe.
--- TODO: Comment on where these come frome.
+-- FIXME: Not 100% sure that this is safe.
+-- TODO: Comment on where these come from.
 toJSAST (NS (JSLiteral ";") srcSpan) = []
 toJSAST (NS (JSReturn [item]) srcSpan) =
     [AWSS
@@ -543,7 +530,7 @@ toJSAST (NS (JSSwitch var cases) srcSpan) =
     [AWSS
         (Switch
             (jsnToListExp var)
-            -- FIXME: Probably not the right source span for the block
+            -- TODO: Check the source span for the block.
             (AWSS
                 (Block
                     (concat $ map toJSAST cases))
@@ -566,7 +553,7 @@ toJSAST (NS (JSTry body catchClause) srcSpan) =
                 (Block
                     (toJSAST body))
                 (jsnGetSource body))
-            -- FIXME: Probably not the right source span for the block
+            -- TODO: Check the source span for the catch block.
             (AWSS (Block
                 (concat $ map toJSAST catchClause))
                 (jsnGetSource $ head catchClause)))
@@ -580,7 +567,6 @@ toJSAST (NS (JSWhile test body) srcSpan) =
         srcSpan
     ]
 -- Anything else is assumed to be a statement.
--- TODO: Check that all parser output is covered.
 toJSAST jsn =
     [AWSS
         (Statement
@@ -589,117 +575,50 @@ toJSAST jsn =
     ]
 
 
--- *************************************************************************************************
---
 -- These functions are used to process array literals.
 --
--- The way that the parser (Grammar5.y) handles commas in arrays seems strange to me. One comma at
--- the end of an array makes a (JSLiteral \",\"). A comma in any other scenario (that I have tried)
--- makes a (JSElision []). Two commas make two elisions, three commas three elisions, and so on,
--- EXCEPT when they occur at the end of the array; there, the last comma is ignored and (n - 1)
--- elisions are made. The following are some examples of parser output.
+-- The way that the parser (Grammar5.y) handles commas in arrays seems strange to me. A single comma
+-- at the end of an array makes a (JSLiteral \",\"). If there is more than one comma at the end of
+-- the array, then the last comma is ignored. A comma in any other scenario makes a (JSElision []);
+-- two commas make two elisions, three commas three elisions, and so on;
+--
+-- The following are some examples of parser output.
+--
 -- []
 -- JSArrayLiteral []
 --
--- [1,]
--- JSArrayLiteral [
---     JSDecimal \"1\",
---     JSLiteral \",\"]
---
--- [,]
--- JSArrayLiteral [
---     JSElision []]
---
--- [,,]
--- JSArrayLiteral [
---     JSElision [],
---     JSElision []]
---
--- [1,,]
--- JSArrayLiteral [
---     JSDecimal \"1\",
---     JSElision []]
---
 -- [1]
--- JSArrayLiteral [
---     JSDecimal \"1\"]
---
--- [1,,2]
--- JSArrayLiteral [
---     JSDecimal \"1\",
---     JSElision [],
---     JSElision [],
---     JSDecimal \"2\"]
---
--- JSArrayLiteral [
---     JSElision [],
---     JSDecimal \"1\"]
--- [,1]
+-- JSArrayLiteral [ JSDecimal \"1\" ]
 --
 -- [1, 2]
--- JSArrayLiteral [
---     JSDecimal \"1\",
---     JSElision [],
---     JSDecimal \"2\"]
+-- JSArrayLiteral [ JSDecimal \"1\", JSElision [], JSDecimal \"2\" ]
+--
+-- [,]
+-- JSArrayLiteral [ JSElision [] ]
+--
+-- [,,]
+-- JSArrayLiteral [ JSElision [], JSElision [] ]
+--
+-- [1,]
+-- JSArrayLiteral [ JSDecimal \"1\", JSLiteral \",\" ]
+--
+-- [1,,]
+-- JSArrayLiteral [ JSDecimal \"1\", JSElision [] ]
+--
+-- [,1]
+-- JSArrayLiteral [ JSElision [], JSDecimal \"1\" ]
 --
 -- [,,1]
--- JSArrayLiteral [
---     JSElision [],
---     JSElision [],
---     JSDecimal \"1\"]
+-- JSArrayLiteral [ JSElision [], JSElision [], JSDecimal \"1\" ]
 --
--- [,,,1]
--- JSArrayLiteral [
---     JSElision [],
---     JSElision [],
---     JSElision [],
---     JSDecimal \"1\"]
---
--- [1,,,]
--- JSArrayLiteral [
---     JSDecimal \"1\",
---     JSElision [],
---     JSElision []]
---
--- Takes a representation of a JS array and produces a singleton list containing the next element,
--- paired with the remainder of the array.
--- TODO: Try to fix source spans.
--- FIXME: Some of these might be redundant.
-getElements :: [JSNode] -> [[JSNode]] -> SrcSpan -> [[JSNode]]
--- Ignore one trailing comma at the end of the array.
-getElements [(NS (JSLiteral ",") _)] current _ = current
--- Single elisions at the end of the parsed array occur when there are two commas at the end of an
--- array or when the array is equal to [,]
-getElements [(NS (JSElision e) srcSpan)] current nearestSpan =
-    current ++ [[(NS (JSIdentifier "undefined") (getNearestSrcSpan srcSpan nearestSpan))]]
--- The last (or only) item in the array is not an elision.
-getElements [item] current nearestSpan = current ++ [[item]]
--- Two elisions in a row that aren't at the beginning of the array indicates one undefined entry,
--- then a comma seperator, then the next entry.
---
--- (Two elisions at the beggining of the parsed array indicate two undefined entries, but that case
--- (is handled in jsArrayGetSubarray).
-getElements ((NS (JSElision _) srcSpan1):(NS (JSElision e) srcSpan2):rest) current nearestSpan  =
-    getElements
-        ((NS (JSElision e) srcSpan2):rest)
-        (current
-        ++ [[NS (JSIdentifier "undefined") (getNearestSrcSpan srcSpan1 nearestSpan)]])
-        (getNearestSrcSpan srcSpan2 (getNearestSrcSpan srcSpan1 nearestSpan))
--- One elision and then a non-elision entry indicates a comma seperator and then the entry.
-getElements ((NS (JSElision _) srcSpan):rest) current nearestSpan =
-    getElements rest current (getNearestSrcSpan srcSpan nearestSpan)
--- An entry and then an elision and then another entry. The elision is a seperator.
-getElements (y:(NS (JSElision e) srcSpan):rest) current nearestSpan =
-    getElements
-        ((NS (JSElision e) srcSpan):rest)
-        (current ++ [[y]])
-        (getNearestSrcSpan srcSpan nearestSpan)
--- Not the last item in the list, and not an elision.
-getElements (jsn:rest) current nearestSpan =
-    getElements
-        rest
-        (current ++ [[jsn]])
-        (getNearestSrcSpan (jsnGetSource jsn) nearestSpan)
+-- [1,,2]
+-- JSArrayLiteral [ JSDecimal \"1\", JSElision [], JSElision [], JSDecimal \"2\" ]
+
+
+-- Some elisions have SpanEmpty so we need to use the last non-empty SpanPoint.
+getNearestSrcSpan :: SrcSpan -> SrcSpan -> SrcSpan
+getNearestSrcSpan (SpanEmpty) s = s
+getNearestSrcSpan s _ = s
 
 
 -- Takes the parse tree representation of an array literal, deals with elisions at the start of the
@@ -711,34 +630,42 @@ processArray ((NS (JSElision es) srcSpan):rest) current nearestSpan =
         rest
         (current ++ [[NS (JSIdentifier "undefined") (getNearestSrcSpan srcSpan nearestSpan)]])
         (getNearestSrcSpan srcSpan nearestSpan)
-processArray jsa current nearestSpan = (getElements jsa current nearestSpan)
+processArray jsa current nearestSpan = (arrayGetElements jsa current nearestSpan)
 
 
-jsArrayGetSubarrays :: [JSNode] -> SrcSpan -> [[JSNode]]
-jsArrayGetSubarrays [] _ = []
-jsArrayGetSubarrays jsa nearestSpan = (processArray jsa [] nearestSpan)
+-- Process the remainder an array literal after any leading commas have been processed.
+-- FIXME: Try to improve source spans.
+arrayGetElements :: [JSNode] -> [[JSNode]] -> SrcSpan -> [[JSNode]]
+-- Ignore one trailing comma at the end of the array.
+arrayGetElements [(NS (JSLiteral ",") _)] current _ = current
+-- A single elision at the end of the parsed array occurs when there are two commas at the end of
+-- the array or when the array is equal to [,]
+arrayGetElements [(NS (JSElision e) srcSpan)] current nearestSpan =
+    current ++ [[(NS (JSIdentifier "undefined") (getNearestSrcSpan srcSpan nearestSpan))]]
+arrayGetElements [item] current nearestSpan = current ++ [[item]]
+-- Two elisions in a row (that aren't at the beginning of the array) indicates one undefined entry,
+-- then a comma seperator, then the next entry.
+arrayGetElements ((NS (JSElision _) srcSpan1):(NS (JSElision e) srcSpan2):rest) current nearestSpan  =
+    arrayGetElements
+        ((NS (JSElision e) srcSpan2):rest)
+        (current
+        ++ [[NS (JSIdentifier "undefined") (getNearestSrcSpan srcSpan1 nearestSpan)]])
+        (getNearestSrcSpan srcSpan1 nearestSpan)
+-- One elision and then a non-elision entry indicates a comma seperator and then the entry.
+arrayGetElements ((NS (JSElision _) srcSpan):rest) current nearestSpan =
+    arrayGetElements rest current (getNearestSrcSpan srcSpan nearestSpan)
+arrayGetElements (jsn:rest) current nearestSpan =
+    arrayGetElements
+        rest
+        (current ++ [[jsn]])
+        (getNearestSrcSpan (jsnGetSource jsn) nearestSpan)
 
-getNearestSrcSpan :: SrcSpan -> SrcSpan -> SrcSpan
-getNearestSrcSpan (SpanEmpty) s = s
-getNearestSrcSpan s _ = s
-
-
-getNearestSpanNext :: [[JSNode]] -> SrcSpan -> SrcSpan
-getNearestSpanNext [] nearestSpan = nearestSpan
-getNearestSpanNext ls nearestSpan =
-    if last ls == [] then
-        nearestSpan
-    else
-        getNearestSrcSpan (jsnGetSource $ last $ last ls) nearestSpan
-
--- *************************************************************************************************
 
 -- Takes a Node that represents a literal value and makes an AST node for that value.
 toJSASTValue :: JSNode -> Value
 toJSASTValue (NS (JSArrayLiteral arr) srcSpan) =
     JSArray
-        -- (map listToJSASTExpression (jsArrayGetSubarrays arr [] srcSpan))
-        (map listToJSASTExpression (jsArrayGetSubarrays arr srcSpan))
+        (map listToJSASTExpression (processArray arr [] srcSpan))
 toJSASTValue (NS (JSDecimal s) _) =
     if elem '.' s then
         JSFloat (read s)
@@ -746,36 +673,32 @@ toJSASTValue (NS (JSDecimal s) _) =
         JSInt (read s)
 toJSASTValue (NS (JSLiteral "false") _) = JSBool False
 toJSASTValue (NS (JSLiteral "true") _) = JSBool True
--- FIXME: Refactor this? (already done but still kinda crazy)
+-- TODO: Refactor this? (already done once but still kinda crazy)
 toJSASTValue (NS (JSObjectLiteral list) _) =
     JSObject
-        (concat $ map toJSASTPropNameValue list)
+        (map toJSASTPropNameValue list)
     where
-        -- Takes a Node that represents a property of an object and produdes a singleton list
-        -- containing a PropNameValue Expression.
-        toJSASTPropNameValue :: JSNode -> [ExprWithSourceSpan]
+        -- Takes a JSNode that represents a property of an object and produdes a PropNameValue
+        -- Expression.
+        toJSASTPropNameValue :: JSNode -> ExprWithSourceSpan
         toJSASTPropNameValue
             (NS (JSPropertyNameandValue (NS (JSIdentifier name) _) value) srcSpan) =
-                [EWSS
+                EWSS
                     (PropNameValue
                         (VariableProperty name)
                         (listToJSASTExpression value))
                     srcSpan
-                ]
         toJSASTPropNameValue
             (NS (JSPropertyNameandValue (NS (JSDecimal index) _) value) srcSpan) =
-                [EWSS
+                EWSS
                     (PropNameValue
                         (IndexProperty (read index))
                         (listToJSASTExpression value))
                     srcSpan
-                ]
-        toJSASTPropNameValue _ = []
 toJSASTValue (NS (JSStringLiteral '"' s) _) = JSDQString s
 toJSASTValue (NS (JSStringLiteral _ s) _) = JSString s
 
 
--- Takes a single Node and builds a single expression.
 makeJSASTExpression :: JSNode -> ExprWithSourceSpan
 makeJSASTExpression (NS (JSArguments args) srcSpan) =
     toJSASTArguments args srcSpan
