@@ -19,13 +19,18 @@
 --
 -- Top level functions are:
 --
---		mapPrintASTWS
---			(jsastListMakeSourceFragments (toJSAST (parseTree program file) file) span)
---			padding
---			printSrc
+		-- mapPrintASTWS
+		-- 	(jsastListWSMakeSourceFragments
+		-- 		(getJSASTWithSource (parseTree program file) file)
+		-- 		span)
+		-- 	padding
+		-- 	printSrc
 --
 --		mapPrintASTChild
---			(label (jsastListMakeSourceFragments (toJSAST (parseTree program file) file) span))
+--			(label
+--				jsastListWSMakeSourceFragments
+--					(getJSASTWithSource (parseTree program file) file)
+--					span))
 --			padding
 --			printSrc
 --			printLab
@@ -44,7 +49,7 @@
 --
 -- TODO:
 --		ParseJS.parseTree (JSNode)
--- 		ParseJS.toJSAST (JSASTWithSource*Span*)
+-- 		ParseJS.getJSASTWithSource (JSASTWithSource*Span*)
 -- 		DeclarationGraph.getDeclarationGraph (FunctionRules) - Might not be useful.
 --		DeclarationGraph.graphGetAllRules (Rule Type Type Maybe SourceFragment) would
 -- 		look better with pretty-printed Types.

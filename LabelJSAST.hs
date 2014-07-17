@@ -17,7 +17,8 @@
 -- This module takes a JSAST and gives each vertex a unique integer label. The label counter is simply
 -- threaded through the tree. Traversal is depth first. It's all fairly straight-forward.
 --
--- Top level function is (label (jsastListMakeSourceFragments (toJSAST (parseTree program file) file) span))
+-- Top level function is
+-- (label (jsastListWSMakeSourceFragments (getJSASTWithSource (parseTree program file) file) span))
 
 
 module LabelJSAST

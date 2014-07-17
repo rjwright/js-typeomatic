@@ -29,8 +29,8 @@
 --
 --        (getDeclarationGraph
 --           (label
---               (jsastListMakeSourceFragments
---                   (toJSAST
+--               (jsastListWSMakeSourceFragments
+--                   (getJSASTWithSource
 --                       (parseTree
 --                           program
 --                           file)

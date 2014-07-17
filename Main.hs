@@ -18,8 +18,8 @@
 
 -- The methods in the pipeline are:
 -- 		ParseJS.parseTree - NEEDS PRETTY PRINT
--- 		ParseJS.toJSAST - NEEDS PRETTY PRINT
--- 		ResolveJSASTSourceFragments.jsastListMakeSourceFragments
+-- 		ParseJS.getJSASTWithSource - NEEDS PRETTY PRINT
+-- 		ResolveJSASTSourceFragments.jsastListWSMakeSourceFragments
 -- 		LabelJSAST.label
 -- 		DeclarationGraph.getDeclarationGraph - NEEDS PRETTY PRINT
 -- 		DeclarationGraph.graphGetAllRules (optional) - TYPES NEED PRETTY PRINT
@@ -155,8 +155,8 @@ makeLabelledJSAST input fileName = label $ makeJSASTWithSourceFragments input fi
 -- AST.
 makeJSASTWithSourceFragments :: String -> SourceFileName -> [JSASTWithSourceFragment]
 makeJSASTWithSourceFragments input fileName =
-	jsastListMakeSourceFragments (makeJSAST input fileName) (SpanPoint fileName ((length $ lines input) + 1) 1)
+	jsastListWSMakeSourceFragments (makeJSAST input fileName) (SpanPoint fileName ((length $ lines input) + 1) 1)
 
 
-makeJSAST :: String -> SourceFileName -> [JSASTWithSourceSpan]
-makeJSAST input fileName = toJSAST (parseTree input fileName) fileName
+makeJSAST :: String -> SourceFileName -> ([JSASTWithSourceSpan], SourceFileName)
+makeJSAST input fileName = getJSASTWithSource (parseTree input fileName) fileName
