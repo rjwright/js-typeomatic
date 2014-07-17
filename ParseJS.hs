@@ -577,42 +577,43 @@ listToJSASTExpression [x, (NS (JSArguments args) srcSpan)] fileName =
             (toJSASTArguments args fileName srcSpan))
         (jsnGetSource x)
         fileName
--- FIXME: This is SUPER ugly and isCallExpression isn't being used.
+listToJSASTExpression list fileName | (isCallExpression $ last list) =
+    getJSASTCallExpression list fileName
+    where
+        isCallExpression :: JSNode -> Bool
+        isCallExpression (NS (JSCallExpression "." _) _) = True
+        isCallExpression (NS (JSCallExpression "[]" _) _) = True
+        isCallExpression _ = False
+listToJSASTExpression list fileName | (isParenCallExp $ last list) =
+    getJSASTCall list fileName
+    where
+        isParenCallExp :: JSNode -> Bool
+        isParenCallExp (NS (JSCallExpression "()" _) _) = True
+        isParenCallExp _ = False
+-- FIXME: Anything else is assumed to be an assignment. Verify that this is correct.
 listToJSASTExpression list fileName =
-    if (isAssignment list) then
-        getJSASTAssignment list fileName
-    else if (isParenCallExp $ last list) then
-        getJSASTCall list fileName
-    else
-        getJSASTCallExpression list fileName
+    getJSASTAssignment list []
     where
         isAssignmentOperator :: String -> Bool
         isAssignmentOperator op
             | elem op ["=", "+=", "-=", "*=", "/=", "%=", "<<=", ">>=", ">>>=", "&=", "^=", "|="] =
                 True
             | otherwise = False
+        getJSASTAssignment :: [JSNode] -> [JSNode] -> ExprWithSourceSpan
+        getJSASTAssignment ((NS (JSOperator op) srcSpan):xs) preCurrent | (isAssignmentOperator op) =
+                EWSS
+                    (Assignment
+                        op
+                        (listToJSASTExpression preCurrent fileName)
+                        (listToJSASTExpression xs fileName))
+                    (jsnGetSource $ head preCurrent)
+                    fileName
+        getJSASTAssignment (x:xs) preCurrent = getJSASTAssignment xs (preCurrent ++ [x])
+        -- FIXME: Not used. Remove?
         isAssignment :: [JSNode] -> Bool
         isAssignment [] = False
         isAssignment ((NS (JSOperator op) _):ls) = (isAssignmentOperator op) || (isAssignment ls)
         isAssignment (_:ls) = isAssignment ls
-        -- To handle messy assignments
-        getJSASTAssignment :: [JSNode] -> SourceFileName -> ExprWithSourceSpan
-        getJSASTAssignment list fileName =
-            EWSS
-                (getAssignment list [])
-                -- FIXME: Might not be the right source span for assignment list
-                (jsnGetSource $ head list)
-                fileName
-            where
-                getAssignment ((NS (JSOperator op) _):xs) preCurrent | (isAssignmentOperator op) =
-                        Assignment
-                            op
-                            (listToJSASTExpression preCurrent fileName)
-                            (listToJSASTExpression xs fileName)
-                getAssignment (x:xs) preCurrent = getAssignment xs (preCurrent ++ [x])
-        isParenCallExp :: JSNode -> Bool
-        isParenCallExp (NS (JSCallExpression "()" _) _) = True
-        isParenCallExp _ = False
 
 
 -- Makes arguments from a list of lists of JSNodes that represent a list of arguments.
@@ -642,14 +643,6 @@ getJSASTCall list fileName =
         getArgs (JSCallExpression _ [(NS (JSArguments args) srcSpan)]) fileName =
             toJSASTArguments args fileName srcSpan
 
-
--- Determine whether a node is a JSCallExpression with a dot or with square brackets.
---
--- FIXME: Should be called by listToJSASTExpression but currently isn't called.
-isCallExpression :: Node -> Bool
-isCallExpression (JSCallExpression "." _) = True
-isCallExpression (JSCallExpression "[]" _) = True
-isCallExpression _ = False
 
 -- To handle the case where the last element in the list is a (JSCallExpression "[]" exp) or a
 -- (JSCallExpression "." exp).
