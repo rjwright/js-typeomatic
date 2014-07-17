@@ -50,6 +50,14 @@ main = do
 	(infile:[]) <- getArgs
 	pr <- readFile infile
 	putStrLn ""
+	-- *****************
+	putStrLn ""
+	putStrLn "Print the stripped parse tree"
+	printParseTreeStripped $ jsnGetNode $ parseTree pr infile
+	putStrLn ""
+	putStrLn "Print the raw parse tree"
+	putStrLn $ show $ parse pr infile
+	-- *****************
 	-- PRETTY PRINTED
 	-- Prints declared functions and function expressions, and the identifiers
 	-- that are visible to each one.

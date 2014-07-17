@@ -873,6 +873,11 @@ printPropertyName (VariableProperty var) padding = do
 
 
 printValueWS :: ValueWithSourceFragment -> String -> SourceFlag -> LineFlag -> IO()
+printValueWS (WSArray []) padding printSrc False = do
+	putStrLn ""
+	putStrLn (padding ++ " Array")
+	let p = makeIndent padding
+	putStr (p ++ " []")
 printValueWS (WSArray elems) padding printSrc False = do
 	putStrLn ""
 	putStrLn (padding ++ " Array")
