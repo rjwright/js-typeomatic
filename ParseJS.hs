@@ -16,8 +16,8 @@
 -- threaded through the tree. Traversal is depth first. It's all fairly straight-forward.
 
 
--- This module parses a JavaScript source file using the Language.Javascript.Parser library, then
--- simplifies the parse tree to produce a more useful abstract syntax tree (AST).
+-- This module parses a JavaScript source file using the Language.Javascript.Parser library (Version
+-- 0.4.5), then simplifies the parse tree to produce a more useful abstract syntax tree (AST).
 --
 -- The doc for Language.Javascript.Parser is at hackage.haskell.org/package/language-javascript, but
 -- it isn't particularly useful. The library's main data type - Node - has many constructors, and
@@ -206,6 +206,7 @@ data ExprWithSourceSpan = EWSS Expression SrcSpan SourceFileName deriving (Show)
 -- toJSAST :: JSNode -> [JSASTWithSourceSpan]
 -- ...
 
+-- In ResolveSourceFragments:
 -- jsastListMakeSourceFragments :: ([JSASTWithSourceSpan], SourceFileName) -> SrcSpan -> [JSASTWithSourceFragment]
 -- ...
 
