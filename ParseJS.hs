@@ -192,6 +192,27 @@ data JSASTWithSourceSpan = AWSS JSAST SrcSpan SourceFileName deriving (Show)
 data ExprWithSourceSpan = EWSS Expression SrcSpan SourceFileName deriving (Show)
 
 
+-- TODO: Keep using the parser's SrcSpans in the AST, but don't store the source file name in the
+-- AST. Have the top-level function of this module return a tuple with the AST and the source file
+-- name.
+-- ** I THINK THIS ONE IS BETTER **
+
+-- data JSASTWithSourceSpan = AWSS JSAST SrcSpan deriving (Show)
+-- data ExprWithSourceSpan = EWSS Expression SrcSpan deriving (Show)
+
+-- getJSASTWithFile :: JSNode -> SourceFileName -> ([JSASTWithSourceSpan], SourceFileName)
+-- getJSASTWithFile jsn fileName = ((toJSAST jsn), fileName)
+
+-- toJSAST :: JSNode -> [JSASTWithSourceSpan]
+-- ...
+
+-- jsastListMakeSourceFragments :: ([JSASTWithSourceSpan], SourceFileName) -> SrcSpan -> [JSASTWithSourceFragment]
+-- ...
+
+-- jsastMakeSourceFragment :: JSASTWithSourceSpan -> SourceFileName -> SrcSpan -> JSASTWithSourceFragment
+-- ...
+
+
 -- Extract the Node from a JSNode.
 jsnGetNode :: JSNode -> Node
 jsnGetNode (NS a _) = a
@@ -620,11 +641,11 @@ toJSAST (NS (JSWhile test body) srcSpan) fileName =
     ]
 -- Anything else is assumed to be a statement.
 -- TODO: Check that all parser output is covered.
-toJSAST x fileName =
+toJSAST jsn fileName =
     [AWSS
         (Statement
-            (makeJSASTExpression x fileName))
-        (jsnGetSource x)
+            (makeJSASTExpression jsn fileName))
+        (jsnGetSource jsn)
         fileName
     ]
 
