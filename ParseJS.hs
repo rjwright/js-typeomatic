@@ -661,83 +661,62 @@ toJSAST jsn =
 --     JSElision [],
 --     JSElision []]
 --
--- TODO: This is similar to getSublists (in toJSAST). Have a look at that.
---     jsExpGetSublists [] = []
---     jsExpGetSublists [item] = [[item]]
---     jsExpGetSublists ls = let (nextSub, rest) = getSublist ls in ([nextSub] ++ (jsExpGetSublists rest))
---     getSublist [] = ([], [])
---     getSublist [item] = ([item], [])
---     getSublist ((JSLiteral ","):rest) = ([], rest)
---     getSublist (y:ys) = let (next, rest) = getSublist ys in (y:(next), rest)
---
--- VS
---
---     A JSExpression contains a list of JSNodes, separated by <JSLiteral ','>. These need to be
---     seperated (basically the <JSLiteral ','>s need to be stripped).
---     getSublists :: [JSNode] -> [JSNode] -> [[JSNode]]
---     getSublists ((NS (JSLiteral ",") _):rest) current =
---         [current] ++ (getSublists rest [])
---     getSublists (node:rest) current = getSublists rest (current ++ [node])
---     getSublists [] current = [current]
---
 -- Takes a representation of a JS array and produces a singleton list containing the next element,
 -- paired with the remainder of the array.
 -- TODO: Try to fix source spans.
-getSubarray :: [JSNode] -> SrcSpan -> ([JSNode], [JSNode])
--- If there is nothing left in the input array then return nothing.
-getSubarray [] _ = ([], [])
+-- FIXME: Some of these might be redundant.
+getElements :: [JSNode] -> [[JSNode]] -> SrcSpan -> [[JSNode]]
 -- Ignore one trailing comma at the end of the array.
-getSubarray [(NS (JSLiteral ",") _)] nearestSpan = ([], [])
+getElements [(NS (JSLiteral ",") _)] current _ = current
 -- Single elisions at the end of the parsed array occur when there are two commas at the end of an
 -- array or when the array is equal to [,]
-getSubarray [(NS (JSElision e) srcSpan)] nearestSpan =
-    ([(NS (JSIdentifier "undefined") (getNearestSrcSpan srcSpan nearestSpan))], [])
+getElements [(NS (JSElision e) srcSpan)] current nearestSpan =
+    current ++ [[(NS (JSIdentifier "undefined") (getNearestSrcSpan srcSpan nearestSpan))]]
 -- The last (or only) item in the array is not an elision.
-getSubarray [item] _ = ([item], [])
+getElements [item] current nearestSpan = current ++ [[item]]
 -- Two elisions in a row that aren't at the beginning of the array indicates one undefined entry,
 -- then a comma seperator, then the next entry.
 --
 -- (Two elisions at the beggining of the parsed array indicate two undefined entries, but that case
 -- (is handled in jsArrayGetSubarray).
-getSubarray ((NS (JSElision _) srcSpan1):(NS (JSElision e) srcSpan2):rest) nearestSpan  =
-    ([(NS (JSIdentifier "undefined") (getNearestSrcSpan srcSpan1 nearestSpan))],
-    ((NS (JSElision e) (getNearestSrcSpan srcSpan2 (getNearestSrcSpan srcSpan1 nearestSpan))):rest))
+getElements ((NS (JSElision _) srcSpan1):(NS (JSElision e) srcSpan2):rest) current nearestSpan  =
+    getElements
+        ((NS (JSElision e) srcSpan2):rest)
+        (current
+        ++ [[NS (JSIdentifier "undefined") (getNearestSrcSpan srcSpan1 nearestSpan)]])
+        (getNearestSrcSpan srcSpan2 (getNearestSrcSpan srcSpan1 nearestSpan))
 -- One elision and then a non-elision entry indicates a comma seperator and then the entry.
-getSubarray ((NS (JSElision _) srcSpan):rest) nearestSpan =
-    getSubarray rest (getNearestSrcSpan srcSpan nearestSpan)
+getElements ((NS (JSElision _) srcSpan):rest) current nearestSpan =
+    getElements rest current (getNearestSrcSpan srcSpan nearestSpan)
 -- An entry and then an elision and then another entry. The elision is a seperator.
-getSubarray (y:(NS (JSElision e) srcSpan):rest) nearestSpan =
-    ([y], ((NS (JSElision e) (getNearestSrcSpan srcSpan nearestSpan)):rest))
+getElements (y:(NS (JSElision e) srcSpan):rest) current nearestSpan =
+    getElements
+        ((NS (JSElision e) srcSpan):rest)
+        (current ++ [[y]])
+        (getNearestSrcSpan srcSpan nearestSpan)
 -- Not the last item in the list, and not an elision.
-getSubarray (y:ys) nearestSpan =
-    let (next, rest) = getSubarray ys (getNearestSrcSpan (jsnGetSource y) nearestSpan) in
-        (y:(next), rest)
-
-
--- Takes an array and makes a (Haskell Land) 2D list, one sublist per element of the JS array.
-arrayToSubarrays :: [JSNode] -> SrcSpan -> [[JSNode]]
-arrayToSubarrays [] _ = []
-arrayToSubarrays list nearestSpan =
-    let (nextSub, rest) = getSubarray list nearestSpan in
-        ([nextSub] ++ (arrayToSubarrays rest (getNearestSpanNext [nextSub] nearestSpan)))
+getElements (jsn:rest) current nearestSpan =
+    getElements
+        rest
+        (current ++ [[jsn]])
+        (getNearestSrcSpan (jsnGetSource jsn) nearestSpan)
 
 
 -- Takes the parse tree representation of an array literal, deals with elisions at the start of the
 -- array, then processes what's left.
-jsArrayGetSubarray :: [JSNode] -> SrcSpan -> [[JSNode]]
-jsArrayGetSubarray jsa nearestSpan =
-    let (elisions, rest) = getLeadingElisions jsa nearestSpan in
-        (elisions ++ (arrayToSubarrays rest (getNearestSpanNext elisions nearestSpan)))
-    where
-        getLeadingElisions :: [JSNode] -> SrcSpan -> ([[JSNode]], [JSNode])
-        getLeadingElisions [] _ = ([], [])
-        getLeadingElisions ((NS (JSElision es) ss):x) ss2 =
-            let (e, rest) = getLeadingElisions x nearestSpanNext
-                in (([(NS (JSIdentifier "undefined") nearestSpanNext)]:e), rest)
-                where
-                    nearestSpanNext = getNearestSrcSpan ss ss2
-        getLeadingElisions lst ss = ([], lst)
+processArray :: [JSNode] -> [[JSNode]] -> SrcSpan -> [[JSNode]]
+processArray [] current _ = current
+processArray ((NS (JSElision es) srcSpan):rest) current nearestSpan =
+    processArray
+        rest
+        (current ++ [[NS (JSIdentifier "undefined") (getNearestSrcSpan srcSpan nearestSpan)]])
+        (getNearestSrcSpan srcSpan nearestSpan)
+processArray jsa current nearestSpan = (getElements jsa current nearestSpan)
 
+
+jsArrayGetSubarrays :: [JSNode] -> SrcSpan -> [[JSNode]]
+jsArrayGetSubarrays [] _ = []
+jsArrayGetSubarrays jsa nearestSpan = (processArray jsa [] nearestSpan)
 
 getNearestSrcSpan :: SrcSpan -> SrcSpan -> SrcSpan
 getNearestSrcSpan (SpanEmpty) s = s
@@ -746,77 +725,11 @@ getNearestSrcSpan s _ = s
 
 getNearestSpanNext :: [[JSNode]] -> SrcSpan -> SrcSpan
 getNearestSpanNext [] nearestSpan = nearestSpan
-getNearestSpanNext [[]] nearestSpan = nearestSpan
-getNearestSpanNext ls nearestSpan = getNearestSrcSpan (jsnGetSource $ last $ last ls) nearestSpan
--- *************************************************************************************************
--- -- Takes a representation of a JS array and produces a singleton list containing the next element,
--- -- paired with the remainder of the array.
--- -- TODO: Try to fix source spans.
--- getSubarray :: [JSNode] -> SrcSpan -> ([JSNode], [JSNode])
--- -- If there is nothing left in the input array then return nothing.
--- getSubarray [] _ = ([], [])
--- -- Ignore one trailing comma at the end of the array.
--- getSubarray [(NS (JSLiteral ",") _)] nearestSpan = ([], [])
--- -- Single elisions at the end of the parsed array occur when there are two commas at the end of an
--- -- array or when the array is equal to [,]
--- getSubarray [(NS (JSElision e) srcSpan)] nearestSpan =
---     ([(NS (JSIdentifier "undefined") (getNearestSrcSpan srcSpan nearestSpan))], [])
--- -- The last (or only) item in the array is not an elision.
--- getSubarray [item] _ = ([item], [])
--- -- Two elisions in a row that aren't at the beginning of the array indicates one undefined entry,
--- -- then a comma seperator, then the next entry.
--- --
--- -- (Two elisions at the beggining of the parsed array indicate two undefined entries, but that case
--- -- (is handled in jsArrayGetSubarray).
--- getSubarray ((NS (JSElision _) srcSpan1):(NS (JSElision e) srcSpan2):rest) nearestSpan  =
---     ([(NS (JSIdentifier "undefined") (getNearestSrcSpan srcSpan1 nearestSpan))],
---     ((NS (JSElision e) (getNearestSrcSpan srcSpan2 (getNearestSrcSpan srcSpan1 nearestSpan))):rest))
--- -- One elision and then a non-elision entry indicates a comma seperator and then the entry.
--- getSubarray ((NS (JSElision _) srcSpan):rest) nearestSpan =
---     getSubarray rest (getNearestSrcSpan srcSpan nearestSpan)
--- -- An entry and then an elision and then another entry. The elision is a seperator.
--- getSubarray (y:(NS (JSElision e) srcSpan):rest) nearestSpan =
---     ([y], ((NS (JSElision e) (getNearestSrcSpan srcSpan nearestSpan)):rest))
--- -- Not the last item in the list, and not an elision.
--- getSubarray (y:ys) nearestSpan =
---     let (next, rest) = getSubarray ys (getNearestSrcSpan (jsnGetSource y) nearestSpan) in
---         (y:(next), rest)
-
-
--- -- Takes an array and makes a (Haskell Land) 2D list, one sublist per element of the JS array.
--- arrayToSubarrays :: [JSNode] -> SrcSpan -> [[JSNode]]
--- arrayToSubarrays [] _ = []
--- arrayToSubarrays list nearestSpan =
---     let (nextSub, rest) = getSubarray list nearestSpan in
---         ([nextSub] ++ (arrayToSubarrays rest (getNearestSpanNext [nextSub] nearestSpan)))
-
-
--- -- Takes the parse tree representation of an array literal, deals with elisions at the start of the
--- -- array, then processes what's left.
--- jsArrayGetSubarray :: [JSNode] -> SrcSpan -> [[JSNode]]
--- jsArrayGetSubarray jsa nearestSpan =
---     let (elisions, rest) = getLeadingElisions jsa nearestSpan in
---         (elisions ++ (arrayToSubarrays rest (getNearestSpanNext elisions nearestSpan)))
---     where
---         getLeadingElisions :: [JSNode] -> SrcSpan -> ([[JSNode]], [JSNode])
---         getLeadingElisions [] _ = ([], [])
---         getLeadingElisions ((NS (JSElision es) ss):x) ss2 =
---             let (e, rest) = getLeadingElisions x nearestSpanNext
---                 in (([(NS (JSIdentifier "undefined") nearestSpanNext)]:e), rest)
---                 where
---                     nearestSpanNext = getNearestSrcSpan ss ss2
---         getLeadingElisions lst ss = ([], lst)
-
-
--- getNearestSrcSpan :: SrcSpan -> SrcSpan -> SrcSpan
--- getNearestSrcSpan (SpanEmpty) s = s
--- getNearestSrcSpan s _ = s
-
-
--- getNearestSpanNext :: [[JSNode]] -> SrcSpan -> SrcSpan
--- getNearestSpanNext [] nearestSpan = nearestSpan
--- getNearestSpanNext [[]] nearestSpan = nearestSpan
--- getNearestSpanNext ls nearestSpan = getNearestSrcSpan (jsnGetSource $ last $ last ls) nearestSpan
+getNearestSpanNext ls nearestSpan =
+    if last ls == [] then
+        nearestSpan
+    else
+        getNearestSrcSpan (jsnGetSource $ last $ last ls) nearestSpan
 
 -- *************************************************************************************************
 
@@ -824,7 +737,8 @@ getNearestSpanNext ls nearestSpan = getNearestSrcSpan (jsnGetSource $ last $ las
 toJSASTValue :: JSNode -> Value
 toJSASTValue (NS (JSArrayLiteral arr) srcSpan) =
     JSArray
-        (map listToJSASTExpression (jsArrayGetSubarray arr srcSpan))
+        -- (map listToJSASTExpression (jsArrayGetSubarrays arr [] srcSpan))
+        (map listToJSASTExpression (jsArrayGetSubarrays arr srcSpan))
 toJSASTValue (NS (JSDecimal s) _) =
     if elem '.' s then
         JSFloat (read s)
