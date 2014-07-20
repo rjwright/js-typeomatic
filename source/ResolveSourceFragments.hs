@@ -38,7 +38,6 @@ module ResolveSourceFragments
 , SourceFragment(..)
 , ValueWithSourceFragment(..)
 , jsastListWSMakeSourceFragments
-, jsastMakeSourceFragment
 ) where
 
 
@@ -51,7 +50,7 @@ type Row = Int
 type Col = Int
 
 -- (FileName, StartRow, StartCol, EndRow, EndCol)
-type SourceFragment = (String, Row, Col, Row, Col)
+type SourceFragment = (SourceFileName, Row, Col, Row, Col)
 
 -- Represent literal values.
 data ValueWithSourceFragment =
@@ -131,27 +130,27 @@ jsastListWSMakeSourceFragments (list, fileName) nextSpan =
 -- sibling)
 jsastListMakeSourceFragments :: [JSASTWithSourceSpan] -> SourceFileName -> SrcSpan -> [JSASTWithSourceFragment]
 jsastListMakeSourceFragments (x:y:z) fileName nextSpan =
-    (jsastMakeSourceFragment x fileName (jsastGetSpan y)):(jsastListMakeSourceFragments (y:z) fileName nextSpan)
+    (jsastMakeSourceFragment x fileName (jsastGetSource y)):(jsastListMakeSourceFragments (y:z) fileName nextSpan)
 jsastListMakeSourceFragments (x:[]) fileName nextSpan = [jsastMakeSourceFragment x fileName nextSpan]
 jsastListMakeSourceFragments [] _ nextSpan = []
 
 
-jsastGetSpan :: JSASTWithSourceSpan -> SrcSpan
-jsastGetSpan (AWSS _ srcSpan) = srcSpan
+jsastGetSource :: JSASTWithSourceSpan -> SrcSpan
+jsastGetSource (AWSS _ srcSpan) = srcSpan
 
 
-exprGetSpan :: ExprWithSourceSpan -> SrcSpan
-exprGetSpan (EWSS _ srcSpan) = srcSpan
+exprGetSource :: ExprWithSourceSpan -> SrcSpan
+exprGetSource (EWSS _ srcSpan) = srcSpan
 
 
-maybeExprGetSpan :: Maybe ExprWithSourceSpan -> Maybe SrcSpan
-maybeExprGetSpan (Just (EWSS _ srcSpan)) = Just srcSpan
-maybeExprGetSpan Nothing = Nothing
+maybeExprGetSource :: Maybe ExprWithSourceSpan -> Maybe SrcSpan
+maybeExprGetSource (Just (EWSS _ srcSpan)) = Just srcSpan
+maybeExprGetSource Nothing = Nothing
 
 
 exprListMakeSourceFragments :: [ExprWithSourceSpan] -> SourceFileName -> SrcSpan -> [ExprWithSourceFragment]
 exprListMakeSourceFragments (x:y:z) fileName nextSpan =
-    (exprMakeSourceFragment x fileName (exprGetSpan y)):(exprListMakeSourceFragments (y:z) fileName nextSpan)
+    (exprMakeSourceFragment x fileName (exprGetSource y)):(exprListMakeSourceFragments (y:z) fileName nextSpan)
 exprListMakeSourceFragments (x:[]) fileName nextSpan = [exprMakeSourceFragment x fileName nextSpan]
 exprListMakeSourceFragments [] _ _ = []
 
@@ -190,54 +189,54 @@ jsastMakeSourceFragment (AWSS (For vars cond expr body) srcSpan) fileName nextSp
         (WSFor
             (maybeExprMakeSourceFragment vars fileName varsNextSpan)
             (maybeExprMakeSourceFragment cond fileName condNextSpan)
-            (maybeExprMakeSourceFragment expr fileName (jsastGetSpan body))
+            (maybeExprMakeSourceFragment expr fileName (jsastGetSource body))
             (jsastMakeSourceFragment body fileName nextSpan))
         (makeSourceFragment srcSpan nextSpan fileName)
     where
         justSpanGetSpan (Just ss) = ss
-        condSrcSpan = maybeExprGetSpan cond
-        exprSrcSpan = maybeExprGetSpan expr
+        condSrcSpan = maybeExprGetSource cond
+        exprSrcSpan = maybeExprGetSource expr
         varsNextSpan =
             if (not (condSrcSpan == Nothing)) then
                 justSpanGetSpan condSrcSpan
             else if (not (exprSrcSpan == Nothing)) then
                 justSpanGetSpan exprSrcSpan
             else
-                jsastGetSpan body
+                jsastGetSource body
         condNextSpan =
             if (not (exprSrcSpan == Nothing)) then
                 justSpanGetSpan exprSrcSpan
             else
-                jsastGetSpan body
+                jsastGetSource body
 jsastMakeSourceFragment (AWSS (ForVar vars cond expr body) srcSpan) fileName nextSpan =
     AWSF
         (WSForVar
             (exprListMakeSourceFragments vars fileName varsNextSpan)
             (maybeExprMakeSourceFragment cond fileName condNextSpan)
-            (maybeExprMakeSourceFragment expr fileName (jsastGetSpan body))
+            (maybeExprMakeSourceFragment expr fileName (jsastGetSource body))
             (jsastMakeSourceFragment body fileName nextSpan))
         (makeSourceFragment srcSpan nextSpan fileName)
     where
         justSpanGetSpan (Just ss) = ss
-        condSrcSpan = maybeExprGetSpan cond
-        exprSrcSpan = maybeExprGetSpan expr
+        condSrcSpan = maybeExprGetSource cond
+        exprSrcSpan = maybeExprGetSource expr
         varsNextSpan =
             if (not (condSrcSpan == Nothing)) then
                 justSpanGetSpan condSrcSpan
             else if (not (exprSrcSpan == Nothing)) then
                 justSpanGetSpan exprSrcSpan
             else
-                jsastGetSpan body
+                jsastGetSource body
         condNextSpan =
             if (not (exprSrcSpan == Nothing)) then
                 justSpanGetSpan exprSrcSpan
             else
-                jsastGetSpan body
+                jsastGetSource body
 jsastMakeSourceFragment (AWSS (ForVarIn var obj body) srcSpan) fileName nextSpan =
     AWSF
         (WSForVarIn
-            (exprMakeSourceFragment var fileName (exprGetSpan obj))
-            (exprMakeSourceFragment obj fileName (jsastGetSpan body))
+            (exprMakeSourceFragment var fileName (exprGetSource obj))
+            (exprMakeSourceFragment obj fileName (jsastGetSource body))
             (jsastMakeSourceFragment body fileName nextSpan))
         (makeSourceFragment srcSpan nextSpan fileName)
 jsastMakeSourceFragment (AWSS (FunctionBody list) srcSpan) fileName nextSpan =
@@ -306,26 +305,26 @@ exprMakeSourceFragment (EWSS (Assignment op expr1 expr2) srcSpan) fileName nextS
     EWSF
         (WSAssignment
             op
-            (exprMakeSourceFragment expr1 fileName (exprGetSpan expr2))
+            (exprMakeSourceFragment expr1 fileName (exprGetSource expr2))
             (exprMakeSourceFragment expr2 fileName nextSpan))
         (makeSourceFragment srcSpan nextSpan fileName)
 exprMakeSourceFragment (EWSS (Binary op expr1 expr2) srcSpan) fileName nextSpan =
     EWSF
         (WSBinary
             op
-            (exprMakeSourceFragment expr1 fileName (exprGetSpan expr2))
+            (exprMakeSourceFragment expr1 fileName (exprGetSource expr2))
             (exprMakeSourceFragment expr2 fileName nextSpan))
         (makeSourceFragment srcSpan nextSpan fileName)
 exprMakeSourceFragment (EWSS (Call expr1 expr2) srcSpan) fileName nextSpan =
     EWSF
         (WSCall
-            (exprMakeSourceFragment expr1 fileName (exprGetSpan expr2))
+            (exprMakeSourceFragment expr1 fileName (exprGetSource expr2))
             (exprMakeSourceFragment expr2 fileName nextSpan))
         (makeSourceFragment srcSpan nextSpan fileName)
 exprMakeSourceFragment (EWSS (CallExpression expr op callExpr) srcSpan) fileName nextSpan =
     EWSF
         (WSCallExpression
-            (exprMakeSourceFragment expr fileName (exprGetSpan callExpr))
+            (exprMakeSourceFragment expr fileName (exprGetSource callExpr))
             op
             (exprMakeSourceFragment callExpr fileName nextSpan))
         (makeSourceFragment srcSpan nextSpan fileName)
@@ -343,7 +342,7 @@ exprMakeSourceFragment (EWSS (Identifier var) srcSpan) fileName nextSpan =
 exprMakeSourceFragment (EWSS (Index expr1 expr2) srcSpan) fileName nextSpan =
     EWSF
         (WSIndex
-            (exprMakeSourceFragment expr1 fileName (exprGetSpan expr2))
+            (exprMakeSourceFragment expr1 fileName (exprGetSource expr2))
             (exprMakeSourceFragment expr2 fileName nextSpan))
         (makeSourceFragment srcSpan nextSpan fileName)
 exprMakeSourceFragment (EWSS (List list) srcSpan) fileName nextSpan =
@@ -360,7 +359,7 @@ exprMakeSourceFragment (EWSS (PropNameValue name expr) srcSpan) fileName nextSpa
 exprMakeSourceFragment (EWSS (Reference expr1 expr2) srcSpan) fileName nextSpan =
     EWSF
         (WSReference
-            (exprMakeSourceFragment expr1 fileName (exprGetSpan expr2))
+            (exprMakeSourceFragment expr1 fileName (exprGetSource expr2))
             (exprMakeSourceFragment expr2 fileName nextSpan))
         (makeSourceFragment srcSpan nextSpan fileName)
 exprMakeSourceFragment (EWSS (UnaryPost op expr) srcSpan) fileName nextSpan =

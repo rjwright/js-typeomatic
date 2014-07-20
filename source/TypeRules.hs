@@ -501,7 +501,7 @@ exprChildRules (LabReference ex1 ex2, n, sourceFragment) dIDs =
 -- bracket notation. There is no way to differentiate between the two using local static analysis.
 exprChildRules (LabIndex ex1 ex2, n, sourceFragment) dIDs =
     (exprChildRules ex1 dIDs)
-    -- I don't really want to require the index to be an int literal or a string literal.In the case
+    -- I don't really want to require the index to be an int literal or a string literal. In the case
     -- of arrays, we don't care about the types of particular elements, we justcare that all
     -- elements have the same type. Of course this is not the case for objects,since we need to know
     -- which property of the object we are modifying so we can check itstype (i.e. the *value* of
