@@ -250,7 +250,9 @@ listToJSASTExpression [(NS (JSUnary operator) srcSpan), (NS (JSDecimal x) _)]
         else
             EWSS (Value xInt) srcSpan
         where
+            xFloat :: Value
             xFloat = JSFloat (-1 * (read x))
+            xInt :: Value
             xInt = JSInt (-1 * (read x))
 listToJSASTExpression ((NS (JSUnary operator) srcSpan):x)
     | elem operator ["-", "+", "--", "++", "!", "typeof ", "delete ", "~"] =

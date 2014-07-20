@@ -19,12 +19,12 @@
 --
 -- Top level functions are:
 --
-		-- mapPrintASTWS
-		-- 	(jsastListWSMakeSourceFragments
-		-- 		(getJSASTWithSource (parseTree program file) file)
-		-- 		span)
-		-- 	padding
-		-- 	printSrc
+--		mapPrintASTWS
+--			(jsastListWSMakeSourceFragments
+--				(getJSASTWithSource (parseTree program file) file)
+--				span)
+--			padding
+--			printSrc
 --
 --		mapPrintASTChild
 --			(label
