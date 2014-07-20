@@ -29,6 +29,8 @@
 --
 -- Top level function is
 -- (jsastListWSMakeSourceFragments (getJSASTWithSource (parseTree program file) file) span)
+--
+
 
 module ResolveSourceFragments
 ( ExprWithSourceFragment(..)
@@ -52,20 +54,18 @@ type Col = Int
 -- (FileName, StartRow, StartCol, EndRow, EndCol)
 type SourceFragment = (SourceFileName, Row, Col, Row, Col)
 
--- Represent literal values.
+
 data ValueWithSourceFragment =
       WSArray [ExprWithSourceFragment]
     | WSBool Bool
-    -- Double quote strings are never treated differently to normal strings.
-    -- TODO: Should be merged with JSString
     | WSDQString String
     | WSFloat Double
     | WSInt Int
     | WSNull
-    -- TODO: Comment on what the expressions can be.
     | WSObject [ExprWithSourceFragment]
     | WSString String
     | WSUndefined deriving (Show)
+
 
 data ExprWSF =
       WSArguments [ExprWithSourceFragment]
@@ -90,6 +90,7 @@ data ExprWSF =
     | WSValue ValueWithSourceFragment
     | WSVarDeclaration Variable (Maybe ExprWithSourceFragment) deriving (Show)
 
+
 data JSASTWSF =
       WSBlock [JSASTWithSourceFragment]
     | WSCase ExprWithSourceFragment JSASTWithSourceFragment
@@ -97,9 +98,17 @@ data JSASTWSF =
     | WSDefault JSASTWithSourceFragment
     | WSDoWhile JSASTWithSourceFragment ExprWithSourceFragment
     | WSFinally JSASTWithSourceFragment
-    | WSFor (Maybe ExprWithSourceFragment) (Maybe ExprWithSourceFragment) (Maybe ExprWithSourceFragment) JSASTWithSourceFragment
+    | WSFor
+        (Maybe ExprWithSourceFragment)
+        (Maybe ExprWithSourceFragment)
+        (Maybe ExprWithSourceFragment)
+        JSASTWithSourceFragment
     | WSForIn [Variable] ExprWithSourceFragment JSASTWithSourceFragment
-    | WSForVar [ExprWithSourceFragment] (Maybe ExprWithSourceFragment) (Maybe ExprWithSourceFragment) JSASTWithSourceFragment
+    | WSForVar
+        [ExprWithSourceFragment]
+        (Maybe ExprWithSourceFragment)
+        (Maybe ExprWithSourceFragment)
+        JSASTWithSourceFragment
     | WSForVarIn ExprWithSourceFragment ExprWithSourceFragment JSASTWithSourceFragment
     | WSFunctionBody [JSASTWithSourceFragment]
     | WSFunctionDeclaration Variable [Variable] JSASTWithSourceFragment
@@ -121,17 +130,21 @@ data ExprWithSourceFragment =
 
 -- nextSpan is the list's parent's next sibling (or the end of the file, if the parent has no next
 -- sibling)
-jsastListWSMakeSourceFragments :: ([JSASTWithSourceSpan], SourceFileName) -> SrcSpan -> [JSASTWithSourceFragment]
+jsastListWSMakeSourceFragments :: ([JSASTWithSourceSpan], SourceFileName) -> SrcSpan ->
+    [JSASTWithSourceFragment]
 jsastListWSMakeSourceFragments (list, fileName) nextSpan =
     jsastListMakeSourceFragments list fileName nextSpan
 
 
 -- nextSpan is the list's parent's next sibling (or the end of the file, if the parent has no next
 -- sibling)
-jsastListMakeSourceFragments :: [JSASTWithSourceSpan] -> SourceFileName -> SrcSpan -> [JSASTWithSourceFragment]
+jsastListMakeSourceFragments :: [JSASTWithSourceSpan] -> SourceFileName -> SrcSpan ->
+    [JSASTWithSourceFragment]
 jsastListMakeSourceFragments (x:y:z) fileName nextSpan =
-    (jsastMakeSourceFragment x fileName (jsastGetSource y)):(jsastListMakeSourceFragments (y:z) fileName nextSpan)
-jsastListMakeSourceFragments (x:[]) fileName nextSpan = [jsastMakeSourceFragment x fileName nextSpan]
+    (jsastMakeSourceFragment x fileName (jsastGetSource y)):
+        (jsastListMakeSourceFragments (y:z) fileName nextSpan)
+jsastListMakeSourceFragments (x:[]) fileName nextSpan =
+    [jsastMakeSourceFragment x fileName nextSpan]
 jsastListMakeSourceFragments [] _ nextSpan = []
 
 
@@ -148,9 +161,11 @@ maybeExprGetSource (Just (EWSS _ srcSpan)) = Just srcSpan
 maybeExprGetSource Nothing = Nothing
 
 
-exprListMakeSourceFragments :: [ExprWithSourceSpan] -> SourceFileName -> SrcSpan -> [ExprWithSourceFragment]
+exprListMakeSourceFragments :: [ExprWithSourceSpan] -> SourceFileName -> SrcSpan ->
+    [ExprWithSourceFragment]
 exprListMakeSourceFragments (x:y:z) fileName nextSpan =
-    (exprMakeSourceFragment x fileName (exprGetSource y)):(exprListMakeSourceFragments (y:z) fileName nextSpan)
+    (exprMakeSourceFragment x fileName (exprGetSource y)):
+        (exprListMakeSourceFragments (y:z) fileName nextSpan)
 exprListMakeSourceFragments (x:[]) fileName nextSpan = [exprMakeSourceFragment x fileName nextSpan]
 exprListMakeSourceFragments [] _ _ = []
 
@@ -160,7 +175,7 @@ makeSourceFragment (SpanPoint _ startRow startCol) (SpanPoint _ nextRow nextCol)
     (fileName, startRow, startCol, nextRow, nextCol)
 
 
--- Here nextSpan is just the end of this fragment
+-- Here nextSpan is just the end of this fragment.
 -- Still to do
 --      WSCase ExprWithSourceFragment JSASTWithSourceFragment
 --      WSCatch Variable (Maybe ExprWithSourceFragment) JSASTWithSourceFragment
@@ -174,7 +189,8 @@ makeSourceFragment (SpanPoint _ startRow startCol) (SpanPoint _ nextRow nextCol)
 --      WSSwitch ExprWithSourceFragment JSASTWithSourceFragment
 --      WSTry JSASTWithSourceFragment JSASTWithSourceFragment
 --      WSWhile ExprWithSourceFragment JSASTWithSourceFragment
-jsastMakeSourceFragment :: JSASTWithSourceSpan -> SourceFileName -> SrcSpan -> JSASTWithSourceFragment
+jsastMakeSourceFragment :: JSASTWithSourceSpan -> SourceFileName -> SrcSpan ->
+    JSASTWithSourceFragment
 -- jsastMakeSourceFragment (AWSS () srcSpan) fileName nextSpan =
 --     AWSF
 --         (WS...)
@@ -193,9 +209,11 @@ jsastMakeSourceFragment (AWSS (For vars cond expr body) srcSpan) fileName nextSp
             (jsastMakeSourceFragment body fileName nextSpan))
         (makeSourceFragment srcSpan nextSpan fileName)
     where
-        justSpanGetSpan (Just ss) = ss
+        condSrcSpan :: Maybe SrcSpan
         condSrcSpan = maybeExprGetSource cond
+        exprSrcSpan :: Maybe SrcSpan
         exprSrcSpan = maybeExprGetSource expr
+        varsNextSpan :: SrcSpan
         varsNextSpan =
             if (not (condSrcSpan == Nothing)) then
                 justSpanGetSpan condSrcSpan
@@ -203,11 +221,14 @@ jsastMakeSourceFragment (AWSS (For vars cond expr body) srcSpan) fileName nextSp
                 justSpanGetSpan exprSrcSpan
             else
                 jsastGetSource body
+        condNextSpan :: SrcSpan
         condNextSpan =
             if (not (exprSrcSpan == Nothing)) then
                 justSpanGetSpan exprSrcSpan
             else
                 jsastGetSource body
+        justSpanGetSpan :: Maybe SrcSpan -> SrcSpan
+        justSpanGetSpan (Just ss) = ss
 jsastMakeSourceFragment (AWSS (ForVar vars cond expr body) srcSpan) fileName nextSpan =
     AWSF
         (WSForVar
@@ -217,9 +238,11 @@ jsastMakeSourceFragment (AWSS (ForVar vars cond expr body) srcSpan) fileName nex
             (jsastMakeSourceFragment body fileName nextSpan))
         (makeSourceFragment srcSpan nextSpan fileName)
     where
-        justSpanGetSpan (Just ss) = ss
+        condSrcSpan :: Maybe SrcSpan
         condSrcSpan = maybeExprGetSource cond
+        exprSrcSpan :: Maybe SrcSpan
         exprSrcSpan = maybeExprGetSource expr
+        varsNextSpan :: SrcSpan
         varsNextSpan =
             if (not (condSrcSpan == Nothing)) then
                 justSpanGetSpan condSrcSpan
@@ -227,11 +250,14 @@ jsastMakeSourceFragment (AWSS (ForVar vars cond expr body) srcSpan) fileName nex
                 justSpanGetSpan exprSrcSpan
             else
                 jsastGetSource body
+        condNextSpan :: SrcSpan
         condNextSpan =
             if (not (exprSrcSpan == Nothing)) then
                 justSpanGetSpan exprSrcSpan
             else
                 jsastGetSource body
+        justSpanGetSpan :: Maybe SrcSpan -> SrcSpan
+        justSpanGetSpan (Just ss) = ss
 jsastMakeSourceFragment (AWSS (ForVarIn var obj body) srcSpan) fileName nextSpan =
     AWSF
         (WSForVarIn
@@ -249,7 +275,6 @@ jsastMakeSourceFragment (AWSS (FunctionDeclaration var args body) srcSpan) fileN
         (WSFunctionDeclaration
             var
             args
-            -- The body is the last child of the function declaration,so it has the same end point.
             (jsastMakeSourceFragment body fileName nextSpan))
         (makeSourceFragment srcSpan nextSpan fileName)
 jsastMakeSourceFragment (AWSS (Return expr) srcSpan) fileName nextSpan =
@@ -266,8 +291,6 @@ valueMakeSourceFragment :: Value -> SourceFileName -> SrcSpan -> ValueWithSource
 valueMakeSourceFragment (JSArray list) fileName nextSpan =
     WSArray (exprListMakeSourceFragments list fileName nextSpan)
 valueMakeSourceFragment (JSBool val) _ _ = WSBool val
-    -- Double quote strings are never treated differently to normal strings.
-    -- TODO: Should be merged with JSString
 valueMakeSourceFragment (JSDQString val) _ _ = WSDQString val
 valueMakeSourceFragment (JSFloat val) _ _ = WSFloat val
 valueMakeSourceFragment (JSInt val) _ _ = WSInt val
@@ -278,7 +301,8 @@ valueMakeSourceFragment (JSString val) _ _ = WSString val
 valueMakeSourceFragment  JSUndefined _ _ = WSUndefined
 
 
-maybeExprMakeSourceFragment :: Maybe ExprWithSourceSpan -> SourceFileName -> SrcSpan -> Maybe ExprWithSourceFragment
+maybeExprMakeSourceFragment :: Maybe ExprWithSourceSpan -> SourceFileName -> SrcSpan ->
+    Maybe ExprWithSourceFragment
 maybeExprMakeSourceFragment (Just exprWithSourceSpan) fileName srcSpan =
     Just (exprMakeSourceFragment exprWithSourceSpan fileName srcSpan)
 maybeExprMakeSourceFragment Nothing _ _ = Nothing
