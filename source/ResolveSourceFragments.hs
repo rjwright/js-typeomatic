@@ -182,9 +182,6 @@ makeSourceFragment (SpanPoint _ startRow startCol) (SpanPoint _ nextRow nextCol)
 --      WSDefault JSASTWithSourceFragment
 --      WSDoWhile JSASTWithSourceFragment ExprWithSourceFragment
 --      WSFinally JSASTWithSourceFragment
---      WSForIn [Variable] ExprWithSourceFragment JSASTWithSourceFragment
---      WSIf ExprWithSourceFragment JSASTWithSourceFragment
---      WSIfElse ExprWithSourceFragment JSASTWithSourceFragment JSASTWithSourceFragment
 --      WSLabelled Variable JSASTWithSourceFragment
 --      WSSwitch ExprWithSourceFragment JSASTWithSourceFragment
 --      WSTry JSASTWithSourceFragment JSASTWithSourceFragment
@@ -229,6 +226,13 @@ jsastMakeSourceFragment (AWSS (For vars cond expr body) srcSpan) fileName nextSp
                 jsastGetSource body
         justSpanGetSpan :: Maybe SrcSpan -> SrcSpan
         justSpanGetSpan (Just ss) = ss
+jsastMakeSourceFragment (AWSS (ForIn vars obj body) srcSpan) fileName nextSpan =
+    AWSF
+        (WSForIn
+            vars
+            (exprMakeSourceFragment obj fileName (jsastGetSource body))
+            (jsastMakeSourceFragment body fileName nextSpan))
+        (makeSourceFragment srcSpan nextSpan fileName)
 jsastMakeSourceFragment (AWSS (ForVar vars cond expr body) srcSpan) fileName nextSpan =
     AWSF
         (WSForVar
@@ -276,6 +280,19 @@ jsastMakeSourceFragment (AWSS (FunctionDeclaration var args body) srcSpan) fileN
             var
             args
             (jsastMakeSourceFragment body fileName nextSpan))
+        (makeSourceFragment srcSpan nextSpan fileName)
+jsastMakeSourceFragment (AWSS (If cond body) srcSpan) fileName nextSpan =
+    AWSF
+        (WSIf
+           (exprMakeSourceFragment cond fileName (jsastGetSource body))
+           (jsastMakeSourceFragment body fileName nextSpan))
+        (makeSourceFragment srcSpan nextSpan fileName)
+jsastMakeSourceFragment (AWSS (IfElse cond body elseBody) srcSpan) fileName nextSpan =
+    AWSF
+        (WSIfElse
+           (exprMakeSourceFragment cond fileName (jsastGetSource body))
+           (jsastMakeSourceFragment body fileName (jsastGetSource elseBody))
+           (jsastMakeSourceFragment elseBody fileName nextSpan))
         (makeSourceFragment srcSpan nextSpan fileName)
 jsastMakeSourceFragment (AWSS (Return expr) srcSpan) fileName nextSpan =
     AWSF
