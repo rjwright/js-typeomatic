@@ -645,12 +645,13 @@ arrayGetElements [(NS (JSElision e) srcSpan)] current nearestSpan =
 arrayGetElements [item] current nearestSpan = current ++ [[item]]
 -- Two elisions in a row (that aren't at the beginning of the array) indicates one undefined entry,
 -- then a comma seperator, then the next entry.
-arrayGetElements ((NS (JSElision _) srcSpan1):(NS (JSElision e) srcSpan2):rest) current nearestSpan  =
-    arrayGetElements
-        ((NS (JSElision e) srcSpan2):rest)
-        (current
-        ++ [[NS (JSIdentifier "undefined") (getNearestSrcSpan srcSpan1 nearestSpan)]])
-        (getNearestSrcSpan srcSpan1 nearestSpan)
+arrayGetElements
+    ((NS (JSElision _) srcSpan1):(NS (JSElision e) srcSpan2):rest) current nearestSpan  =
+        arrayGetElements
+            ((NS (JSElision e) srcSpan2):rest)
+            (current
+            ++ [[NS (JSIdentifier "undefined") (getNearestSrcSpan srcSpan1 nearestSpan)]])
+            (getNearestSrcSpan srcSpan1 nearestSpan)
 -- One elision and then a non-elision entry indicates a comma seperator and then the entry.
 arrayGetElements ((NS (JSElision _) srcSpan):rest) current nearestSpan =
     arrayGetElements rest current (getNearestSrcSpan srcSpan nearestSpan)
