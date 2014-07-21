@@ -35,9 +35,7 @@
 
 
 module ParseJS
-( Expression(..)
-, ExprWithSourceSpan(..)
-, Index
+( Index
 , AST(..)
 , ASTWithSourceSpan(..)
 , Operator
@@ -95,7 +93,7 @@ data PropertyName =
 
 -- Represent literal values.
 data Value =
-      JSArray [ExprWithSourceSpan]
+      JSArray [ASTWithSourceSpan]
     | JSBool Bool
     -- TODO: Double quote strings are never treated differently to normal strings and should be
     -- merged with JSString when pipeline is complete.
@@ -104,7 +102,7 @@ data Value =
     | JSInt Int
     | JSNull
     -- Objects contain a list of PropNameValues.
-    | JSObject [ExprWithSourceSpan]
+    | JSObject [ASTWithSourceSpan]
     | JSString String
     | JSUndefined deriving (Show)
 
@@ -113,82 +111,113 @@ data Value =
 -- fields except for FunctionExpression.
 --
 -- TODO: Can FunctionExpression be moved into AST? (probably not).
-data Expression =
-      Arguments [ExprWithSourceSpan]
-    | Assignment Operator ExprWithSourceSpan ExprWithSourceSpan
-    | Binary Operator ExprWithSourceSpan ExprWithSourceSpan
+-- data Expression =
+--       Arguments [ASTWithSourceSpan]
+--     | Assignment Operator ASTWithSourceSpan ASTWithSourceSpan
+--     | Binary Operator ASTWithSourceSpan ASTWithSourceSpan
+--     | Break (Maybe Variable)
+--     | Call ASTWithSourceSpan ASTWithSourceSpan
+--     -- In Language.JavaScript, a call expression is an expression that calls - or accesses a
+--     -- property of - a function call. (E.g. foo()(); foo().bar;)
+--     --
+--     -- This program treats foo()() as a Call within a Call (I think that is a sufficient
+--     -- description for our purposes).
+--     | CallExpression ASTWithSourceSpan Operator ASTWithSourceSpan
+--     | Continue (Maybe Variable)
+--     -- A function definition on the right hand side of some statement.
+--     | FunctionExpression (Maybe Variable) [Variable] ASTWithSourceSpan
+--     | Identifier Variable
+--     -- An index into a structure using square brackets.
+--     | Index ASTWithSourceSpan ASTWithSourceSpan
+--     -- TODO: Needs comment to explain what it is.
+--     | List [ASTWithSourceSpan]
+--     | New ASTWithSourceSpan
+--     -- TODO: Needs comment to explain what it is.
+--     | ParenExpression ASTWithSourceSpan
+--     -- A property of an object.
+--     | PropNameValue PropertyName ASTWithSourceSpan
+--     -- A reference into a structure using a dot.
+--     | Reference ASTWithSourceSpan ASTWithSourceSpan
+--     | Ternary ASTWithSourceSpan ASTWithSourceSpan ASTWithSourceSpan
+--     | Throw ASTWithSourceSpan
+--     | UnaryPost Operator ASTWithSourceSpan
+--     | UnaryPre Operator ASTWithSourceSpan
+--     | Value Value
+--     | VarDeclaration Variable (Maybe ASTWithSourceSpan) deriving (Show)
+
+
+-- Represent a node in the AST
+data AST =
+      Block ASTWithSourceSpan
+    | Case ASTWithSourceSpan ASTWithSourceSpan
+    | Catch Variable (Maybe ASTWithSourceSpan) ASTWithSourceSpan
+    | Default ASTWithSourceSpan
+    | DoWhile ASTWithSourceSpan ASTWithSourceSpan
+    | Finally ASTWithSourceSpan
+    | For
+        (Maybe ASTWithSourceSpan)
+        (Maybe ASTWithSourceSpan)
+        (Maybe ASTWithSourceSpan)
+        ASTWithSourceSpan
+    | ForIn [Variable] ASTWithSourceSpan ASTWithSourceSpan
+    | ForVar
+        [ASTWithSourceSpan]
+        (Maybe ASTWithSourceSpan)
+        (Maybe ASTWithSourceSpan)
+        ASTWithSourceSpan
+    | ForVarIn ASTWithSourceSpan ASTWithSourceSpan ASTWithSourceSpan
+    | FunctionBody [ASTWithSourceSpan]
+    | FunctionDeclaration Variable [Variable] ASTWithSourceSpan
+    | If ASTWithSourceSpan ASTWithSourceSpan
+    | IfElse ASTWithSourceSpan ASTWithSourceSpan ASTWithSourceSpan
+    | Labelled Variable ASTWithSourceSpan
+    | Return ASTWithSourceSpan
+    | Statement ASTWithSourceSpan
+    -- FIXME: I'm not sure if this should be represented as a list or not.
+    | Switch ASTWithSourceSpan [ASTWithSourceSpan]
+    | Try ASTWithSourceSpan [ASTWithSourceSpan]
+    | While ASTWithSourceSpan ASTWithSourceSpan
+
+    | Arguments [ASTWithSourceSpan]
+    | Assignment Operator ASTWithSourceSpan ASTWithSourceSpan
+    | Binary Operator ASTWithSourceSpan ASTWithSourceSpan
     | Break (Maybe Variable)
-    | Call ExprWithSourceSpan ExprWithSourceSpan
+    | Call ASTWithSourceSpan ASTWithSourceSpan
     -- In Language.JavaScript, a call expression is an expression that calls - or accesses a
     -- property of - a function call. (E.g. foo()(); foo().bar;)
     --
     -- This program treats foo()() as a Call within a Call (I think that is a sufficient
     -- description for our purposes).
-    | CallExpression ExprWithSourceSpan Operator ExprWithSourceSpan
+    | CallExpression ASTWithSourceSpan Operator ASTWithSourceSpan
     | Continue (Maybe Variable)
     -- A function definition on the right hand side of some statement.
     | FunctionExpression (Maybe Variable) [Variable] ASTWithSourceSpan
     | Identifier Variable
     -- An index into a structure using square brackets.
-    | Index ExprWithSourceSpan ExprWithSourceSpan
+    | Index ASTWithSourceSpan ASTWithSourceSpan
     -- TODO: Needs comment to explain what it is.
-    | List [ExprWithSourceSpan]
-    | New ExprWithSourceSpan
+    | List [ASTWithSourceSpan]
+    | New ASTWithSourceSpan
     -- TODO: Needs comment to explain what it is.
-    | ParenExpression ExprWithSourceSpan
+    | ParenExpression ASTWithSourceSpan
     -- A property of an object.
-    | PropNameValue PropertyName ExprWithSourceSpan
+    | PropNameValue PropertyName ASTWithSourceSpan
     -- A reference into a structure using a dot.
-    | Reference ExprWithSourceSpan ExprWithSourceSpan
-    | Ternary ExprWithSourceSpan ExprWithSourceSpan ExprWithSourceSpan
-    | Throw ExprWithSourceSpan
-    | UnaryPost Operator ExprWithSourceSpan
-    | UnaryPre Operator ExprWithSourceSpan
+    | Reference ASTWithSourceSpan ASTWithSourceSpan
+    | Ternary ASTWithSourceSpan ASTWithSourceSpan ASTWithSourceSpan
+    | Throw ASTWithSourceSpan
+    | UnaryPost Operator ASTWithSourceSpan
+    | UnaryPre Operator ASTWithSourceSpan
     | Value Value
-    | VarDeclaration Variable (Maybe ExprWithSourceSpan) deriving (Show)
-
-
--- Represent source elements which include a "block" or "body" and thus make logical non-terminal
--- nodes for an abstract syntax tree.
---
--- TODO: Also includes a type for return expressions (Return) and a wrapper for instances of the
--- Expression data type (Statement). Can they be moved into Expression? (probably not).
-data AST =
-      Block [ASTWithSourceSpan]
-    | Case ExprWithSourceSpan ASTWithSourceSpan
-    | Catch Variable (Maybe ExprWithSourceSpan) ASTWithSourceSpan
-    | Default ASTWithSourceSpan
-    | DoWhile ASTWithSourceSpan ExprWithSourceSpan
-    | Finally ASTWithSourceSpan
-    | For
-        (Maybe ExprWithSourceSpan)
-        (Maybe ExprWithSourceSpan)
-        (Maybe ExprWithSourceSpan)
-        ASTWithSourceSpan
-    | ForIn [Variable] ExprWithSourceSpan ASTWithSourceSpan
-    | ForVar
-        [ExprWithSourceSpan]
-        (Maybe ExprWithSourceSpan)
-        (Maybe ExprWithSourceSpan)
-        ASTWithSourceSpan
-    | ForVarIn ExprWithSourceSpan ExprWithSourceSpan ASTWithSourceSpan
-    | FunctionBody [ASTWithSourceSpan]
-    | FunctionDeclaration Variable [Variable] ASTWithSourceSpan
-    | If ExprWithSourceSpan ASTWithSourceSpan
-    | IfElse ExprWithSourceSpan ASTWithSourceSpan ASTWithSourceSpan
-    | Labelled Variable ASTWithSourceSpan
-    | Return ExprWithSourceSpan
-    | Statement ExprWithSourceSpan
-    | Switch ExprWithSourceSpan ASTWithSourceSpan
-    | Try ASTWithSourceSpan ASTWithSourceSpan
-    | While ExprWithSourceSpan ASTWithSourceSpan deriving (Show)
+    | VarDeclaration Variable (Maybe ASTWithSourceSpan)
+    deriving (Show)
 
 
 data ASTWithSourceSpan = AWSS AST SrcSpan deriving (Show)
-data ExprWithSourceSpan = EWSS Expression SrcSpan deriving (Show)
+-- data ASTWithSourceSpan = AWSS Expression SrcSpan deriving (Show)
 
 
-getASTWithSource :: JSNode -> SourceFileName -> ([ASTWithSourceSpan], SourceFileName)
+getASTWithSource :: JSNode -> SourceFileName -> (ASTWithSourceSpan, SourceFileName)
 getASTWithSource jsn fileName = ((toAST jsn), fileName)
 
 
@@ -213,49 +242,49 @@ jsnGetSource (NS _ srcSpan) = srcSpan
 -- This is an artifact of trying to have Expressions as terminal (or near-terminal) nodes in the
 -- AST, and thus wanting Expressions to contain other Expressions. I think AST and Expression
 -- should be merged, however. Then, this function can probably go.
-jsnToListExp :: JSNode -> ExprWithSourceSpan
+jsnToListExp :: JSNode -> ASTWithSourceSpan
 jsnToListExp jsn =
     statementToListExp $ toAST jsn
     where
-        statementToListExp :: [ASTWithSourceSpan] -> ExprWithSourceSpan
-        statementToListExp [AWSS (Statement expr) _] = expr
+        statementToListExp :: ASTWithSourceSpan -> ASTWithSourceSpan
+        statementToListExp (AWSS (Statement expr) _) = expr
 
 
 identifierGetString :: Node -> String
 identifierGetString (JSIdentifier jsid) = jsid
 
 
-listToMaybeExpression :: [JSNode] -> Maybe ExprWithSourceSpan
+listToMaybeExpression :: [JSNode] -> Maybe ASTWithSourceSpan
 listToMaybeExpression [] = Nothing
 listToMaybeExpression jsn = Just $ listToASTExpression jsn
 
 
 -- Some parser nodes contain lists of JSNodes that represent whole expressions. This function takes
 -- such a list of Nodes and builds a single expression.
-listToASTExpression :: [JSNode] -> ExprWithSourceSpan
-listToASTExpression [item] = makeASTExpression item
+listToASTExpression :: [JSNode] -> ASTWithSourceSpan
+listToASTExpression [item] = toAST item
 listToASTExpression [(NS (JSUnary operator) srcSpan), (NS (JSDecimal x) _)]
     | (operator == "-") =
         if (elem '.' x) then
-            EWSS (Value xFloat) srcSpan
+            AWSS (Value xFloat) srcSpan
         else
-            EWSS (Value xInt) srcSpan
+            AWSS (Value xInt) srcSpan
         where
             xFloat = JSFloat (-1 * (read x))
             xInt = JSInt (-1 * (read x))
 listToASTExpression ((NS (JSUnary operator) srcSpan):x)
     | elem operator ["-", "+", "--", "++", "!", "typeof ", "delete ", "~"] =
-        EWSS
+        AWSS
             (UnaryPre
                 operator
                 (listToASTExpression x))
             srcSpan
 listToASTExpression ((NS (JSLiteral "new ") srcSpan):x) =
-    EWSS (New (listToASTExpression x)) srcSpan
+    AWSS (New (listToASTExpression x)) srcSpan
 listToASTExpression [x, (NS (JSArguments args) srcSpan)] =
-    EWSS
+    AWSS
         (Call
-            (makeASTExpression x)
+            (toAST x)
             (toASTArguments args srcSpan))
         (jsnGetSource x)
 listToASTExpression list | (isCallExpression $ last list) =
@@ -280,10 +309,10 @@ listToASTExpression list =
             | elem op ["=", "+=", "-=", "*=", "/=", "%=", "<<=", ">>=", ">>>=", "&=", "^=", "|="] =
                 True
             | otherwise = False
-        getASTAssignment :: [JSNode] -> [JSNode] -> ExprWithSourceSpan
+        getASTAssignment :: [JSNode] -> [JSNode] -> ASTWithSourceSpan
         getASTAssignment ((NS (JSOperator op) srcSpan):xs) preCurrent
             | (isAssignmentOperator op) =
-                EWSS
+                AWSS
                     (Assignment
                         op
                         (listToASTExpression preCurrent)
@@ -292,18 +321,18 @@ listToASTExpression list =
         getASTAssignment (x:xs) preCurrent = getASTAssignment xs (preCurrent ++ [x])
 
 
-toASTArguments :: [[JSNode]] -> SrcSpan -> ExprWithSourceSpan
+toASTArguments :: [[JSNode]] -> SrcSpan -> ASTWithSourceSpan
 toASTArguments args srcSpan =
-    EWSS (Arguments (map getASTArgument args)) srcSpan
+    AWSS (Arguments (map getASTArgument args)) srcSpan
     where
-        getASTArgument :: [JSNode] -> ExprWithSourceSpan
-        getASTArgument (item:[]) = makeASTExpression item
+        getASTArgument :: [JSNode] -> ASTWithSourceSpan
+        getASTArgument (item:[]) = toAST item
         getASTArgument nodes = listToASTExpression nodes
 
 
-toASTVarDeclaration :: JSNode -> ExprWithSourceSpan
+toASTVarDeclaration :: JSNode -> ASTWithSourceSpan
 toASTVarDeclaration (NS (JSVarDecl name value) srcSpan) =
-    EWSS
+    AWSS
         (VarDeclaration
             (identifierGetString $ jsnGetNode name)
             (listToMaybeExpression value))
@@ -315,24 +344,24 @@ toASTVarDeclaration (NS (JSVarDecl name value) srcSpan) =
 -- JSArguments but for now I'm just going to hope not.
 --
 -- TODO: Find out what values the arguments list can have.
-getASTCall :: [JSNode] -> ExprWithSourceSpan
+getASTCall :: [JSNode] -> ASTWithSourceSpan
 getASTCall list =
-    EWSS
+    AWSS
         (Call
             (listToASTExpression (init list))
             (getArgs $ last list))
         (jsnGetSource $ head list)
     where
-        getArgs :: JSNode -> ExprWithSourceSpan
+        getArgs :: JSNode -> ASTWithSourceSpan
         getArgs (NS (JSCallExpression _ [(NS (JSArguments args) srcSpan)]) _) =
             toASTArguments args srcSpan
 
 
 -- To handle the case where the last element in the list is a (JSCallExpression "[]" exp) or a
 -- (JSCallExpression "." exp).
-getASTCallExpression :: [JSNode] -> ExprWithSourceSpan
+getASTCallExpression :: [JSNode] -> ASTWithSourceSpan
 getASTCallExpression list =
-    EWSS
+    AWSS
         (CallExpression
             (listToASTExpression (init list))
             (callExpOperator $ jsnGetNode $ last list)
@@ -342,78 +371,104 @@ getASTCallExpression list =
         callExpOperator :: Node -> Operator
         callExpOperator (JSCallExpression operator _) = operator
         -- FIXME: This assumes that the expression list can only ever be singleton. Verify.
-        callExpProperty :: Node -> ExprWithSourceSpan
+        callExpProperty :: Node -> ASTWithSourceSpan
         callExpProperty (JSCallExpression "[]" [expr]) = jsnToListExp expr
         callExpProperty (JSCallExpression "." [expr]) =
-            makeASTExpression expr
+            toAST expr
 
 
-toAST :: JSNode -> [ASTWithSourceSpan]
--- These ones return a proper list of ASTs. (Haskell) Constructors which use one of these to
--- fill a field must have a [AST] for that field.
-toAST (NS (JSBlock jsnode) _) = toAST jsnode
-toAST (NS (JSFunctionBody bodyList) _) = concat $ map toAST bodyList
-toAST (NS (JSSourceElements elementsList) _) = concat $ map toAST elementsList
-toAST (NS (JSSourceElementsTop topList) _) = concat $ map toAST topList
-toAST (NS (JSStatementBlock item) _) = toAST item
-toAST (NS (JSStatementList statList) _) = concat $ map toAST statList
+-- TODO: Remove all of the nested "Block" constructors etc.
+toAST :: JSNode -> ASTWithSourceSpan
+toAST (NS (JSBlock statements) srcSpan) =
+    AWSS
+        (Block
+            (toAST statements))
+        srcSpan
+toAST (NS (JSFunctionBody bodyList) srcSpan) =
+    AWSS
+        (FunctionBody (map toAST bodyList))
+        srcSpan
+-- FIXME: Wrapping this in a List seems wrong.
+toAST (NS (JSSourceElements elementsList) srcSpan) =
+    AWSS
+        (List (map toAST elementsList))
+        srcSpan
+toAST (NS (JSSourceElementsTop elementsList) srcSpan) =
+    AWSS
+        (List (map toAST elementsList))
+        srcSpan
+toAST (NS (JSStatementBlock statements) srcSpan) =
+    AWSS
+        -- FIXME: Not sure if "Block" is the right thing here.
+        (Block
+            (toAST statements))
+        srcSpan
+toAST (NS (JSStatementList statements) srcSpan) =
+    AWSS
+        (List (map toAST statements))
+        srcSpan
+-- TODO: Do I need to do anything with the first parameter?
 toAST (NS (JSVariables _ varDecs) srcSpan) =
-    map (\jsn -> AWSS (Statement (toASTVarDeclaration jsn)) srcSpan) varDecs
+    -- FIXME: We might want to make a "variables" type for this. It depends on how we handle getting
+    -- the return value of such a list.
+    AWSS
+        (List (map toASTVarDeclaration varDecs))
+        srcSpan
 -- These ones always return singleton lists. (Haskell) Constructors which use only these to
 -- fill a field can have a AST for that field.
 toAST (NS (JSBreak label _) srcSpan) =
-    [AWSS
+    AWSS
+        -- FIXME: Why is this wrapped in a "Statement"?
         (Statement
-            (EWSS
+            (AWSS
                 (Break (liftM (identifierGetString . jsnGetNode) (listToMaybe label)))
                 srcSpan))
         srcSpan
-    ]
 toAST (NS (JSCase cs body) srcSpan) =
-    [AWSS
+    AWSS
         (Case
             (jsnToListExp cs)
-            (AWSS (Block (toAST body)) (jsnGetSource body)))
+            -- body is a JSStatementList.
+            (toAST body))
         srcSpan
-    ]
 toAST (NS (JSCatch var test body) srcSpan) =
-    [AWSS
+    AWSS
         (Catch
             (identifierGetString $ jsnGetNode var)
             (listToMaybeExpression test)
-            (AWSS (Block (toAST body)) (jsnGetSource body)))
+            -- body is a JSBlock.
+            (toAST body))
         srcSpan
-    ]
 -- TODO: In a JSContinue we always have either a list contiaining just a literal semicolon, or list
 -- with a value and a literal semicolon.
 toAST (NS (JSContinue label) srcSpan) =
-    [AWSS
+    AWSS
+        -- FIXME: Why is this wrapped in a "Statement"?
         (Statement
-            (EWSS (Continue (liftM (identifierGetString . jsnGetNode) (listToMaybe $ init label))) srcSpan))
+            (AWSS (Continue (liftM (identifierGetString . jsnGetNode) (listToMaybe $ init label))) srcSpan))
         srcSpan
-    ]
 toAST (NS (JSDefault body) srcSpan) =
-    [AWSS
+    AWSS
         (Default
-            (AWSS (Block (toAST body)) (jsnGetSource body)))
+            -- body is a JSStatementList.
+            (toAST body))
         srcSpan
-    ]
 toAST (NS (JSDoWhile body test semi) srcSpan) =
-    [AWSS
+    AWSS
         (DoWhile
-            (AWSS (Block (toAST body)) (jsnGetSource body))
+            -- body is a JSStatementBlock.
+            (toAST body)
             (jsnToListExp test))
         srcSpan
-    ]
 -- TODO: Comment on where JSExpressions come from.
 toAST (NS (JSExpression jsnList) srcSpan) =
-    [AWSS
+    AWSS
+        -- FIXME: Why is this wrapped in a "Statement"?
         (Statement
-            (EWSS
+            (AWSS
                 (List (map listToASTExpression (getSublists jsnList [])))
                 (jsnGetSource $ head jsnList)))
         srcSpan
-    ]
     where
         -- A JSExpression contains a list of JSNodes, separated by <JSLiteral ','>. These need to be
         -- seperated (basically the <JSLiteral ','>s need to be stripped).
@@ -423,145 +478,189 @@ toAST (NS (JSExpression jsnList) srcSpan) =
         getSublists (node:rest) current = getSublists rest (current ++ [node])
         getSublists [] current = [current]
 toAST (NS (JSFinally body) srcSpan) =
-    [AWSS
+    AWSS
         (Finally
-            (AWSS (Block (toAST body)) (jsnGetSource body)))
+            -- body is a JSBlock.
+            (toAST body))
         srcSpan
-    ]
 -- JSFor occurs when no varibles are declared in the loop (although they may be re-assigned).
 toAST (NS (JSFor vars test count body) srcSpan) =
-    [AWSS
+    AWSS
         (For
             (liftM jsnToListExp (listToMaybe vars))
             (liftM jsnToListExp (listToMaybe test))
             (liftM jsnToListExp (listToMaybe count))
-            (AWSS (Block (toAST body)) (jsnGetSource body)))
+            -- body is a JSStatementBlock.
+            (toAST body))
         srcSpan
-    ]
 -- JSForIn occurs when no variables are declared inside the for statement, and the loop iterates
 -- over some object (e.g. an array)
 toAST (NS (JSForIn vars obj body) srcSpan) =
-    [AWSS
+    AWSS
         (ForIn
             (map (identifierGetString . jsnGetNode) vars)
             (jsnToListExp obj)
-            (AWSS (Block (toAST body)) (jsnGetSource body)))
+            -- body is a JSStatementBlock.
+            (toAST body))
         srcSpan
-    ]
 -- JSForVar occurs in the case that variables are declared in the loop statement.
 toAST (NS (JSForVar vars test count body) srcSpan) =
-    [AWSS
+    AWSS
         (ForVar
             (map toASTVarDeclaration vars)
             (liftM jsnToListExp (listToMaybe test))
             (liftM jsnToListExp (listToMaybe count))
-            (AWSS (Block (toAST body)) (jsnGetSource body)))
+            -- body is a JSStatementBlock.
+            (toAST body))
         srcSpan
-    ]
 -- JSForVarIn occurs when variables are declared inside the for statement and the loop iterates over
 -- some object (e.g. an array)
 toAST (NS (JSForVarIn var obj body) srcSpan) =
-    [AWSS
+    AWSS
         (ForVarIn
             (toASTVarDeclaration var)
             (jsnToListExp obj)
-            (AWSS (Block (toAST body)) (jsnGetSource body)))
+            -- body is a JSStatementBlock.
+            (toAST body))
         srcSpan
-    ]
 toAST (NS (JSFunction name inputs body) srcSpan) =
-    [AWSS
+    AWSS
         (FunctionDeclaration
             (identifierGetString $ jsnGetNode name)
             (map (identifierGetString . jsnGetNode) inputs)
-            (AWSS (FunctionBody (toAST body)) (jsnGetSource body)))
+            (toAST body))
         srcSpan
-    ]
 toAST (NS (JSIf test body) srcSpan) =
-    [AWSS
+    AWSS
         (If
             (jsnToListExp test)
-            (AWSS (Block (toAST body)) (jsnGetSource body)))
+            -- body is a JSStatementBlock.
+            (toAST body))
         srcSpan
-    ]
 toAST (NS (JSIfElse test trueBody falseBody) srcSpan) =
-    [AWSS
+    AWSS
         (IfElse
             (jsnToListExp test)
-            (AWSS (Block (toAST trueBody)) (jsnGetSource trueBody))
-            (AWSS (Block (toAST falseBody)) (jsnGetSource falseBody)))
+            (toAST trueBody)
+            (toAST falseBody))
         srcSpan
-    ]
 -- TODO: Comment on what a JSLabelled is.
 toAST (NS (JSLabelled label body) srcSpan) =
-    [AWSS
+    AWSS
         (Labelled
             (identifierGetString $ jsnGetNode label)
-            (AWSS (Block (toAST body)) (jsnGetSource body)))
+            -- Body can be anything.
+            (toAST body))
         srcSpan
-    ]
 -- FIXME: Not 100% sure that this is safe.
 -- TODO: Comment on where these come from.
-toAST (NS (JSLiteral ";") srcSpan) = []
+-- FIXME: What do we do with this!!?? Do I need it?
+-- toAST (NS (JSLiteral ";") srcSpan) = []
 toAST (NS (JSReturn value) srcSpan) =
-    [AWSS
+    AWSS
         (Return
             (returnValue value))
         srcSpan
-    ]
     where
         -- The list in a JSReturn is always either a singleton list containing a semicolon, or a
         -- 2-list containing a JSNode (representing the value to be returned) and a semicolon.
-        returnValue :: [JSNode] -> ExprWithSourceSpan
-        returnValue [semi] = EWSS (Value JSUndefined) srcSpan
+        returnValue :: [JSNode] -> ASTWithSourceSpan
+        returnValue [semi] = AWSS (Value JSUndefined) srcSpan
         returnValue [val, semi] = jsnToListExp val
 toAST (NS (JSSwitch var cases) srcSpan) =
-    [AWSS
+    AWSS
         (Switch
             (jsnToListExp var)
-            -- TODO: Check the source span for the block.
-            (AWSS
-                (Block
-                    (concat $ map toAST cases))
-                (jsnGetSource $ head cases)))
+            (map toAST cases))
         srcSpan
-    ]
 toAST (NS (JSThrow expr) srcSpan) =
-    [AWSS
+    AWSS
+        -- FIXME: Why is this wrapped in a "Statement"?
         (Statement
-            (EWSS (Throw (toASTExpression expr)) srcSpan))
+            (AWSS (Throw (toASTExpression expr)) srcSpan))
         srcSpan
-    ]
     where
-        toASTExpression :: JSNode -> ExprWithSourceSpan
+        toASTExpression :: JSNode -> ASTWithSourceSpan
         toASTExpression (NS (JSExpression ex) _) = listToASTExpression ex
 toAST (NS (JSTry body catchClause) srcSpan) =
-    [AWSS
+    AWSS
         (Try
-            (AWSS
-                (Block
-                    (toAST body))
-                (jsnGetSource body))
-            -- TODO: Check the source span for the catch block.
-            (AWSS (Block
-                (concat $ map toAST catchClause))
-                (jsnGetSource $ head catchClause)))
+            -- body is a JSBlock.
+            (toAST body)
+            -- Each of these is a JSCatch or a JSFinally.
+            (map toAST catchClause))
         srcSpan
-    ]
 toAST (NS (JSWhile test body) srcSpan) =
-    [AWSS
+    AWSS
         (While
             (jsnToListExp test)
-            (AWSS (Block (toAST body)) (jsnGetSource body)))
+            -- body is a JSStatementBlock.
+            (toAST body))
         srcSpan
-    ]
 -- Anything else is assumed to be a statement.
-toAST jsn =
-    [AWSS
-        (Statement
-            (makeASTExpression jsn))
-        (jsnGetSource jsn)
-    ]
-
+-- toAST jsn =
+--     [AWSS
+--         (Statement
+--             (toAST jsn))
+--         (jsnGetSource jsn)
+--     ]
+-- toAST :: JSNode -> ASTWithSourceSpan
+toAST (NS (JSArguments args) srcSpan) = toASTArguments args srcSpan
+toAST (NS (JSExpressionBinary operator left right) srcSpan) =
+    AWSS
+        (Binary
+            operator
+            (listToASTExpression left)
+            (listToASTExpression right))
+        srcSpan
+toAST (NS (JSExpressionParen expr) srcSpan) =
+    AWSS
+        (ParenExpression
+            (jsnToListExp expr))
+        srcSpan
+toAST (NS (JSExpressionPostfix operator variable) srcSpan) =
+    AWSS
+        (UnaryPost
+            operator
+            (listToASTExpression variable))
+        srcSpan
+toAST (NS (JSExpressionTernary expr ifTrue ifFalse) srcSpan) =
+    AWSS
+        (Ternary
+            (listToASTExpression expr)
+            (listToASTExpression ifTrue)
+            (listToASTExpression ifFalse))
+        srcSpan
+toAST (NS (JSFunctionExpression name args body) srcSpan) =
+    AWSS
+        (FunctionExpression
+            (liftM (identifierGetString . jsnGetNode) (listToMaybe name))
+            (map (identifierGetString . jsnGetNode) args)
+            (toAST body))
+        srcSpan
+toAST (NS (JSIdentifier "undefined") srcSpan) =
+    AWSS (Value JSUndefined) srcSpan
+toAST (NS (JSIdentifier identifier) srcSpan) =
+    AWSS (Identifier identifier) srcSpan
+toAST (NS (JSLiteral "null") srcSpan) =
+    AWSS (Value JSNull) srcSpan
+toAST (NS (JSLiteral "this") srcSpan) =
+    AWSS (Identifier "this") srcSpan
+toAST (NS (JSMemberDot pre post) srcSpan) =
+    AWSS
+        (Reference
+            (listToASTExpression pre)
+            (toAST post))
+        srcSpan
+toAST (NS (JSMemberSquare pre post) srcSpan) =
+    AWSS
+        (Index
+            (listToASTExpression pre)
+            (jsnToListExp post))
+        srcSpan
+-- Anything left unmatched here is assumed to be a literal value.
+toAST val =
+    AWSS (Value (toASTValue val)) (jsnGetSource val)
 
 -- These functions are used to process array literals.
 --
@@ -669,17 +768,17 @@ toASTValue (NS (JSObjectLiteral list) _) =
     where
         -- Takes a JSNode that represents a property of an object and produdes a PropNameValue
         -- Expression.
-        toASTPropNameValue :: JSNode -> ExprWithSourceSpan
+        toASTPropNameValue :: JSNode -> ASTWithSourceSpan
         toASTPropNameValue
             (NS (JSPropertyNameandValue (NS (JSIdentifier name) _) value) srcSpan) =
-                EWSS
+                AWSS
                     (PropNameValue
                         (VariableProperty name)
                         (listToASTExpression value))
                     srcSpan
         toASTPropNameValue
             (NS (JSPropertyNameandValue (NS (JSDecimal index) _) value) srcSpan) =
-                EWSS
+                AWSS
                     (PropNameValue
                         (IndexProperty (read index))
                         (listToASTExpression value))
@@ -687,62 +786,3 @@ toASTValue (NS (JSObjectLiteral list) _) =
 toASTValue (NS (JSStringLiteral '"' s) _) = JSDQString s
 toASTValue (NS (JSStringLiteral _ s) _) = JSString s
 
-
-makeASTExpression :: JSNode -> ExprWithSourceSpan
-makeASTExpression (NS (JSArguments args) srcSpan) =
-    toASTArguments args srcSpan
-makeASTExpression (NS (JSExpressionBinary operator left right) srcSpan) =
-    EWSS
-        (Binary
-            operator
-            (listToASTExpression left)
-            (listToASTExpression right))
-        srcSpan
-makeASTExpression (NS (JSExpressionParen expr) srcSpan) =
-    EWSS
-        (ParenExpression
-            (jsnToListExp expr))
-        srcSpan
-makeASTExpression (NS (JSExpressionPostfix operator variable) srcSpan) =
-    EWSS
-        (UnaryPost
-            operator
-            (listToASTExpression variable))
-        srcSpan
-makeASTExpression (NS (JSExpressionTernary expr ifTrue ifFalse) srcSpan) =
-    EWSS
-        (Ternary
-            (listToASTExpression expr)
-            (listToASTExpression ifTrue)
-            (listToASTExpression ifFalse))
-        srcSpan
-makeASTExpression (NS (JSFunctionExpression name args body) srcSpan) =
-    EWSS
-        (FunctionExpression
-            (liftM (identifierGetString . jsnGetNode) (listToMaybe name))
-            (map (identifierGetString . jsnGetNode) args)
-            (AWSS (FunctionBody (toAST body)) (jsnGetSource body)))
-        srcSpan
-makeASTExpression (NS (JSIdentifier "undefined") srcSpan) =
-    EWSS (Value JSUndefined) srcSpan
-makeASTExpression (NS (JSIdentifier identifier) srcSpan) =
-    EWSS (Identifier identifier) srcSpan
-makeASTExpression (NS (JSLiteral "null") srcSpan) =
-    EWSS (Value JSNull) srcSpan
-makeASTExpression (NS (JSLiteral "this") srcSpan) =
-    EWSS (Identifier "this") srcSpan
-makeASTExpression (NS (JSMemberDot pre post) srcSpan) =
-    EWSS
-        (Reference
-            (listToASTExpression pre)
-            (makeASTExpression post))
-        srcSpan
-makeASTExpression (NS (JSMemberSquare pre post) srcSpan) =
-    EWSS
-        (Index
-            (listToASTExpression pre)
-            (jsnToListExp post))
-        srcSpan
--- Anything left unmatched here is assumed to be a literal value.
-makeASTExpression val =
-    EWSS (Value (toASTValue val)) (jsnGetSource val)
