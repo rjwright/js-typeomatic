@@ -168,8 +168,7 @@ makeSourceFragment (SpanPoint _ startRow startCol) (SpanPoint _ nextRow nextCol)
 --      WSDefault JSASTWithSourceFragment
 --      WSDoWhile JSASTWithSourceFragment ExprWithSourceFragment
 --      WSFinally JSASTWithSourceFragment
---      WSForIn [Variable] ExprWithSourceFragment JSASTWithSourceFragment
---      WSIf ExprWithSourceFragment JSASTWithSourceFragment
+     -- WSForIn [Variable] ExprWithSourceFragment JSASTWithSourceFragment
 --      WSIfElse ExprWithSourceFragment JSASTWithSourceFragment JSASTWithSourceFragment
 --      WSLabelled Variable JSASTWithSourceFragment
 --      WSSwitch ExprWithSourceFragment JSASTWithSourceFragment
@@ -253,6 +252,12 @@ jsastMakeSourceFragment (AWSS (FunctionDeclaration var args body) srcSpan) fileN
             -- The body is the last child of the function declaration,so it has the same end point.
             (jsastMakeSourceFragment body fileName nextSpan))
         (makeSourceFragment srcSpan nextSpan fileName)
+jsastMakeSourceFragment (AWSS (If expr body) srcSpan) fileName nextSpan =
+    AWSF
+        (WSIf
+            (exprMakeSourceFragment expr fileName (jsastGetSpan body))
+            (jsastMakeSourceFragment body fileName nextSpan))
+    (makeSourceFragment srcSpan nextSpan fileName)
 jsastMakeSourceFragment (AWSS (Return expr) srcSpan) fileName nextSpan =
     AWSF
         (WSReturn (exprMakeSourceFragment expr fileName nextSpan))
