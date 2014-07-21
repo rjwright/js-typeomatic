@@ -12,8 +12,6 @@
 -- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
--- Module takes a JSAST and gives each vertex a unique integer label. The label counter is simply
--- threaded through the tree. Traversal is depth first. It's all fairly straight-forward.
 
 
 -- This module takes an AST containing SrcSpans from the original AST (output from
@@ -28,17 +26,17 @@
 -- run, so I doubt this issue will be a problem in real-world usage.
 --
 -- Top level function is
--- (jsastListWSMakeSourceFragments (getJSASTWithSource (parseTree program file) file) span)
+-- (astListWSMakeSourceFragments (getASTWithSource (parseTree program file) file) span)
 
 module ResolveSourceFragments
 ( ExprWithSourceFragment(..)
 , ExprWSF(..)
-, JSASTWithSourceFragment(..)
-, JSASTWSF(..)
+, ASTWithSourceFragment(..)
+, ASTWSF(..)
 , SourceFragment(..)
 , ValueWithSourceFragment(..)
-, jsastListWSMakeSourceFragments
-, jsastMakeSourceFragment
+, astListWSMakeSourceFragments
+, astMakeSourceFragment
 ) where
 
 
@@ -76,7 +74,7 @@ data ExprWSF =
     | WSCall ExprWithSourceFragment ExprWithSourceFragment
     | WSCallExpression ExprWithSourceFragment Operator ExprWithSourceFragment
     | WSContinue (Maybe Variable)
-    | WSFunctionExpression (Maybe Variable) [Variable] JSASTWithSourceFragment
+    | WSFunctionExpression (Maybe Variable) [Variable] ASTWithSourceFragment
     | WSIdentifier Variable
     | WSIndex ExprWithSourceFragment ExprWithSourceFragment
     | WSList [ExprWithSourceFragment]
@@ -91,53 +89,53 @@ data ExprWSF =
     | WSValue ValueWithSourceFragment
     | WSVarDeclaration Variable (Maybe ExprWithSourceFragment) deriving (Show)
 
-data JSASTWSF =
-      WSBlock [JSASTWithSourceFragment]
-    | WSCase ExprWithSourceFragment JSASTWithSourceFragment
-    | WSCatch Variable (Maybe ExprWithSourceFragment) JSASTWithSourceFragment
-    | WSDefault JSASTWithSourceFragment
-    | WSDoWhile JSASTWithSourceFragment ExprWithSourceFragment
-    | WSFinally JSASTWithSourceFragment
-    | WSFor (Maybe ExprWithSourceFragment) (Maybe ExprWithSourceFragment) (Maybe ExprWithSourceFragment) JSASTWithSourceFragment
-    | WSForIn [Variable] ExprWithSourceFragment JSASTWithSourceFragment
-    | WSForVar [ExprWithSourceFragment] (Maybe ExprWithSourceFragment) (Maybe ExprWithSourceFragment) JSASTWithSourceFragment
-    | WSForVarIn ExprWithSourceFragment ExprWithSourceFragment JSASTWithSourceFragment
-    | WSFunctionBody [JSASTWithSourceFragment]
-    | WSFunctionDeclaration Variable [Variable] JSASTWithSourceFragment
-    | WSIf ExprWithSourceFragment JSASTWithSourceFragment
-    | WSIfElse ExprWithSourceFragment JSASTWithSourceFragment JSASTWithSourceFragment
-    | WSLabelled Variable JSASTWithSourceFragment
+data ASTWSF =
+      WSBlock [ASTWithSourceFragment]
+    | WSCase ExprWithSourceFragment ASTWithSourceFragment
+    | WSCatch Variable (Maybe ExprWithSourceFragment) ASTWithSourceFragment
+    | WSDefault ASTWithSourceFragment
+    | WSDoWhile ASTWithSourceFragment ExprWithSourceFragment
+    | WSFinally ASTWithSourceFragment
+    | WSFor (Maybe ExprWithSourceFragment) (Maybe ExprWithSourceFragment) (Maybe ExprWithSourceFragment) ASTWithSourceFragment
+    | WSForIn [Variable] ExprWithSourceFragment ASTWithSourceFragment
+    | WSForVar [ExprWithSourceFragment] (Maybe ExprWithSourceFragment) (Maybe ExprWithSourceFragment) ASTWithSourceFragment
+    | WSForVarIn ExprWithSourceFragment ExprWithSourceFragment ASTWithSourceFragment
+    | WSFunctionBody [ASTWithSourceFragment]
+    | WSFunctionDeclaration Variable [Variable] ASTWithSourceFragment
+    | WSIf ExprWithSourceFragment ASTWithSourceFragment
+    | WSIfElse ExprWithSourceFragment ASTWithSourceFragment ASTWithSourceFragment
+    | WSLabelled Variable ASTWithSourceFragment
     | WSReturn ExprWithSourceFragment
     | WSStatement ExprWithSourceFragment
-    | WSSwitch ExprWithSourceFragment JSASTWithSourceFragment
-    | WSTry JSASTWithSourceFragment JSASTWithSourceFragment
-    | WSWhile ExprWithSourceFragment JSASTWithSourceFragment deriving (Show)
+    | WSSwitch ExprWithSourceFragment ASTWithSourceFragment
+    | WSTry ASTWithSourceFragment ASTWithSourceFragment
+    | WSWhile ExprWithSourceFragment ASTWithSourceFragment deriving (Show)
 
 
-data JSASTWithSourceFragment =
-      AWSF JSASTWSF SourceFragment deriving (Show)
+data ASTWithSourceFragment =
+      AWSF ASTWSF SourceFragment deriving (Show)
 data ExprWithSourceFragment =
       EWSF ExprWSF SourceFragment deriving (Show)
 
 
 -- nextSpan is the list's parent's next sibling (or the end of the file, if the parent has no next
 -- sibling)
-jsastListWSMakeSourceFragments :: ([JSASTWithSourceSpan], SourceFileName) -> SrcSpan -> [JSASTWithSourceFragment]
-jsastListWSMakeSourceFragments (list, fileName) nextSpan =
-    jsastListMakeSourceFragments list fileName nextSpan
+astListWSMakeSourceFragments :: ([ASTWithSourceSpan], SourceFileName) -> SrcSpan -> [ASTWithSourceFragment]
+astListWSMakeSourceFragments (list, fileName) nextSpan =
+    astListMakeSourceFragments list fileName nextSpan
 
 
 -- nextSpan is the list's parent's next sibling (or the end of the file, if the parent has no next
 -- sibling)
-jsastListMakeSourceFragments :: [JSASTWithSourceSpan] -> SourceFileName -> SrcSpan -> [JSASTWithSourceFragment]
-jsastListMakeSourceFragments (x:y:z) fileName nextSpan =
-    (jsastMakeSourceFragment x fileName (jsastGetSpan y)):(jsastListMakeSourceFragments (y:z) fileName nextSpan)
-jsastListMakeSourceFragments (x:[]) fileName nextSpan = [jsastMakeSourceFragment x fileName nextSpan]
-jsastListMakeSourceFragments [] _ nextSpan = []
+astListMakeSourceFragments :: [ASTWithSourceSpan] -> SourceFileName -> SrcSpan -> [ASTWithSourceFragment]
+astListMakeSourceFragments (x:y:z) fileName nextSpan =
+    (astMakeSourceFragment x fileName (astGetSpan y)):(astListMakeSourceFragments (y:z) fileName nextSpan)
+astListMakeSourceFragments (x:[]) fileName nextSpan = [astMakeSourceFragment x fileName nextSpan]
+astListMakeSourceFragments [] _ nextSpan = []
 
 
-jsastGetSpan :: JSASTWithSourceSpan -> SrcSpan
-jsastGetSpan (AWSS _ srcSpan) = srcSpan
+astGetSpan :: ASTWithSourceSpan -> SrcSpan
+astGetSpan (AWSS _ srcSpan) = srcSpan
 
 
 exprGetSpan :: ExprWithSourceSpan -> SrcSpan
@@ -163,34 +161,34 @@ makeSourceFragment (SpanPoint _ startRow startCol) (SpanPoint _ nextRow nextCol)
 
 -- Here nextSpan is just the end of this fragment
 -- Still to do
---      WSCase ExprWithSourceFragment JSASTWithSourceFragment
---      WSCatch Variable (Maybe ExprWithSourceFragment) JSASTWithSourceFragment
---      WSDefault JSASTWithSourceFragment
---      WSDoWhile JSASTWithSourceFragment ExprWithSourceFragment
---      WSFinally JSASTWithSourceFragment
-     -- WSForIn [Variable] ExprWithSourceFragment JSASTWithSourceFragment
---      WSIfElse ExprWithSourceFragment JSASTWithSourceFragment JSASTWithSourceFragment
---      WSLabelled Variable JSASTWithSourceFragment
---      WSSwitch ExprWithSourceFragment JSASTWithSourceFragment
---      WSTry JSASTWithSourceFragment JSASTWithSourceFragment
---      WSWhile ExprWithSourceFragment JSASTWithSourceFragment
-jsastMakeSourceFragment :: JSASTWithSourceSpan -> SourceFileName -> SrcSpan -> JSASTWithSourceFragment
--- jsastMakeSourceFragment (AWSS () srcSpan) fileName nextSpan =
+--      WSCase ExprWithSourceFragment ASTWithSourceFragment
+--      WSCatch Variable (Maybe ExprWithSourceFragment) ASTWithSourceFragment
+--      WSDefault ASTWithSourceFragment
+--      WSDoWhile ASTWithSourceFragment ExprWithSourceFragment
+--      WSFinally ASTWithSourceFragment
+     -- WSForIn [Variable] ExprWithSourceFragment ASTWithSourceFragment
+--      WSIfElse ExprWithSourceFragment ASTWithSourceFragment ASTWithSourceFragment
+--      WSLabelled Variable ASTWithSourceFragment
+--      WSSwitch ExprWithSourceFragment ASTWithSourceFragment
+--      WSTry ASTWithSourceFragment ASTWithSourceFragment
+--      WSWhile ExprWithSourceFragment ASTWithSourceFragment
+astMakeSourceFragment :: ASTWithSourceSpan -> SourceFileName -> SrcSpan -> ASTWithSourceFragment
+-- astMakeSourceFragment (AWSS () srcSpan) fileName nextSpan =
 --     AWSF
 --         (WS...)
 --         (makeSourceFragment srcSpan nextSpan fileName)
-jsastMakeSourceFragment (AWSS (Block list) srcSpan) fileName nextSpan =
+astMakeSourceFragment (AWSS (Block list) srcSpan) fileName nextSpan =
     AWSF
-        (WSBlock (jsastListMakeSourceFragments list fileName nextSpan))
+        (WSBlock (astListMakeSourceFragments list fileName nextSpan))
         (makeSourceFragment srcSpan nextSpan fileName)
 -- FIXME: These two share a lot of code. Merge them?
-jsastMakeSourceFragment (AWSS (For vars cond expr body) srcSpan) fileName nextSpan =
+astMakeSourceFragment (AWSS (For vars cond expr body) srcSpan) fileName nextSpan =
     AWSF
         (WSFor
             (maybeExprMakeSourceFragment vars fileName varsNextSpan)
             (maybeExprMakeSourceFragment cond fileName condNextSpan)
-            (maybeExprMakeSourceFragment expr fileName (jsastGetSpan body))
-            (jsastMakeSourceFragment body fileName nextSpan))
+            (maybeExprMakeSourceFragment expr fileName (astGetSpan body))
+            (astMakeSourceFragment body fileName nextSpan))
         (makeSourceFragment srcSpan nextSpan fileName)
     where
         justSpanGetSpan (Just ss) = ss
@@ -202,19 +200,19 @@ jsastMakeSourceFragment (AWSS (For vars cond expr body) srcSpan) fileName nextSp
             else if (not (exprSrcSpan == Nothing)) then
                 justSpanGetSpan exprSrcSpan
             else
-                jsastGetSpan body
+                astGetSpan body
         condNextSpan =
             if (not (exprSrcSpan == Nothing)) then
                 justSpanGetSpan exprSrcSpan
             else
-                jsastGetSpan body
-jsastMakeSourceFragment (AWSS (ForVar vars cond expr body) srcSpan) fileName nextSpan =
+                astGetSpan body
+astMakeSourceFragment (AWSS (ForVar vars cond expr body) srcSpan) fileName nextSpan =
     AWSF
         (WSForVar
             (exprListMakeSourceFragments vars fileName varsNextSpan)
             (maybeExprMakeSourceFragment cond fileName condNextSpan)
-            (maybeExprMakeSourceFragment expr fileName (jsastGetSpan body))
-            (jsastMakeSourceFragment body fileName nextSpan))
+            (maybeExprMakeSourceFragment expr fileName (astGetSpan body))
+            (astMakeSourceFragment body fileName nextSpan))
         (makeSourceFragment srcSpan nextSpan fileName)
     where
         justSpanGetSpan (Just ss) = ss
@@ -226,43 +224,43 @@ jsastMakeSourceFragment (AWSS (ForVar vars cond expr body) srcSpan) fileName nex
             else if (not (exprSrcSpan == Nothing)) then
                 justSpanGetSpan exprSrcSpan
             else
-                jsastGetSpan body
+                astGetSpan body
         condNextSpan =
             if (not (exprSrcSpan == Nothing)) then
                 justSpanGetSpan exprSrcSpan
             else
-                jsastGetSpan body
-jsastMakeSourceFragment (AWSS (ForVarIn var obj body) srcSpan) fileName nextSpan =
+                astGetSpan body
+astMakeSourceFragment (AWSS (ForVarIn var obj body) srcSpan) fileName nextSpan =
     AWSF
         (WSForVarIn
             (exprMakeSourceFragment var fileName (exprGetSpan obj))
-            (exprMakeSourceFragment obj fileName (jsastGetSpan body))
-            (jsastMakeSourceFragment body fileName nextSpan))
+            (exprMakeSourceFragment obj fileName (astGetSpan body))
+            (astMakeSourceFragment body fileName nextSpan))
         (makeSourceFragment srcSpan nextSpan fileName)
-jsastMakeSourceFragment (AWSS (FunctionBody list) srcSpan) fileName nextSpan =
+astMakeSourceFragment (AWSS (FunctionBody list) srcSpan) fileName nextSpan =
     AWSF
         (WSFunctionBody
-        (jsastListMakeSourceFragments list fileName nextSpan))
+        (astListMakeSourceFragments list fileName nextSpan))
     (makeSourceFragment srcSpan nextSpan fileName)
-jsastMakeSourceFragment (AWSS (FunctionDeclaration var args body) srcSpan) fileName nextSpan =
+astMakeSourceFragment (AWSS (FunctionDeclaration var args body) srcSpan) fileName nextSpan =
     AWSF
         (WSFunctionDeclaration
             var
             args
             -- The body is the last child of the function declaration,so it has the same end point.
-            (jsastMakeSourceFragment body fileName nextSpan))
+            (astMakeSourceFragment body fileName nextSpan))
         (makeSourceFragment srcSpan nextSpan fileName)
-jsastMakeSourceFragment (AWSS (If expr body) srcSpan) fileName nextSpan =
+astMakeSourceFragment (AWSS (If expr body) srcSpan) fileName nextSpan =
     AWSF
         (WSIf
-            (exprMakeSourceFragment expr fileName (jsastGetSpan body))
-            (jsastMakeSourceFragment body fileName nextSpan))
+            (exprMakeSourceFragment expr fileName (astGetSpan body))
+            (astMakeSourceFragment body fileName nextSpan))
     (makeSourceFragment srcSpan nextSpan fileName)
-jsastMakeSourceFragment (AWSS (Return expr) srcSpan) fileName nextSpan =
+astMakeSourceFragment (AWSS (Return expr) srcSpan) fileName nextSpan =
     AWSF
         (WSReturn (exprMakeSourceFragment expr fileName nextSpan))
     (makeSourceFragment srcSpan nextSpan fileName)
-jsastMakeSourceFragment (AWSS (Statement expr) srcSpan) fileName nextSpan =
+astMakeSourceFragment (AWSS (Statement expr) srcSpan) fileName nextSpan =
     AWSF
         (WSStatement (exprMakeSourceFragment expr fileName nextSpan))
         (makeSourceFragment srcSpan nextSpan fileName)
@@ -339,7 +337,7 @@ exprMakeSourceFragment (EWSS (FunctionExpression name args body) srcSpan) fileNa
         (WSFunctionExpression
             name
             args
-            (jsastMakeSourceFragment body fileName nextSpan))
+            (astMakeSourceFragment body fileName nextSpan))
         (makeSourceFragment srcSpan nextSpan fileName)
 exprMakeSourceFragment (EWSS (Identifier var) srcSpan) fileName nextSpan =
     EWSF

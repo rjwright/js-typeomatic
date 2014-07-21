@@ -12,8 +12,6 @@
 -- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
--- Module takes a JSAST and gives each vertex a unique integer label. The label counter is simply
--- threaded through the tree. Traversal is depth first. It's all fairly straight-forward.
 
 
 -- This module generates type constraints (also called "type rules" or just "rules" throughout this
@@ -46,7 +44,7 @@ module TypeRules
 ) where
 
 
-import LabelJSAST
+import LabelAST
 import ParseJS
 import ResolveSourceFragments
 
@@ -119,7 +117,7 @@ data Type =
     | IntIfArrayType Type
     | IntType
     -- A type variable, basically.
-    | Meta JSASTLabel
+    | Meta ASTLabel
     | NullType
     | NumType
     -- An ObjectType contains a list of properties.
@@ -188,16 +186,16 @@ argMakeLabel (var, n) = DeclaredIdentifier var (IDLabel n)
 
 
 -- Extract the value (strip label) from a VarChild, ExprChild, ValueChild or ASTChild.
-childGetValue :: (a, JSASTLabel) -> a
+childGetValue :: (a, ASTLabel) -> a
 childGetValue (val, lab) = val
 
 
 -- Create a Meta type from the label on a VarChild, ExprChild, ValueChild or ASTChild.
-childToMeta :: (a, JSASTLabel) -> Type
+childToMeta :: (a, ASTLabel) -> Type
 childToMeta ch = Meta (childGetLabel ch)
 
 -- Create a Meta type from the label on a VarChild, ExprChild, ValueChild or ASTChild.
-childWSToMeta :: (a, JSASTLabel, b) -> Type
+childWSToMeta :: (a, ASTLabel, b) -> Type
 childWSToMeta ch = Meta (childWSGetLabel ch)
 
 -- Generate rules from a Maybe VarChild
@@ -897,7 +895,7 @@ hasUnassignedProps ast list = False
 -- If a statement in the block is a Return, or anything that has a Block field (except for a
 -- function declaration or a function expression) then we make a rule matching the type of the whole
 -- block to the type of that statment.
-blockRules :: [ASTChild] -> JSASTLabel -> SourceFragment -> [Rule]
+blockRules :: [ASTChild] -> ASTLabel -> SourceFragment -> [Rule]
 blockRules block n fragment =
     concat $ map getBlockRule block
     where
@@ -916,7 +914,7 @@ blockRules block n fragment =
 -- these?
 --
 -- TODO: Consider allowing simple inner-block returns and top-level returns.
-funBodyRules :: [ASTChild] -> JSASTLabel -> SourceFragment -> [Rule]
+funBodyRules :: [ASTChild] -> ASTLabel -> SourceFragment -> [Rule]
 funBodyRules block n fragment =
     -- If there is no return type at the top level of scope of the block then relate the type of the
     -- block to UndefType and process all child ASTs in the block. If a child AST other than a
@@ -971,13 +969,13 @@ funBodyRules block n fragment =
 --         )
 --     )
 -- ]
-constructorRules :: [ASTChild] -> JSASTLabel -> SourceFragment -> [Rule]
+constructorRules :: [ASTChild] -> ASTLabel -> SourceFragment -> [Rule]
 constructorRules block n fragment =
     [Rule (ConstructorType (Meta n)) (ObjectType (concat $ map getAssignedProperty block)) (Just fragment)]
 
 
 -- Make a rule for ASTs that have the same type as their body (a block)
-bodyRule :: ASTChild -> JSASTLabel -> Rule
+bodyRule :: ASTChild -> ASTLabel -> Rule
 bodyRule body n = Rule (Meta n) (childWSToMeta body) (Just $ childGetSource body)
 
 

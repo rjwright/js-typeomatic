@@ -20,16 +20,16 @@
 -- Top level functions are:
 --
 		-- mapPrintASTWS
-		-- 	(jsastListWSMakeSourceFragments
-		-- 		(getJSASTWithSource (parseTree program file) file)
+		-- 	(astListWSMakeSourceFragments
+		-- 		(getASTWithSource (parseTree program file) file)
 		-- 		span)
 		-- 	padding
 		-- 	printSrc
 --
 --		mapPrintASTChild
 --			(label
---				jsastListWSMakeSourceFragments
---					(getJSASTWithSource (parseTree program file) file)
+--				(astListWSMakeSourceFragments
+--					(getASTWithSource (parseTree program file) file)
 --					span))
 --			padding
 --			printSrc
@@ -49,7 +49,7 @@
 --
 -- TODO:
 --		ParseJS.parseTree (JSNode)
--- 		ParseJS.getJSASTWithSource (JSASTWithSource*Span*)
+-- 		ParseJS.getASTWithSource (ASTWithSource*Span*)
 -- 		DeclarationGraph.getDeclarationGraph (FunctionRules) - Might not be useful.
 --		DeclarationGraph.graphGetAllRules (Rule Type Type Maybe SourceFragment) would
 -- 		look better with pretty-printed Types.
@@ -69,7 +69,7 @@ module PrettyPrint
 import Data.Char
 import Data.List
 import DeclarationGraph
-import LabelJSAST
+import LabelAST
 import Language.JavaScript.Parser
 import ParseJS
 import ResolveSourceFragments
@@ -87,12 +87,12 @@ makeIndent :: String -> String
 makeIndent s = s ++ "..."
 
 
-printStrAndLabel :: String -> JSASTLabel -> LabFlag -> IO()
+printStrAndLabel :: String -> ASTLabel -> LabFlag -> IO()
 printStrAndLabel str lab False = putStr str
 printStrAndLabel str lab True = putStr (str ++ " <" ++ (show lab) ++ ">")
 
 
-printLnStrAndLabel :: String -> JSASTLabel -> LabFlag -> IO()
+printLnStrAndLabel :: String -> ASTLabel -> LabFlag -> IO()
 printLnStrAndLabel str lab printLab = do
 	printStrAndLabel str lab printLab
 	putStrLn ""
@@ -577,7 +577,7 @@ printSource sourceFragment padding printSrc =
 	else
 		return()
 
-mapPrintASTWS :: [JSASTWithSourceFragment] -> String -> SourceFlag -> IO()
+mapPrintASTWS :: [ASTWithSourceFragment] -> String -> SourceFlag -> IO()
 mapPrintASTWS [] padding _ =
 	putStrLn (padding ++ " []")
 mapPrintASTWS nodes padding printSrc =
@@ -587,13 +587,13 @@ mapPrintASTWS nodes padding printSrc =
 
 
 -- TODO: Still need to do:
---      WSDefault JSASTWithSourceFragment
---      WSDoWhile JSASTWithSourceFragment ExprWithSourceFragment
---      WSFinally JSASTWithSourceFragment
---      WSFor (Maybe ExprWithSourceFragment) (Maybe ExprWithSourceFragment) (Maybe ExprWithSourceFragment) JSASTWithSourceFragment
---      WSForIn [Variable] ExprWithSourceFragment JSASTWithSourceFragment
---      WSLabelled Variable JSASTWithSourceFragment
-printASTWS :: JSASTWithSourceFragment -> String -> SourceFlag -> IO()
+--      WSDefault ASTWithSourceFragment
+--      WSDoWhile ASTWithSourceFragment ExprWithSourceFragment
+--      WSFinally ASTWithSourceFragment
+--      WSFor (Maybe ExprWithSourceFragment) (Maybe ExprWithSourceFragment) (Maybe ExprWithSourceFragment) ASTWithSourceFragment
+--      WSForIn [Variable] ExprWithSourceFragment ASTWithSourceFragment
+--      WSLabelled Variable ASTWithSourceFragment
+printASTWS :: ASTWithSourceFragment -> String -> SourceFlag -> IO()
 printASTWS (AWSF (WSBlock list) sourceFragment) padding printSrc = do
 	putStrLn (padding ++ " Block")
 	printSource sourceFragment padding printSrc
@@ -678,7 +678,7 @@ printASTWS (AWSF (WSWhile cond body) sourceFragment) padding printSrc = do
 	printExprWS cond p printSrc
 	printASTWS body p printSrc
 printASTWS (AWSF node sourceFragment) padding printSrc = do
-	putStrLn (padding ++ " OTHER JSAST")
+	putStrLn (padding ++ " OTHER AST")
 	printSource sourceFragment padding printSrc
 	putStrLn ((makeIndent padding) ++ " " ++ (show node))
 

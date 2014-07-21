@@ -14,20 +14,20 @@
 -- limitations under the License.
 
 
--- This module takes a JSAST and gives each vertex a unique integer label. The label counter is simply
+-- This module takes a AST and gives each vertex a unique integer label. The label counter is simply
 -- threaded through the tree. Traversal is depth first. It's all fairly straight-forward.
 --
 -- Top level function is
--- (label (jsastListWSMakeSourceFragments (getJSASTWithSource (parseTree program file) file) span))
+-- (label (astListWSMakeSourceFragments (getASTWithSource (parseTree program file) file) span))
 
 
-module LabelJSAST
+module LabelAST
 ( ASTChild
 , ExprChild
 , IndexChild
-, JSASTLabel
+, ASTLabel
 , LabelledExpression(..)
-, LabelledJSAST(..)
+, LabelledAST(..)
 , LabelledPropertyName(..)
 , LabelledValue(..)
 , OpChild
@@ -47,39 +47,39 @@ import System.Environment
 
 
 -- A type for the labels.
-type JSASTLabel = Int
+type ASTLabel = Int
 
 
 -- A Variable and a label.
-type VarChild = (Variable, JSASTLabel)
+type VarChild = (Variable, ASTLabel)
 
 
 -- An Operator and a label.
-type OpChild = (Operator, JSASTLabel)
+type OpChild = (Operator, ASTLabel)
 
 
 -- An Index and a label.
-type IndexChild = (Index, JSASTLabel)
+type IndexChild = (Index, ASTLabel)
 
 
 -- A VarChild or IndexChild wrapped in a LabelledPropertyName, and a label. Added long after the
 -- original code was written.
 --
 -- TODO: Test.
-type PropertyNameChild = (LabelledPropertyName, JSASTLabel)
+type PropertyNameChild = (LabelledPropertyName, ASTLabel)
 
 
 -- A value wrapped as a LabelledValue, and a label. Most LabelledValues contain only the value and
 -- no label.
-type ValueChild = (LabelledValue, JSASTLabel)
+type ValueChild = (LabelledValue, ASTLabel)
 
 
 -- A LabelledExpression (which is a labelled subtree) and a label.
-type ExprChild = (LabelledExpression, JSASTLabel, SourceFragment)
+type ExprChild = (LabelledExpression, ASTLabel, SourceFragment)
 
 
--- A LabelledJSAST (which is a labelled subree) an a label.
-type ASTChild = (LabelledJSAST, JSASTLabel, SourceFragment)
+-- A LabelledAST (which is a labelled subree) an a label.
+type ASTChild = (LabelledAST, ASTLabel, SourceFragment)
 
 
 -- A wrapper for a VarChild or IndexChild that identifies it as a name for a an object property.
@@ -130,8 +130,8 @@ data LabelledExpression =
     | LabVarDeclaration VarChild (Maybe ExprChild) deriving (Show)
 
 
--- A recursively labelled subrtree, rooted at a LabelledJSAST.
-data LabelledJSAST =
+-- A recursively labelled subrtree, rooted at a LabelledAST.
+data LabelledAST =
       LabBlock [ASTChild]
     | LabCase ExprChild ASTChild
     | LabCatch VarChild (Maybe ExprChild) ASTChild
@@ -155,90 +155,90 @@ data LabelledJSAST =
 
 
 -- Takes an unlabelled AST and labels the whole thing.
-label :: [JSASTWithSourceFragment] -> [ASTChild]
-label list = labelJSASTList list 0
+label :: [ASTWithSourceFragment] -> [ASTChild]
+label list = labelASTList list 0
 
 
--- Extract the JSASTLabel from a VarChild, IndexChild etc.
-childGetLabel :: (a, JSASTLabel) -> JSASTLabel
+-- Extract the ASTLabel from a VarChild, IndexChild etc.
+childGetLabel :: (a, ASTLabel) -> ASTLabel
 childGetLabel (child, lab) = lab
 
--- Extract the JSASTLabel from a ASTChild, ExprChild etc.
-childWSGetLabel :: (a, JSASTLabel, b) -> JSASTLabel
+-- Extract the ASTLabel from a ASTChild, ExprChild etc.
+childWSGetLabel :: (a, ASTLabel, b) -> ASTLabel
 childWSGetLabel (_, lab, _) = lab
 
 childGetSource :: (a, b, SourceFragment) -> SourceFragment
 childGetSource (_, _, sf) = sf
 
 -- Extract the labels from a list of VarChild, IndexChild etc.
-listGetLabels :: [(a, JSASTLabel)] -> [JSASTLabel]
+listGetLabels :: [(a, ASTLabel)] -> [ASTLabel]
 listGetLabels [] = []
 listGetLabels (c:cs) = ((childGetLabel c):(listGetLabels cs))
 
 -- Extract the labels from a list of ASTChild, ExprChild etc.
-listWSGetLabels :: [(a, JSASTLabel, b)] -> [JSASTLabel]
+listWSGetLabels :: [(a, ASTLabel, b)] -> [ASTLabel]
 listWSGetLabels [] = []
 listWSGetLabels (c:cs) = ((childWSGetLabel c):(listWSGetLabels cs))
 
 
 -- Find the greater of the label on a Maybe *Child and a given value.
-maxMaybeLabel :: (Maybe (a, JSASTLabel)) -> JSASTLabel -> JSASTLabel
+maxMaybeLabel :: (Maybe (a, ASTLabel)) -> ASTLabel -> ASTLabel
 -- If the Maybe *Child is nothing then the given value is the greatest.
 maxMaybeLabel Nothing v = v
 maxMaybeLabel (Just e) v = max (childGetLabel e) v
 
 
 -- Find the greater of the label on a Maybe *Child and a given value.
-maxMaybeWSLabel :: (Maybe (a, JSASTLabel, b)) -> JSASTLabel -> JSASTLabel
+maxMaybeWSLabel :: (Maybe (a, ASTLabel, b)) -> ASTLabel -> ASTLabel
 -- If the Maybe *Child is nothing then the given value is the greatest.
 maxMaybeWSLabel Nothing v = v
 maxMaybeWSLabel (Just e) v = max (childWSGetLabel e) v
 
 -- Label a list of Varialbes.
-labelVarList :: [Variable] -> JSASTLabel -> [VarChild]
+labelVarList :: [Variable] -> ASTLabel -> [VarChild]
 labelVarList [] _ = []
 labelVarList (v:vx) n = (v, n + 1):(labelVarList vx (n + 1))
 
 
 -- Label a list of Expressions.
-labelExpressionList :: [ExprWithSourceFragment] -> JSASTLabel -> [ExprChild]
+labelExpressionList :: [ExprWithSourceFragment] -> ASTLabel -> [ExprChild]
 labelExpressionList [] _ = []
 labelExpressionList (e:ex) n =
     let (le, m, sf) = labelExpression e n in ((le, m, sf):(labelExpressionList ex m))
 
 
--- Label a list of JSASTs.
-labelJSASTList :: [JSASTWithSourceFragment] -> JSASTLabel -> [ASTChild]
-labelJSASTList [] _ = []
-labelJSASTList (a:ax) n =
-    let (la, m, sf) = labelJSAST a n in ((la, m, sf):(labelJSASTList ax m))
+-- Label a list of ASTs.
+labelASTList :: [ASTWithSourceFragment] -> ASTLabel -> [ASTChild]
+labelASTList [] _ = []
+labelASTList (a:ax) n =
+    let (la, m, sf) = labelAST a n in ((la, m, sf):(labelASTList ax m))
 
 
 -- Label a Varialble.
-labelVariable :: Variable -> JSASTLabel -> VarChild
+labelVariable :: Variable -> ASTLabel -> VarChild
 labelVariable var n = (var, n + 1)
 
 
 -- Label a Maybe Variable if it is not Nothing.
-labelMaybeVar :: (Maybe Variable) -> JSASTLabel -> (Maybe VarChild)
+labelMaybeVar :: (Maybe Variable) -> ASTLabel -> (Maybe VarChild)
 labelMaybeVar Nothing n = Nothing
 labelMaybeVar (Just var) n = Just (labelVariable var n)
 
 
 -- Label an Operator.
-labelOperator :: Operator -> JSASTLabel -> OpChild
+labelOperator :: Operator -> ASTLabel -> OpChild
 labelOperator op n = (op, n + 1)
 
 
 -- Label an Index.
-labelIndex :: Index -> JSASTLabel -> IndexChild
+labelIndex :: Index -> ASTLabel -> IndexChild
 labelIndex ix n = (ix, n + 1)
 
 
 -- Label a PropertyName.
 --
 -- TODO: Unit test?
-labelPropertyName :: PropertyName -> JSASTLabel -> PropertyNameChild
+labelPropertyName :: PropertyName -> ASTLabel -> PropertyNameChild
 labelPropertyName (IndexProperty ix) n =
     (LabIndexProperty field1, (childGetLabel field1) + 1)
     where
@@ -250,7 +250,7 @@ labelPropertyName (VariableProperty var) n =
 
 
 -- Label a Value. Recursively process any child fields.
-labelValue :: ValueWithSourceFragment -> JSASTLabel -> ValueChild
+labelValue :: ValueWithSourceFragment -> ASTLabel -> ValueChild
 labelValue (WSInt i) n = (LabInt i, n + 1)
 labelValue (WSFloat x) n = (LabFloat x, n + 1)
 labelValue (WSString s) n = (LabString s, n + 1)
@@ -269,7 +269,7 @@ labelValue (WSNull) n = (LabNull, n + 1)
 
 
 -- Label an Expression. Recursively process any child fields.
-labelExpression :: ExprWithSourceFragment -> JSASTLabel -> ExprChild
+labelExpression :: ExprWithSourceFragment -> ASTLabel -> ExprChild
 labelExpression (EWSF (WSList ex) sourceFragment) n =
     ((LabList (field1)), (maximum ((listWSGetLabels field1) ++ [n])) + 1, sourceFragment)
     where
@@ -361,7 +361,7 @@ labelExpression (EWSF (WSFunctionExpression var vars ast) sourceFragment) n =
     where
         field1 = labelMaybeVar var n
         field2 = labelVarList vars (maxMaybeLabel field1 n)
-        field3 = labelJSAST ast (maximum ((listGetLabels field2) ++ [n]))
+        field3 = labelAST ast (maximum ((listGetLabels field2) ++ [n]))
 labelExpression (EWSF (WSVarDeclaration var ex) sourceFragment) n =
     ((LabVarDeclaration field1 field2), (maxMaybeWSLabel field2 (childGetLabel field1)) + 1, sourceFragment)
     where
@@ -374,33 +374,33 @@ labelExpression (EWSF (WSNew ex) sourceFragment) n =
 
 
 -- Label a Maybe Expression if it is not Nothing.
-labelMaybeExpression :: (Maybe ExprWithSourceFragment) -> JSASTLabel -> (Maybe ExprChild)
+labelMaybeExpression :: (Maybe ExprWithSourceFragment) -> ASTLabel -> (Maybe ExprChild)
 labelMaybeExpression Nothing n = Nothing
 labelMaybeExpression (Just ex) n = Just $ labelExpression ex n
 
 
--- Label a JSAST. Recursively process any child fields.
-labelJSAST :: JSASTWithSourceFragment -> JSASTLabel -> ASTChild
-labelJSAST (AWSF (WSBlock jsastLs) sourceFragment) n =
+-- Label a AST. Recursively process any child fields.
+labelAST :: ASTWithSourceFragment -> ASTLabel -> ASTChild
+labelAST (AWSF (WSBlock astList) sourceFragment) n =
     ((LabBlock field1), (maximum ((listWSGetLabels field1) ++ [n])) + 1, sourceFragment)
     where
-        field1 = labelJSASTList jsastLs n
-labelJSAST (AWSF (WSFunctionBody jsastLs) sourceFragment) n =
+        field1 = labelASTList astList n
+labelAST (AWSF (WSFunctionBody astList) sourceFragment) n =
     ((LabFunctionBody field1), (maximum ((listWSGetLabels field1) ++ [n])) + 1, sourceFragment)
     where
-        field1 = labelJSASTList jsastLs n
-labelJSAST (AWSF (WSFunctionDeclaration var args body) sourceFragment) n =
+        field1 = labelASTList astList n
+labelAST (AWSF (WSFunctionDeclaration var args body) sourceFragment) n =
     ((LabFunctionDeclaration field1 field2 field3), (childWSGetLabel field3) + 1, sourceFragment)
     where
         field1 = labelVariable var n
         field2 = labelVarList args (childGetLabel field1)
-        field3 = labelJSAST body $ maximum ((listGetLabels field2) ++ [childGetLabel field1])
-labelJSAST (AWSF (WSLabelled var body) sourceFragment) n =
+        field3 = labelAST body $ maximum ((listGetLabels field2) ++ [childGetLabel field1])
+labelAST (AWSF (WSLabelled var body) sourceFragment) n =
     ((LabLabelled field1 field2), (childWSGetLabel field2) + 1, sourceFragment)
     where
         field1 = labelVariable var n
-        field2 = labelJSAST body (childGetLabel field1)
-labelJSAST (AWSF (WSForVar ex1 ex2 ex3 body) sourceFragment) n =
+        field2 = labelAST body (childGetLabel field1)
+labelAST (AWSF (WSForVar ex1 ex2 ex3 body) sourceFragment) n =
     ((LabForVar field1 field2 field3 field4), (childWSGetLabel field4) + 1, sourceFragment)
     where
         field1 = labelExpressionList ex1 n
@@ -408,13 +408,13 @@ labelJSAST (AWSF (WSForVar ex1 ex2 ex3 body) sourceFragment) n =
         field3 =
             labelMaybeExpression ex3 $ maximum ((listWSGetLabels field1) ++ [maxMaybeWSLabel field2 n])
         field4 =
-            labelJSAST
+            labelAST
                 body
                 $ maximum
                     ((listWSGetLabels field1)
                     ++ [maxMaybeWSLabel field2 n]
                     ++ [maxMaybeWSLabel field3 n])
-labelJSAST (AWSF (WSFor ex1 ex2 ex3 body) sourceFragment) n =
+labelAST (AWSF (WSFor ex1 ex2 ex3 body) sourceFragment) n =
     ((LabFor field1 field2 field3 field4), (childWSGetLabel field4) + 1, sourceFragment)
     where
         field1 = labelMaybeExpression ex1 n
@@ -422,79 +422,79 @@ labelJSAST (AWSF (WSFor ex1 ex2 ex3 body) sourceFragment) n =
         field3 =
             labelMaybeExpression ex3 $ max (maxMaybeWSLabel field1 n) (maxMaybeWSLabel field2 n)
         field4 =
-            labelJSAST
+            labelAST
                 body
                 $ maximum
                     ([maxMaybeWSLabel field1 n]
                     ++ [maxMaybeWSLabel field2 n]
                     ++ [maxMaybeWSLabel field3 n])
-labelJSAST (AWSF (WSForIn vars ex body) sourceFragment) n =
+labelAST (AWSF (WSForIn vars ex body) sourceFragment) n =
     ((LabForIn field1 field2 field3), (childWSGetLabel field3) + 1, sourceFragment)
     where
         field1 = labelVarList vars n
         field2 = labelExpression ex $ maximum ((listGetLabels field1) ++ [n])
-        field3 = labelJSAST body (childWSGetLabel field2)
-labelJSAST (AWSF (WSForVarIn ex1 ex2 body) sourceFragment) n =
+        field3 = labelAST body (childWSGetLabel field2)
+labelAST (AWSF (WSForVarIn ex1 ex2 body) sourceFragment) n =
     ((LabForVarIn field1 field2 field3), (childWSGetLabel field3) + 1, sourceFragment)
     where
         field1 = labelExpression ex1 n
         field2 = labelExpression ex2 (childWSGetLabel field1)
-        field3 = labelJSAST body (childWSGetLabel field2)
-labelJSAST (AWSF (WSWhile ex body) sourceFragment) n =
+        field3 = labelAST body (childWSGetLabel field2)
+labelAST (AWSF (WSWhile ex body) sourceFragment) n =
     ((LabWhile field1 field2), (childWSGetLabel field2) + 1, sourceFragment)
     where
         field1 = labelExpression ex n
-        field2 = labelJSAST body (childWSGetLabel field1)
-labelJSAST (AWSF (WSDoWhile body ex) sourceFragment) n  =
+        field2 = labelAST body (childWSGetLabel field1)
+labelAST (AWSF (WSDoWhile body ex) sourceFragment) n  =
     ((LabDoWhile field1 field2), (childWSGetLabel field2) + 1, sourceFragment)
     where
-        field1 = labelJSAST body n
+        field1 = labelAST body n
         field2 = labelExpression ex (childWSGetLabel field1)
-labelJSAST (AWSF (WSIf ex body) sourceFragment) n =
+labelAST (AWSF (WSIf ex body) sourceFragment) n =
     ((LabIf field1 field2), (childWSGetLabel field2) + 1, sourceFragment)
     where
         field1 = labelExpression ex n
-        field2 = labelJSAST body (childWSGetLabel field1)
-labelJSAST (AWSF (WSIfElse ex bodyT bodyF) sourceFragment) n =
+        field2 = labelAST body (childWSGetLabel field1)
+labelAST (AWSF (WSIfElse ex bodyT bodyF) sourceFragment) n =
     ((LabIfElse field1 field2 field3), (childWSGetLabel field3) + 1, sourceFragment)
     where
         field1 = labelExpression ex n
-        field2 = labelJSAST bodyT (childWSGetLabel field1)
-        field3 = labelJSAST bodyF (childWSGetLabel field2)
-labelJSAST (AWSF (WSSwitch ex cs) sourceFragment) n =
+        field2 = labelAST bodyT (childWSGetLabel field1)
+        field3 = labelAST bodyF (childWSGetLabel field2)
+labelAST (AWSF (WSSwitch ex cs) sourceFragment) n =
     ((LabSwitch field1 field2), (childWSGetLabel field2) + 1, sourceFragment)
     where
         field1 = labelExpression ex n
-        field2 = labelJSAST cs (childWSGetLabel field1)
-labelJSAST (AWSF (WSCase ex body) sourceFragment) n =
+        field2 = labelAST cs (childWSGetLabel field1)
+labelAST (AWSF (WSCase ex body) sourceFragment) n =
     ((LabCase field1 field2), (childWSGetLabel field2) + 1, sourceFragment)
     where
         field1 = labelExpression ex n
-        field2 = labelJSAST body (childWSGetLabel field1)
-labelJSAST (AWSF (WSDefault body) sourceFragment) n =
+        field2 = labelAST body (childWSGetLabel field1)
+labelAST (AWSF (WSDefault body) sourceFragment) n =
     ((LabDefault field1), (childWSGetLabel field1) + 1, sourceFragment)
     where
-        field1 = labelJSAST body n
-labelJSAST (AWSF (WSTry body ctch) sourceFragment) n =
+        field1 = labelAST body n
+labelAST (AWSF (WSTry body ctch) sourceFragment) n =
     ((LabTry field1 field2), (childWSGetLabel field2) + 1, sourceFragment)
     where
-        field1 = labelJSAST body n
-        field2 = labelJSAST ctch (childWSGetLabel field1)
-labelJSAST (AWSF (WSCatch var ex body) sourceFragment) n =
+        field1 = labelAST body n
+        field2 = labelAST ctch (childWSGetLabel field1)
+labelAST (AWSF (WSCatch var ex body) sourceFragment) n =
     ((LabCatch field1 field2 field3), (childWSGetLabel field3) + 1, sourceFragment)
     where
         field1 = labelVariable var n
         field2 = labelMaybeExpression ex (childGetLabel field1)
-        field3 = labelJSAST body (maxMaybeWSLabel field2 (childGetLabel field1))
-labelJSAST (AWSF (WSFinally body) sourceFragment) n =
+        field3 = labelAST body (maxMaybeWSLabel field2 (childGetLabel field1))
+labelAST (AWSF (WSFinally body) sourceFragment) n =
     ((LabFinally field1), (childWSGetLabel field1) + 1, sourceFragment)
     where
-        field1 = labelJSAST body n
-labelJSAST (AWSF (WSReturn ex) sourceFragment) n =
+        field1 = labelAST body n
+labelAST (AWSF (WSReturn ex) sourceFragment) n =
     ((LabReturn field1), (childWSGetLabel field1) + 1, sourceFragment)
     where
         field1 = labelExpression ex n
-labelJSAST (AWSF (WSStatement ex) sourceFragment) n =
+labelAST (AWSF (WSStatement ex) sourceFragment) n =
     ((LabStatement field1), (childWSGetLabel field1) + 1, sourceFragment)
     where
         field1 = labelExpression ex n

@@ -29,8 +29,8 @@
 --
 --        (getDeclarationGraph
 --           (label
---               (jsastListWSMakeSourceFragments
---                   (getJSASTWithSource
+--               (astListWSMakeSourceFragments
+--                   (getASTWithSource
 --                       (parseTree
 --                           program
 --                           file)
@@ -67,7 +67,7 @@
 ) where
 
 
-import LabelJSAST
+import LabelAST
 import ParseJS
 import ResolveSourceFragments
 import System.Environment
@@ -333,18 +333,18 @@ mapFunExprGetAllRules [] rules = rules
 getDeclarationGraph :: [ASTChild] -> SourceFragment -> FunctionRules
 -- Make a dummy global function, with all global level functions and variables declared in the
 -- "body" of the global function.
-getDeclarationGraph jsastLab fragment =
+getDeclarationGraph astLab fragment =
     FunctionRules
         GlobalID
-        (mapASTChildRules jsastLab dIDs)
-        (mapASTGetFR jsastLab (ParentGlobal jsastLab) dIDs)
-        (mapASTGetFER jsastLab (ParentGlobal jsastLab) dIDs)
-        (concat $ map astGetVarDecs jsastLab)
+        (mapASTChildRules astLab dIDs)
+        (mapASTGetFR astLab (ParentGlobal astLab) dIDs)
+        (mapASTGetFER astLab (ParentGlobal astLab) dIDs)
+        (concat $ map astGetVarDecs astLab)
         fragment
         TopLevel
     where
         -- Get identifiers for everything declared at the global level.
-        dIDs = (concat $ map astGetVarDecs jsastLab)
+        dIDs = (concat $ map astGetVarDecs astLab)
 
 
 -- Find all indentifiers declared in the signature and body of a function.
@@ -697,7 +697,7 @@ maybeExprGetVarDecs Nothing = []
 maybeExprGetVarDecs (Just ex) = exprGetVarDecs ex
 
 
--- Find all identifiers declared in a JSAST. All of these, with the exception of
+-- Find all identifiers declared in a AST. All of these, with the exception of
 -- LabFunctionDeclaration and LabLabelled, return nothing or recursively process any AST or
 -- expression fields.
 astGetVarDecs :: ASTChild -> [DeclaredIdentifier]
