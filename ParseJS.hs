@@ -235,51 +235,44 @@ listToASTExpression [x, (NS (JSArguments args) srcSpan)] =
     AWSS
         (Call
             (toAST x)
-            (toASTArguments args srcSpan))
+            (toAST (NS (JSArguments args) srcSpan)))
         (jsnGetSource x)
 -- To handle the case where the last element in the list is a (JSCallExpression "[]" exp) or a
 -- (JSCallExpression "." exp).
 listToASTExpression list | (isCallExpression $ last list) =
-    getASTCallExpression list
+    AWSS
+        (CallExpression
+            (listToASTExpression (init list))
+            (callExpOperator $ jsnGetNode $ last list)
+            (callExpProperty $ jsnGetNode $ last list))
+        (jsnGetSource $ head list)
     where
         isCallExpression :: JSNode -> Bool
         isCallExpression (NS (JSCallExpression "." _) _) = True
         isCallExpression (NS (JSCallExpression "[]" _) _) = True
         isCallExpression _ = False
-        getASTCallExpression :: [JSNode] -> ASTWithSourceSpan
-        getASTCallExpression ls =
-            AWSS
-                (CallExpression
-                    (listToASTExpression (init ls))
-                    (callExpOperator $ jsnGetNode $ last ls)
-                    (callExpProperty $ jsnGetNode $ last ls))
-                (jsnGetSource $ head ls)
         callExpOperator :: Node -> Operator
         callExpOperator (JSCallExpression operator _) = operator
         -- FIXME: This assumes that the expression list can only ever be singleton. Verify.
         callExpProperty :: Node -> ASTWithSourceSpan
-        callExpProperty (JSCallExpression _ [expr]) = toAST expr
+        callExpProperty (JSCallExpression _ [member]) = toAST member
 -- To handle the case where the last element of a list is a (JSCallExpression "()" [JSArguments
 -- _]) I don't know if the second field can be anything other than a singleton list containing a
 -- JSArguments but for now I'm just going to hope not.
 --
 -- TODO: Find out what values the arguments list can have.
 listToASTExpression list | (isParenCallExp $ last list) =
-    getASTCall list
+    AWSS
+        (Call
+            (listToASTExpression (init list))
+            (getArgs $ jsnGetNode $ last list))
+        (jsnGetSource $ head list)
     where
         isParenCallExp :: JSNode -> Bool
         isParenCallExp (NS (JSCallExpression "()" _) _) = True
         isParenCallExp _ = False
-        getASTCall :: [JSNode] -> ASTWithSourceSpan
-        getASTCall ls =
-            AWSS
-                (Call
-                    (listToASTExpression (init ls))
-                    (getArgs $ last ls))
-                (jsnGetSource $ head ls)
-        getArgs :: JSNode -> ASTWithSourceSpan
-        getArgs (NS (JSCallExpression _ [(NS (JSArguments args) srcSpan)]) _) =
-            toASTArguments args srcSpan
+        getArgs :: Node -> ASTWithSourceSpan
+        getArgs (JSCallExpression _ [args]) = toAST args
 -- FIXME: Anything else is assumed to be an assignment. Verify that that assumption is correct.
 listToASTExpression list =
     getASTAssignment list []
@@ -301,15 +294,6 @@ listToASTExpression list =
         getASTAssignment (x:xs) preCurrent = getASTAssignment xs (preCurrent ++ [x])
 
 
-toASTArguments :: [[JSNode]] -> SrcSpan -> ASTWithSourceSpan
-toASTArguments args srcSpan =
-    AWSS (Arguments (map getASTArgument args)) srcSpan
-    where
-        getASTArgument :: [JSNode] -> ASTWithSourceSpan
-        getASTArgument (item:[]) = toAST item
-        getASTArgument nodes = listToASTExpression nodes
-
-
 toASTVarDeclaration :: JSNode -> ASTWithSourceSpan
 toASTVarDeclaration (NS (JSVarDecl name value) srcSpan) =
     AWSS
@@ -317,6 +301,7 @@ toASTVarDeclaration (NS (JSVarDecl name value) srcSpan) =
             (identifierGetString $ jsnGetNode name)
             (listToMaybeExpression value))
         srcSpan
+
 
 -- TODO: Check use of this. Probably used in more places than needed.
 filterSemicolons :: [JSNode] -> [JSNode]
@@ -328,7 +313,7 @@ filterSemicolons jsnList =
 
 -- TODO: Remove all of the nested constructors.
 -- TODO: Alpha order.
--- TODO: Have filtered all semicolons. Is that OK?
+-- TODO: All semicolons have been filtered out. Is that OK?
 toAST :: JSNode -> ASTWithSourceSpan
 toAST (NS (JSBlock statements) srcSpan) =
     AWSS
@@ -548,7 +533,11 @@ toAST (NS (JSWhile test body) srcSpan) =
             -- body is a JSStatementBlock.
             (toAST body))
         srcSpan
-toAST (NS (JSArguments args) srcSpan) = toASTArguments args srcSpan
+toAST (NS (JSArguments args) srcSpan) =
+    AWSS
+        (Arguments
+            (map listToASTExpression args))
+        srcSpan
 toAST (NS (JSExpressionBinary operator left right) srcSpan) =
     AWSS
         (Binary
@@ -604,6 +593,7 @@ toAST (NS (JSMemberSquare pre post) srcSpan) =
 -- Anything left unmatched here is assumed to be a literal value.
 toAST val =
     AWSS (Value (toASTValue val)) (jsnGetSource val)
+
 
 -- These functions are used to process array literals.
 --
