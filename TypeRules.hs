@@ -161,7 +161,7 @@ data DeclaredIdentifier = DeclaredIdentifier Variable IdentifierLabel deriving (
 -- as the DeclaredIdentifiers need to be made more than once in some cases
 -- *************************************************************************************************
 -- TODO: Move these into a module?
-funExprMakeLabel :: ExprChild -> (Maybe DeclaredIdentifier)
+funExprMakeLabel :: ASTChild -> (Maybe DeclaredIdentifier)
 funExprMakeLabel (LabFunctionExpression mv vls body, n, sourceFragment) =
     maybeID mv n
     where
@@ -169,7 +169,7 @@ funExprMakeLabel (LabFunctionExpression mv vls body, n, sourceFragment) =
         maybeID (Just (ident, _)) x = Just (DeclaredIdentifier ident (IDLabel x))
 
 
-varDecMakeLabel :: ExprChild -> DeclaredIdentifier
+varDecMakeLabel :: ASTChild -> DeclaredIdentifier
 varDecMakeLabel (LabVarDeclaration (var, x) mex, n, sourceFragment) = DeclaredIdentifier var (IDLabel n)
 
 funDecMakeLabel :: ASTChild -> DeclaredIdentifier
@@ -185,16 +185,16 @@ argMakeLabel (var, n) = DeclaredIdentifier var (IDLabel n)
 ----------------------------------------------------------------------------------------------------
 
 
--- Extract the value (strip label) from a VarChild, ExprChild, ValueChild or ASTChild.
+-- Extract the value (strip label) from a VarChild, ASTChild, ValueChild or ASTChild.
 childGetValue :: (a, ASTLabel) -> a
 childGetValue (val, lab) = val
 
 
--- Create a Meta type from the label on a VarChild, ExprChild, ValueChild or ASTChild.
+-- Create a Meta type from the label on a VarChild, ASTChild, ValueChild or ASTChild.
 childToMeta :: (a, ASTLabel) -> Type
 childToMeta ch = Meta (childGetLabel ch)
 
--- Create a Meta type from the label on a VarChild, ExprChild, ValueChild or ASTChild.
+-- Create a Meta type from the label on a VarChild, ASTChild, ValueChild or ASTChild.
 childWSToMeta :: (a, ASTLabel, b) -> Type
 childWSToMeta ch = Meta (childWSGetLabel ch)
 
@@ -204,10 +204,10 @@ maybeVarChildRules (Just vc) dIDs = varChildRules vc dIDs
 maybeVarChildRules Nothing _ = []
 
 
--- Generate rules from a Maybe ExprChild
-maybeExprChildRules :: (Maybe ExprChild) -> [DeclaredIdentifier] -> [Rule]
-maybeExprChildRules (Just ec) dIDs = exprChildRules ec dIDs
-maybeExprChildRules Nothing _ = []
+-- Generate rules from a Maybe ASTChild
+maybeASTChildRules :: (Maybe ASTChild) -> [DeclaredIdentifier] -> [Rule]
+maybeASTChildRules (Just ec) dIDs = astChildRules ec dIDs
+maybeASTChildRules Nothing _ = []
 
 
 -- Generate rules from a VarChild list
@@ -218,12 +218,12 @@ mapVarChildRules var dIDs =
         mapVarChildRules' v = varChildRules v dIDs
 
 
--- Generate rules from an ExprChild list
-mapExprChildRules :: [ExprChild] -> [DeclaredIdentifier] -> [Rule]
-mapExprChildRules ex dIDs =
-    concat $ map mapExprChildRules' ex
-    where
-        mapExprChildRules' e = exprChildRules e dIDs
+-- Generate rules from an ASTChild list
+-- mapASTChildRules :: [ASTChild] -> [DeclaredIdentifier] -> [Rule]
+-- mapASTChildRules ex dIDs =
+--     concat $ map mapASTChildRules' ex
+--     where
+--         mapASTChildRules' e = astChildRules e dIDs
 
 
 -- Gernerate rules from an ASTChild list
@@ -285,15 +285,15 @@ valueChildRules (LabObject members, x) dIDs =
             -- The whole reference expression has the same type as the value of the property.
             ++ [Rule (Meta n) (childWSToMeta ex) Nothing]
             -- Recursively process value of property.
-            ++ (exprChildRules ex dIDs)
+            ++ (astChildRules ex dIDs)
 -- Make a rule for the array. Make rules for the elements in the array. Make rules for the values of
 -- the elements in the array.
 --
--- TODO: Make sure that exprChildRules always binds n to something meaningfull (n is the bridge from
+-- TODO: Make sure that astChildRules always binds n to something meaningfull (n is the bridge from
 -- the element to the expression that is its value).
 valueChildRules (LabArray elements, x) dIDs =
     [Rule (Meta x) (ArrayType (elemTypes elements [] 0)) Nothing]
-    ++ (mapExprChildRules elements dIDs)
+    ++ (mapASTChildRules elements dIDs)
     ++ (elemTypeRules elements [] 0)
     where
         -- We know that the property name is an index because this is an array (not actually true
@@ -320,425 +320,20 @@ valueChildRules (LabNull, x) dIDs = [Rule (Meta x) NullType Nothing]
 
 -- Generate rules from an expression.
 --
--- TODO: Go through and give the parameters for exprChildRules meaningfull names!
-exprChildRules :: ExprChild -> [DeclaredIdentifier] -> [Rule]
--- The type of a list of expressions is the same as the type of the last expression in the list.
---
--- FIXME: Not 100% sure that that is accurate.
-exprChildRules (LabList expList, n, sourceFragment) dIDs =
-    [Rule (Meta n) (childWSToMeta $ last expList) (Just sourceFragment)]
-    ++ (mapExprChildRules expList dIDs)
--- The '+' operator has unique behavior. The type of the expression depends on the types of both
--- operands. There is a custom type - PlusType - for this operator and the '+=' operator.
-exprChildRules (LabBinary ("+", _) ex1 ex2, n, sourceFragment) dIDs =
-    [Rule (Meta n) (PlusType (childWSToMeta ex1) (childWSToMeta ex2)) (Just sourceFragment)]
-    ++ [Rule (PlusType (childWSToMeta ex1) (childWSToMeta ex2)) (Meta n) (Just sourceFragment)]
-    ++ (exprChildRules ex1 dIDs)
-    ++ (exprChildRules ex2 dIDs)
--- These operators only act on numbers. If both operands are of integer type then the expression is
--- of integer type. If both operands are of the weaker NumType then the expression has type NumType.
--- If either of the operands has type float then the expression has type float.
-exprChildRules (LabBinary (op, _) ex1 ex2, n, sourceFragment) dIDs | elem op ["-", "%", "*"] =
-    [Rule (childWSToMeta ex1) NumType (Just sourceFragment)]
-    ++ [Rule (childWSToMeta ex2) NumType (Just sourceFragment)]
-    ++ [Rule (Meta n) (IntAndInt (childWSToMeta ex1) (childWSToMeta ex2)) (Just sourceFragment)]
-    ++ (exprChildRules ex1 dIDs)
-    ++ (exprChildRules ex2 dIDs)
--- '/' only operates on numbers. The whole expression has type float.
-exprChildRules (LabBinary ("/", _) ex1 ex2, n, sourceFragment) dIDs =
-    [Rule (childWSToMeta ex1) NumType (Just sourceFragment)]
-    ++ [Rule (childWSToMeta ex2) NumType (Just sourceFragment)]
-    ++ [Rule (Meta n) FloatType (Just sourceFragment)]
-    ++ (exprChildRules ex1 dIDs)
-    ++ (exprChildRules ex2 dIDs)
--- Bitwise binary operators act only on numbers (which are cast to integers). The type of the
--- expression is integer.
-exprChildRules (LabBinary (op, _) ex1 ex2, n, sourceFragment) dIDs | elem op ["&", "|", "^"] =
-    [Rule (Meta n) IntType (Just sourceFragment)]
-    ++ [Rule (childWSToMeta ex1) NumType (Just sourceFragment)]
-    ++ [Rule (childWSToMeta ex2) NumType (Just sourceFragment)]
-    ++ (exprChildRules ex1 dIDs)
-    ++ (exprChildRules ex2 dIDs)
--- Bitwise shift operators act only one numbers (which are cast to integers). The type of the
--- expression is integer.
---
--- FIXME: Pre-define these operator lists somewhere so that these signatures aren't so long
-exprChildRules (LabBinary (op, _) ex1 ex2, n, sourceFragment) dIDs | elem op ["<<", ">>", ">>>"] =
-    [Rule (Meta n) IntType (Just sourceFragment)]
-    ++ [Rule (childWSToMeta ex1) NumType (Just sourceFragment)]
-    ++ [Rule (childWSToMeta ex2) NumType (Just sourceFragment)]
-    ++ (exprChildRules ex1 dIDs)
-    ++ (exprChildRules ex2 dIDs)
--- The type of a comparison expression is Bool.
-exprChildRules (LabBinary (op, _) ex1 ex2, n, sourceFragment) dIDs
-    | elem op ["==", "!=", "===", "!==", ">", "<", ">=", "<="] =
-        [Rule (Meta n) BoolType (Just sourceFragment)]
-        ++ (exprChildRules ex1 dIDs)
-        ++ (exprChildRules ex2 dIDs)
--- The type of a binary logic expression is Bool. JavaScript's interpretation of various expressions
--- when cast to boolean is complex. What we want to do with it depends on what we want to do with
--- the compiler.
-exprChildRules (LabBinary (op, _) ex1 ex2, n, sourceFragment) dIDs | elem op ["&&", "||"] =
-    [Rule (Meta n) BoolType (Just sourceFragment)]
-    ++ (exprChildRules ex1 dIDs)
-    ++ (exprChildRules ex2 dIDs)
--- Tye type of an in expression is bool.
--- TODO: Added in 2014. Revisit.
-exprChildRules (LabBinary (" in ", _) ex1 ex2, n, sourceFragment) dIDs =
-    [Rule (Meta n) BoolType (Just sourceFragment)]
-    -- For type safety, ex1 must be an object or array; but it doesn't have to contain ex2. I
-    -- might need to introduce another type to represent this properly.
-    ++
-    (if ((isIntLiteral ex2) || (isStringLiteral ex2)) then
-        [Rule (childWSToMeta ex1) (AtLeastObjectType []) (Just sourceFragment)]
 
-    else
-        [Rule (childWSToMeta ex1) (AtLeastObjectType []) (Just sourceFragment)]
-        -- If the object is not an array then type inference on the object and all of its members
-        -- must fail.
-        ++ [Rule (childWSToMeta ex1) (CorruptIfObjectType (childWSToMeta ex1)) (Just sourceFragment)]
-        -- If the object is an array then the index must have reference type (because we are, for
-        -- now, disregarding the case where the user references a property of the array other than
-        -- an element.)
-        ++ [Rule (childWSToMeta ex2) (IntIfArrayType (childWSToMeta ex1)) (Just sourceFragment)])
-    ++ (exprChildRules ex1 dIDs)
-    ++ (exprChildRules ex2 dIDs)
--- The type of a "instanceof" expression is bool.
--- TODO: Added in 2014. Revisit.
-exprChildRules (LabBinary (" instanceof ", _) ex1 ex2, n, sourceFragment) dIDs =
-    [Rule (Meta n) BoolType (Just sourceFragment)]
-    -- FIXME: If ex2 isn't a function then JS throws a  TypeError. There should be a Rule equating
-    -- ex2 with Function, but there isn't at this stage. Might need to introduce a new Type for
-    -- this.
-    ++ (exprChildRules ex1 dIDs)
-    ++ (exprChildRules ex2 dIDs)
--- Postfix '++' or '--' only operate on numbers. They type of the expression is number (integer if
--- ex is integer and float if ex is float).
-exprChildRules (LabUnaryPost op ex, n, sourceFragment) dIDs =
-    [Rule (childWSToMeta ex) NumType (Just sourceFragment)]
-    ++ [Rule (Meta n) (childWSToMeta ex) (Just sourceFragment)]
-    ++ (exprChildRules ex dIDs)
--- These only operate on numbers. The type of the expression is the type of ex.
-exprChildRules (LabUnaryPre (op, _) ex, n, sourceFragment) dIDs | elem op ["++", "--", "-", "+"] =
-    [Rule (childWSToMeta ex) NumType (Just sourceFragment)]
-    ++ [Rule (Meta n) (childWSToMeta ex) (Just sourceFragment)]
-    ++ (exprChildRules ex dIDs)
--- The type of a not expression is bool.
-exprChildRules (LabUnaryPre ("!", _) ex, n, sourceFragment) dIDs =
-    [Rule (Meta n) BoolType (Just sourceFragment)]
-    ++ (exprChildRules ex dIDs)
--- The type of a "typeof" expression is string.
--- TODO: Added in 2014. Revisit.
-exprChildRules (LabUnaryPre ("typeof ", _) ex, n, sourceFragment) dIDs =
-    [Rule (Meta n) StringType (Just sourceFragment)]
-    ++ (exprChildRules ex dIDs)
--- The type of the condition in a ternary expression is bool. They type of the whole expression is
--- the type of the two optional expressions. If they don't have the same type then type inference on
--- the expression fails.
-exprChildRules (LabTernary ex1 ex2 ex3, n, sourceFragment) dIDs =
-    [boolRule ex1]
-    ++ [Rule (Meta n) (childWSToMeta ex2) (Just sourceFragment)]
-    ++ [Rule (Meta n) (childWSToMeta ex3) (Just sourceFragment)]
-    ++ (exprChildRules ex1 dIDs)
-    ++ (exprChildRules ex2 dIDs)
-    ++ (exprChildRules ex3 dIDs)
--- They type of an assignment expression is the type of the value that is being assigned to the
--- variable. The type of the variable is the type if its assigned value.
-exprChildRules (LabAssignment ("=", _) ex1 ex2, n, sourceFragment) dIDs =
-    [Rule (Meta n) (childWSToMeta ex2) (Just sourceFragment)]
-    ++ [Rule (childWSToMeta ex1) (childWSToMeta ex2) (Just sourceFragment)]
-    ++ (exprChildRules ex1 dIDs)
-    ++ (exprChildRules ex2 dIDs)
--- Similar to the '+' operator. This introduces a horrible cycle but I don't think I can avoid it,
--- because the new type of the variable depends on its old type. The unification algorith will have
--- to handle it.
-exprChildRules (LabAssignment ("+=", _) ex1 ex2, n, sourceFragment) dIDs =
-    [Rule (Meta n) (PlusType (childWSToMeta ex1) (childWSToMeta ex2)) (Just sourceFragment)]
-    ++ [Rule (childWSToMeta ex1) (Meta n) (Just sourceFragment)]
-    ++ (exprChildRules ex1 dIDs)
-    ++ (exprChildRules ex2 dIDs)
--- Similar to the '-', '*' and '%' operators. This also introduces a cycle, but I don't think I can
--- avoid it, as the new type of the variable depends on its old type. The unification algorithm will
--- have to handle it.
-exprChildRules (LabAssignment (op, _) ex1 ex2, n, sourceFragment) dIDs | elem op ["-=", "*=", "%="] =
-    [Rule (Meta n) (IntAndInt (childWSToMeta ex1) (childWSToMeta ex2)) (Just sourceFragment)]
-    ++ [Rule (childWSToMeta ex1) (Meta n) (Just sourceFragment)]
-    ++ [Rule (childWSToMeta ex2) NumType (Just sourceFragment)]
-    ++ (exprChildRules ex1 dIDs)
-    ++ (exprChildRules ex2 dIDs)
--- Similar to the '/' operator.
-exprChildRules (LabAssignment (op, _) ex1 ex2, n, sourceFragment) dIDs | elem op ["/="] =
-    [Rule (Meta n) FloatType (Just sourceFragment)]
-    ++ [Rule (childWSToMeta ex1) FloatType (Just sourceFragment)]
-    ++ [Rule (childWSToMeta ex2) NumType (Just sourceFragment)]
-    ++ (exprChildRules ex1 dIDs)
-    ++ (exprChildRules ex2 dIDs)
--- Bitwise operator assignments. See bitwise operators above.
-exprChildRules (LabAssignment op ex1 ex2, n, sourceFragment) dIDs =
-    [Rule (Meta n) IntType (Just sourceFragment)]
-    ++ [Rule (childWSToMeta ex1) NumType (Just sourceFragment)]
-    ++ [Rule (childWSToMeta ex2) NumType (Just sourceFragment)]
-    ++ (exprChildRules ex1 dIDs)
-    ++ (exprChildRules ex2 dIDs)
--- The type of an identifier is the same as the type of the variable it contains and vice versa.
-exprChildRules (LabIdentifier var, n, sourceFragment) dIDs =
-    [Rule (Meta n) (childToMeta var) (Just sourceFragment)]
-    ++ [Rule (childToMeta var) (Meta n) (Just sourceFragment)]
-    ++ (varChildRules var dIDs)
--- The type of a reference statement equals reference type and the type of that reference type
--- equals the type of the statement.
-exprChildRules (LabReference ex1 ex2, n, sourceFragment) dIDs =
-    [Rule (Meta n) (ReferenceType (childWSToMeta ex1) (getPropName ex2)) (Just sourceFragment)]
-    ++ [Rule (ReferenceType (childWSToMeta ex1) (getPropName ex2)) (Meta n) (Just sourceFragment)]
-    -- The object must contain the property being referenced.
-    ++ [Rule (childWSToMeta ex1) (AtLeastObjectType [(getPropName ex2)]) (Just sourceFragment)]
-    ++ (exprChildRules ex1 dIDs)
-    where
-        getPropName (LabIdentifier (prop, q), r, sf) = VariableProperty prop
--- An index represents a reference to a property of an object or an element of an array using square
--- bracket notation. There is no way to differentiate between the two using local static analysis.
-exprChildRules (LabIndex ex1 ex2, n, sourceFragment) dIDs =
-    (exprChildRules ex1 dIDs)
-    -- I don't really want to require the index to be an int literal or a string literal.In the case
-    -- of arrays, we don't care about the types of particular elements, we justcare that all
-    -- elements have the same type. Of course this is not the case for objects,since we need to know
-    -- which property of the object we are modifying so we can check itstype (i.e. the *value* of
-    -- the index matters).
-
-    -- Having said that, accesses to previously non-existent elements of arrays after their creation
-    -- simply "creates" the element (returns undefined on reads and adds the element the the array
-    -- on writes, I'm pretty sure). If we define the type of an array to be array-type plus its size
-    -- plus the type of its elements then adding elements to arrays after creation is not type safe.
-    -- If we define the type of an array to be array-type plus the type of its elements then adding
-    -- elements to an array after creation is type safe (provided sub- operations are type safe;
-    -- e.g. the types of the elements remains homogeneous). Both are legitimate definitions. If we
-    -- use the first definition then we require the user to define the array at its creation, which
-    -- translates easily to C (as C doesn't automatically cope with dynamic arrays); but it means
-    -- that we can't allow indexing of the array via anything but an integer literal. If we use the
-    -- second definition then our C needs to implement dynamically expanding arrays; growing the
-    -- array to accomodate any index that comes up during execution and filling any un- assigned
-    -- elements to undefined. But it also means that we can support loops over arrays rather than
-    -- failing type inference on the array whenever the user tries to loop over it. A big win! This
-    -- is why this project needs a precise definition of type safety.
-
-    -- Shane says that we should support dynamic arrays with elements that are all of the same type
-    -- or undefined. For now I will just assume that all arrays have static size. I will also ignore
-    -- the Array constructor for now and only deal with literally defined arrays.
-
-    -- TODO: To make this work I will need to differentiate between references into arrays and
-    -- references into objects.
-
-    -- TODO: Also need to do something with the type of the index. Basically if the thing we're
-    -- indexing into is an array then the index must be of type int. For the moment we will ignore
-    -- (as in, pretend it can't happen) references to properties of array objects, other than
-    -- elements of the array, using square brackets.
-
-    -- If the index is an integer literal then the statement has type ReferenceType and the
-    -- reference has the same type as the statement.
-    ++
-    (if (isIntLiteral ex2) then
-        [Rule (Meta n) (ReferenceType (childWSToMeta ex1) (IndexProperty $ getIntLiteral ex2)) (Just sourceFragment)]
-        ++ [Rule (ReferenceType (childWSToMeta ex1) (IndexProperty $ getIntLiteral ex2)) (Meta n) (Just sourceFragment)]
-        -- The object or array must contain the member being referenced.
-        ++ [Rule (childWSToMeta ex1) (AtLeastObjectType [(IndexProperty $ getIntLiteral ex2)]) (Just sourceFragment)]
-    -- If the index is a string literal then the statement has type ReferenceType and the reference
-    -- has the same type as the statement.
-    else if (isStringLiteral ex2) then
-        [Rule
-            (Meta n)
-            (ReferenceType (childWSToMeta ex1) (VariableProperty $ getStringLiteral ex2))
-            (Just sourceFragment)
-        ]
-        ++
-        [Rule
-            (ReferenceType (childWSToMeta ex1) (VariableProperty $ getStringLiteral ex2))
-            (Meta n)
-            (Just sourceFragment)
-        ]
-        ++
-        -- The object or array must contain the member being referenced.
-        [Rule
-            (childWSToMeta ex1)
-            (AtLeastObjectType [(VariableProperty $ getStringLiteral ex2)])
-            (Just sourceFragment)
-        ]
-    -- If the index is not an integer or sting literal then we cannot determine its value.
-    else
-        -- Record the type of the reference, even though we don't know which property it is. In the
-        -- case that the object is an array, all such rules must relate references to elements of
-        -- that array to the same type.
-        [Rule (Meta n) (ReferenceType (childWSToMeta ex1) (UnknownProperty)) (Just sourceFragment)]
-        ++ [Rule (ReferenceType (childWSToMeta ex1) (UnknownProperty)) (Meta n) (Just sourceFragment)]
-        -- If the object is not an array then type inference on the object and all of its members
-        -- must fail.
-        ++ [Rule (childWSToMeta ex1) (CorruptIfObjectType (childWSToMeta ex1)) (Just sourceFragment)]
-        -- If the object is an array then the index must have reference type (because we are, for
-        -- now, disregarding the case where the user references a property of the array other than
-        -- an element.)
-        ++ [Rule (childWSToMeta ex2) (IntIfArrayType (childWSToMeta ex1)) (Just sourceFragment)]
-        -- FIXME: Does this need to be outside the "if"?
-        ++ (exprChildRules ex2 dIDs))
--- The type of a LabValue is the type of the value it contains.
-exprChildRules (LabValue val, n, sourceFragment) dIDs =
-    [Rule (Meta n) (childToMeta val) (Just sourceFragment)]
-    ++ (valueChildRules val dIDs)
--- The type of a function call is the EvaluationType <EvaluationType fun>,
--- where fun has type
--- <FunctionType (ArguentsIDType x) (ReturnType y) (InstantiationType z)>.
--- <EvaluationType fun> is equal to (i.e. should unify with) y.
-exprChildRules (LabCall ex1 ex2, n, sourceFragment) dIDs =
-    [Rule (Meta n) (EvaluationType (childWSToMeta ex1)) (Just sourceFragment)]
-    -- The arguments passed to the function when calling it should match the parameters in the
-    -- function definition.
-    ++ [Rule (ArgumentsIDType (childWSToMeta ex1)) (ArgumentsType (argsToMeta ex2)) (Just sourceFragment)]
-    ++ (exprChildRules ex1 dIDs)
-    ++ (exprChildRules ex2 dIDs)
-    where
-        argsToMeta (LabArguments args, n, sf) = map childWSToMeta args
--- TODO: Do I need to bind n to something? (is it ever a link in the chain?) Not much to say about
--- arguments.
---
--- TODO: Does this even get called?
-exprChildRules (LabArguments args, n, sourceFragment) dIDs = mapExprChildRules args dIDs
--- The type of a ParenExpression is they type of the expression it contains.
-exprChildRules (LabParenExpression ex, n, sourceFragment) dIDs =
-    [Rule (Meta n) (childWSToMeta ex) (Just sourceFragment)]
-    ++ [Rule (childWSToMeta ex) (Meta n) (Just sourceFragment)]
-    ++ (exprChildRules ex dIDs)
--- TODO: Do I need to bind n to something? (is it ever a link in the chain?)
---
--- Not much to say about break statments. They don't really have a type and I don't think that they
--- can be used on the RHS of an assignment, nor can they be returned or return anything (in the
--- normal sense).
-exprChildRules (LabBreak var, n, sourceFragment) dIDs = maybeVarChildRules var dIDs
--- TODO: Do I need to bind n to something? (is it ever a link in the chain?)
---
--- Not much to say about continue statments. They don't really have a type and I don't think that
--- they can be used on the RHS of an assignment, nor can they be returned or return anything (in the
--- normal sense).
-exprChildRules (LabContinue var, n, sourceFragment) dIDs = maybeVarChildRules var dIDs
--- TODO: Do I need to bind n to something? (is it ever a link in the chain?)
---
--- Not much to say about throw statments. They don't really have a type and I don't think that they
--- can be used on the RHS of an assignment, nor can they be returned or return anything (in the
--- normal sense).
-exprChildRules (LabThrow ex, n, sourceFragment) dIDs = (exprChildRules ex dIDs)
--- A CallExpression is a reference to a property of an evaluation of a function that returns an
--- object.
-exprChildRules (LabCallExpression ex1 (".", _) ex2, n, sourceFragment) dIDs =
-    -- The type of the statement is ReferenceType and the type of that reference is the type of the
-    -- statement.
-    [Rule (Meta n) (ReferenceType (childWSToMeta ex1) (getPropName ex2)) (Just sourceFragment)]
-    ++ [Rule (ReferenceType (childWSToMeta ex1) (getPropName ex2)) (Meta n) (Just sourceFragment)]
-    -- The object must containt the property being reference.
-    ++ [Rule (childWSToMeta ex1) (AtLeastObjectType [(getPropName ex2)]) (Just sourceFragment)]
-    ++ (exprChildRules ex1 dIDs)
-    where
-        -- Assuming that property names appear here as identifiers.
-        --
-        -- FIXME: Not sure if correct.
-        getPropName (LabIdentifier (prop, q), r, sf) = VariableProperty prop
--- A CallExpression is a reference to a property of an evaluation of a function that returns an
--- object.
-exprChildRules (LabCallExpression ex1 ("[]", _) ex2, n, sourceFragment) dIDs =
-    (exprChildRules ex1 dIDs)
-    ++
-    -- If the index is an integer literal then the type of the statment is ReferenceType and the
-    -- type of that reference is the type of they statement.
-    (if (isIntLiteral $ ex2) then
-        [Rule (Meta n) (ReferenceType (childWSToMeta ex1) (IndexProperty (getIntLiteral ex2))) (Just sourceFragment)]
-        ++ [Rule (ReferenceType (childWSToMeta ex1) (IndexProperty (getIntLiteral ex2))) (Meta n) (Just sourceFragment)]
-        -- The object must contain the property being referenced.
-        ++ [Rule (childWSToMeta ex1) (AtLeastObjectType [(IndexProperty (getIntLiteral ex2))]) (Just sourceFragment)]
-    -- If the index is a string literal then the type of the statment is ReferenceType and the type
-    -- of that reference is the type of they statement.
-    else if (isStringLiteral ex2) then
-        [Rule
-            (Meta n)
-            (ReferenceType (childWSToMeta ex1) (VariableProperty (getStringLiteral ex2)))
-            (Just sourceFragment)
-        ]
-        ++
-        [Rule
-            (ReferenceType (childWSToMeta ex1) (VariableProperty (getStringLiteral ex2)))
-            (Meta n)
-            (Just sourceFragment)
-        ]
-        ++
-        -- The object must contain the property being referenced.
-        [Rule
-            (childWSToMeta ex1)
-            (AtLeastObjectType [(VariableProperty (getStringLiteral ex2))])
-            (Just sourceFragment)
-        ]
-    -- If the type of the index is not an int or string literal then we cannot know its value and
-    -- thus type inference on the object fails.
-    else
-        [Rule (Meta n) AmbiguousType (Just sourceFragment)]
-        ++ [Rule (childWSToMeta ex1) AmbiguousType (Just sourceFragment)]
-        ++ (exprChildRules ex2 dIDs))
--- The type of the statment is functionType. A FunctionType includes an ArgumentsIDType, a
--- ReturnType and a ConstructorType.
-exprChildRules (LabFunctionExpression mv vls body, n, sourceFragment) dIDs =
-    [Rule
-        (Meta n)
-        (FunctionType
-            (ArgumentsIDType (Meta n))
-            (ReturnType (childWSToMeta body))
-            (ConstructorType (childWSToMeta body)))
-        (Just sourceFragment)
-    ]
-    -- Make a rule for the types of the arguments.
-    ++ [Rule
-            (ArgumentsIDType (Meta n))
-            (ArgumentsType (map (makeIDType . argMakeLabel) vls))
-            (Just sourceFragment)
-        ]
-    -- Make rules for the name of the function expression if it has one.
-    ++ (nameRule mv (funExprMakeLabel thisFunEx) n)
-    where
-        thisFunEx = (LabFunctionExpression mv vls body, n, sourceFragment)
-        nameRule Nothing _ _= []
-        nameRule _ Nothing _ = []
-        nameRule (Just (name, x)) (Just d) y =
-            [Rule (Meta x) (makeIDType d) (Just sourceFragment)]
-            ++ [Rule (makeIDType d) (Meta y) (Just sourceFragment)]
-        makeIDType (DeclaredIdentifier ident lab) = IdentifierType ident lab
--- Variable declarations.
-exprChildRules (LabVarDeclaration var mex, n, sourceFragment) dIDs =
-    -- The type of the statement equals the type of mex if mex is not Nothing.
-    (maybeMetaRule n mex)
-    -- The type of the variable is equal to the type of mex if mex is not Nothing.
-    ++ (maybeMetaRule (childGetLabel var) mex)
-    ++ (varChildRules var dIDs)
-    ++ (maybeExprChildRules mex dIDs)
-    where
-        maybeMetaRule x Nothing = [Rule (Meta x) UndefType (Just sourceFragment)]
-        maybeMetaRule x (Just expr) = [Rule (Meta x) (childWSToMeta expr) (Just sourceFragment)]
--- The type of a 'new' statment is they instantiation type of the function (constructor) that it
--- calls.
-exprChildRules (LabNew (LabCall ex1 ex2, p, sourceFragment1), n, sourceFragment2) dIDs =
-    [Rule (Meta n) (InstantiationType (childWSToMeta ex1)) (Just sourceFragment2)]
-    -- The types of the arguments that the constructor is called with must match the types of the
-    -- arguments in its definition.
-    ++ [Rule (ArgumentsIDType (childWSToMeta ex1)) (ArgumentsType (argsToMeta ex2)) (Just sourceFragment1)]
-    ++ (exprChildRules ex1 dIDs)
-    ++ (exprChildRules ex2 dIDs)
-    where
-        argsToMeta (LabArguments args, n, sf) = map childWSToMeta args
 
 
 -- Remove the LabList wrapper on singleton lists and remove parentheses from expressions.
 --
 -- FIXME: This is used badly in some places.
-removeUselessParenAndList :: ExprChild -> ExprChild
+removeUselessParenAndList :: ASTChild -> ASTChild
 removeUselessParenAndList (LabList [ex], _, _) = removeUselessParenAndList ex
 removeUselessParenAndList (LabParenExpression ex, _, _) = removeUselessParenAndList ex
 removeUselessParenAndList ex = ex
 
 
 -- Return true if the expression is an integer literal.
-isIntLiteral :: ExprChild -> Bool
+isIntLiteral :: ASTChild -> Bool
 -- This use of removeUselssParenAndList is fine.
 isIntLiteral ex =
     isIntLiteral' $ removeUselessParenAndList ex
@@ -748,7 +343,7 @@ isIntLiteral ex =
 
 
 -- Extract the actual integer value from an integer literal expression.
-getIntLiteral :: ExprChild -> Int
+getIntLiteral :: ASTChild -> Int
 -- This use of removeUselssParenAndList is fine.
 getIntLiteral ex =
     getIntLiteral' $ removeUselessParenAndList ex
@@ -757,7 +352,7 @@ getIntLiteral ex =
 
 
 -- Return true if the expression in a string literal.
-isStringLiteral :: ExprChild -> Bool
+isStringLiteral :: ASTChild -> Bool
 -- This use of removeUselssParenAndList is fine.
 isStringLiteral ex =
     isStringLiteral' $ removeUselessParenAndList ex
@@ -768,7 +363,7 @@ isStringLiteral ex =
 
 
 -- Extract the actual string value from a string literal expression.
-getStringLiteral :: ExprChild -> String
+getStringLiteral :: ASTChild -> String
 -- This use of removeUselssParenAndList is fine.
 getStringLiteral ex =
     getStringLiteral' $ removeUselessParenAndList ex
@@ -798,7 +393,7 @@ isSimpleAssignment _ = False
 
 
 -- Takes a Statement containing an <Assignment "=" ex1 ex2> and returns ex1.
-assignmentGetVar :: ASTChild -> ExprChild
+assignmentGetVar :: ASTChild -> ASTChild
 assignmentGetVar (LabStatement ex, _, _) =
     assignmentGetVar' $ removeUselessParenAndList ex
     where
@@ -823,7 +418,7 @@ assignmentGetVar (LabStatement ex, _, _) =
 -- type inference to fail on that function, both as a constructor and as a function.
 --
 -- TODO: Revisit this (ha!)
-isPropertyReference :: ExprChild -> Bool
+isPropertyReference :: ASTChild -> Bool
 isPropertyReference (LabReference (LabIdentifier ("this", _),_, _) _, _, _) = True
 isPropertyReference (LabIndex (LabIdentifier ("this", _), _, _) _, _, _) = True
 isPropertyReference _ = False
@@ -845,7 +440,7 @@ isPropRefAssignment ast =
 
 -- Takes an expression which is a reference to a property and returns the name of the property
 -- paired with the type of its value.
-getPropertyNameType :: ExprChild -> [(PropertyName, Type)]
+getPropertyNameType :: ASTChild -> [(PropertyName, Type)]
 getPropertyNameType (LabReference _ (LabIdentifier (prop, _), _, _), n, _) =
     [(VariableProperty prop, Meta n)]
 getPropertyNameType (LabIndex (LabIdentifier (obj, _), _, _) prop, n, _) =
@@ -980,23 +575,27 @@ bodyRule body n = Rule (Meta n) (childWSToMeta body) (Just $ childGetSource body
 
 
 -- Make a rule for expressions that have Boolean type
-boolRule :: ExprChild -> Rule
+boolRule :: ASTChild -> Rule
 boolRule (LabList ex, n, sourceFragment) = Rule (childWSToMeta $ last ex) BoolType (Just sourceFragment)
 boolRule ex = Rule (childWSToMeta ex) BoolType (Just $ childGetSource ex)
 
 
--- Make a list of rules from a Maybe ExprChild of Boolean type.
-maybeBoolRule :: (Maybe ExprChild) -> [Rule]
+-- Make a list of rules from a Maybe ASTChild of Boolean type.
+maybeBoolRule :: (Maybe ASTChild) -> [Rule]
 maybeBoolRule (Just t) = [boolRule t]
 maybeBoolRule Nothing = []
 
 
 -- Generate rules from an AST
+--
+-- TODO: Go through and give the meaningful names to parameters in the
+-- ones that used to be expressionChildRules.
 astChildRules :: ASTChild -> [DeclaredIdentifier] -> [Rule]
 -- The type of the block is equal to the type of anything it returns (blockRules).
-astChildRules (LabBlock astList, n, sourceFragment) dIDs =
-    (mapASTChildRules astList dIDs)
-    ++ (blockRules astList n sourceFragment)
+-- FIXME: Uncomment this and fix it (field is not a list any more)
+-- astChildRules (LabBlock astList, n, sourceFragment) dIDs =
+--     (mapASTChildRules astList dIDs)
+--     ++ (blockRules astList n sourceFragment)
 -- The evaluation type of a function body is the same as the type of anything it returns. It also
 -- has a construtor type - the type of the object that the function makes when is instantiated.
 astChildRules (LabFunctionBody astList, n, sourceFragment) dIDs =
@@ -1039,17 +638,17 @@ astChildRules (LabLabelled label body, n, sourceFragment) dIDs =
 astChildRules (LabForVar varEx test count body, n, sourceFragment) dIDs =
     [bodyRule body n]
     ++ (maybeBoolRule test)
-    ++ (mapExprChildRules varEx dIDs)
-    ++ (maybeExprChildRules test dIDs)
-    ++ (maybeExprChildRules count dIDs)
+    ++ (mapASTChildRules varEx dIDs)
+    ++ (maybeASTChildRules test dIDs)
+    ++ (maybeASTChildRules count dIDs)
     ++ (astChildRules body dIDs)
 -- They type of a for loop is the type of its body. The test has boolean type.
 astChildRules (LabFor varEx test count body, n, sourceFragment) dIDs =
     [bodyRule body n]
     ++ (maybeBoolRule test)
-    ++ (maybeExprChildRules varEx dIDs)
-    ++ (maybeExprChildRules test dIDs)
-    ++ (maybeExprChildRules count dIDs)
+    ++ (maybeASTChildRules varEx dIDs)
+    ++ (maybeASTChildRules test dIDs)
+    ++ (maybeASTChildRules count dIDs)
     ++ (astChildRules body dIDs)
 -- TODO: More to do here.
 --
@@ -1057,33 +656,33 @@ astChildRules (LabFor varEx test count body, n, sourceFragment) dIDs =
 astChildRules (LabForIn varList obj body, n, sourceFragment) dIDs =
     [bodyRule body n]
     ++ (mapVarChildRules varList dIDs)
-    ++ (exprChildRules obj dIDs)
+    ++ (astChildRules obj dIDs)
     ++ (astChildRules body dIDs)
 -- TODO: More to do here.
 --
 -- They type of a for loop is the type of its body.
 astChildRules (LabForVarIn varEx obj body, n, sourceFragment) dIDs =
     [bodyRule body n]
-    ++ (exprChildRules varEx dIDs)
-    ++ (exprChildRules obj dIDs)
+    ++ (astChildRules varEx dIDs)
+    ++ (astChildRules obj dIDs)
     ++ (astChildRules body dIDs)
 -- The type of a while loop is the type of its body. The type of the test is boolean.
 astChildRules (LabWhile test body, n, sourceFragment) dIDs =
     [bodyRule body n]
     ++ [boolRule test]
-    ++ (exprChildRules test dIDs)
+    ++ (astChildRules test dIDs)
     ++ (astChildRules body dIDs)
 -- The type of a do-while loop is the type of its body. They type of the test is bool.
 astChildRules (LabDoWhile body test, n, sourceFragment) dIDs =
     [bodyRule body n]
     ++ [boolRule test]
-    ++ (exprChildRules test dIDs)
+    ++ (astChildRules test dIDs)
     ++ (astChildRules body dIDs)
 -- The type of an if construct is they type of its body. The type of the test is boolean.
 astChildRules (LabIf test body, n, sourceFragment) dIDs =
     [bodyRule body n]
     ++ [boolRule test]
-    ++ (exprChildRules test dIDs)
+    ++ (astChildRules test dIDs)
     ++ (astChildRules body dIDs)
 -- The type of an if-else construct is they type of both of its body blocks (they must have the same
 -- type for type inference on the construct to succeed). They type of the test is boolean.
@@ -1091,7 +690,7 @@ astChildRules (LabIfElse test bodyT bodyF, n, sourceFragment) dIDs =
     [bodyRule bodyT n]
     ++ [bodyRule bodyF n]
     ++ [boolRule test]
-    ++ (exprChildRules test dIDs)
+    ++ (astChildRules test dIDs)
     ++ (astChildRules bodyT dIDs)
     ++ (astChildRules bodyF dIDs)
 -- The type of a switch statment is the type of all of its cases (which in turn have the type of
@@ -1099,7 +698,7 @@ astChildRules (LabIfElse test bodyT bodyF, n, sourceFragment) dIDs =
 -- succeed.
 astChildRules (LabSwitch ident cases, n, sourceFragment) dIDs =
     [bodyRule cases n]
-    ++ (exprChildRules ident dIDs)
+    ++ (astChildRules ident dIDs)
     ++ (astChildRules cases dIDs)
 -- The type of a case in a switch statement is the same as the type of its body.
 --
@@ -1107,7 +706,7 @@ astChildRules (LabSwitch ident cases, n, sourceFragment) dIDs =
 -- this.
 astChildRules (LabCase ex body, n, sourceFragment) dIDs =
     [bodyRule body n]
-    ++ (exprChildRules ex dIDs)
+    ++ (astChildRules ex dIDs)
     ++ (astChildRules body dIDs)
 -- The type of a default statment is the same as the type of its body.
 astChildRules (LabDefault body, n, sourceFragment) dIDs =
@@ -1127,7 +726,7 @@ astChildRules (LabCatch var mTest body, n, sourceFragment) dIDs =
     [bodyRule body n]
     ++ (maybeBoolRule mTest)
     ++ (varChildRules var dIDs)
-    ++ (maybeExprChildRules mTest dIDs)
+    ++ (maybeASTChildRules mTest dIDs)
     ++ (astChildRules body dIDs)
 -- The type of a finally statement is the same as the type of its body.
 astChildRules (LabFinally body, n, sourceFragment) dIDs =
@@ -1136,9 +735,425 @@ astChildRules (LabFinally body, n, sourceFragment) dIDs =
 -- They type of a return statement is they same as the type of the expression it returns.
 astChildRules (LabReturn ex, n, sourceFragment) dIDs =
     [Rule (Meta n) (childWSToMeta ex) (Just sourceFragment)]
-    ++ (exprChildRules ex dIDs)
+    ++ (astChildRules ex dIDs)
 -- They type of an instance of the Statment data type is the same as the type of the expression it
 -- contains.
 astChildRules (LabStatement ex, n, sourceFragment) dIDs =
     [Rule (Meta n) (childWSToMeta ex) (Just sourceFragment)]
-    ++ (exprChildRules ex dIDs)
+    ++ (astChildRules ex dIDs)
+-- The type of a list of expressions is the same as the type of the last expression in the list.
+--
+-- FIXME: Not 100% sure that that is accurate.
+astChildRules (LabList expList, n, sourceFragment) dIDs =
+    [Rule (Meta n) (childWSToMeta $ last expList) (Just sourceFragment)]
+    ++ (mapASTChildRules expList dIDs)
+-- The type of a list of expressions is the same as the type of the last expression in the list.
+--
+-- FIXME: Not 100% sure that that is accurate.
+astChildRules (LabExpression expList, n, sourceFragment) dIDs =
+    [Rule (Meta n) (childWSToMeta $ last expList) (Just sourceFragment)]
+    ++ (mapASTChildRules expList dIDs)
+-- The type of a list of expressions is the same as the type of the last expression in the list.
+--
+-- FIXME: Not 100% sure that that is accurate.
+astChildRules (LabStatementList expList, n, sourceFragment) dIDs =
+    [Rule (Meta n) (childWSToMeta $ last expList) (Just sourceFragment)]
+    ++ (mapASTChildRules expList dIDs)
+-- The '+' operator has unique behavior. The type of the expression depends on the types of both
+-- operands. There is a custom type - PlusType - for this operator and the '+=' operator.
+astChildRules (LabBinary ("+", _) ex1 ex2, n, sourceFragment) dIDs =
+    [Rule (Meta n) (PlusType (childWSToMeta ex1) (childWSToMeta ex2)) (Just sourceFragment)]
+    ++ [Rule (PlusType (childWSToMeta ex1) (childWSToMeta ex2)) (Meta n) (Just sourceFragment)]
+    ++ (astChildRules ex1 dIDs)
+    ++ (astChildRules ex2 dIDs)
+-- These operators only act on numbers. If both operands are of integer type then the expression is
+-- of integer type. If both operands are of the weaker NumType then the expression has type NumType.
+-- If either of the operands has type float then the expression has type float.
+astChildRules (LabBinary (op, _) ex1 ex2, n, sourceFragment) dIDs | elem op ["-", "%", "*"] =
+    [Rule (childWSToMeta ex1) NumType (Just sourceFragment)]
+    ++ [Rule (childWSToMeta ex2) NumType (Just sourceFragment)]
+    ++ [Rule (Meta n) (IntAndInt (childWSToMeta ex1) (childWSToMeta ex2)) (Just sourceFragment)]
+    ++ (astChildRules ex1 dIDs)
+    ++ (astChildRules ex2 dIDs)
+-- '/' only operates on numbers. The whole expression has type float.
+astChildRules (LabBinary ("/", _) ex1 ex2, n, sourceFragment) dIDs =
+    [Rule (childWSToMeta ex1) NumType (Just sourceFragment)]
+    ++ [Rule (childWSToMeta ex2) NumType (Just sourceFragment)]
+    ++ [Rule (Meta n) FloatType (Just sourceFragment)]
+    ++ (astChildRules ex1 dIDs)
+    ++ (astChildRules ex2 dIDs)
+-- Bitwise binary operators act only on numbers (which are cast to integers). The type of the
+-- expression is integer.
+astChildRules (LabBinary (op, _) ex1 ex2, n, sourceFragment) dIDs | elem op ["&", "|", "^"] =
+    [Rule (Meta n) IntType (Just sourceFragment)]
+    ++ [Rule (childWSToMeta ex1) NumType (Just sourceFragment)]
+    ++ [Rule (childWSToMeta ex2) NumType (Just sourceFragment)]
+    ++ (astChildRules ex1 dIDs)
+    ++ (astChildRules ex2 dIDs)
+-- Bitwise shift operators act only one numbers (which are cast to integers). The type of the
+-- expression is integer.
+--
+-- FIXME: Pre-define these operator lists somewhere so that these signatures aren't so long
+astChildRules (LabBinary (op, _) ex1 ex2, n, sourceFragment) dIDs | elem op ["<<", ">>", ">>>"] =
+    [Rule (Meta n) IntType (Just sourceFragment)]
+    ++ [Rule (childWSToMeta ex1) NumType (Just sourceFragment)]
+    ++ [Rule (childWSToMeta ex2) NumType (Just sourceFragment)]
+    ++ (astChildRules ex1 dIDs)
+    ++ (astChildRules ex2 dIDs)
+-- The type of a comparison expression is Bool.
+astChildRules (LabBinary (op, _) ex1 ex2, n, sourceFragment) dIDs
+    | elem op ["==", "!=", "===", "!==", ">", "<", ">=", "<="] =
+        [Rule (Meta n) BoolType (Just sourceFragment)]
+        ++ (astChildRules ex1 dIDs)
+        ++ (astChildRules ex2 dIDs)
+-- The type of a binary logic expression is Bool. JavaScript's interpretation of various expressions
+-- when cast to boolean is complex. What we want to do with it depends on what we want to do with
+-- the compiler.
+astChildRules (LabBinary (op, _) ex1 ex2, n, sourceFragment) dIDs | elem op ["&&", "||"] =
+    [Rule (Meta n) BoolType (Just sourceFragment)]
+    ++ (astChildRules ex1 dIDs)
+    ++ (astChildRules ex2 dIDs)
+-- Tye type of an in expression is bool.
+-- TODO: Added in 2014. Revisit.
+astChildRules (LabBinary (" in ", _) ex1 ex2, n, sourceFragment) dIDs =
+    [Rule (Meta n) BoolType (Just sourceFragment)]
+    -- For type safety, ex1 must be an object or array; but it doesn't have to contain ex2. I
+    -- might need to introduce another type to represent this properly.
+    ++
+    (if ((isIntLiteral ex2) || (isStringLiteral ex2)) then
+        [Rule (childWSToMeta ex1) (AtLeastObjectType []) (Just sourceFragment)]
+
+    else
+        [Rule (childWSToMeta ex1) (AtLeastObjectType []) (Just sourceFragment)]
+        -- If the object is not an array then type inference on the object and all of its members
+        -- must fail.
+        ++ [Rule (childWSToMeta ex1) (CorruptIfObjectType (childWSToMeta ex1)) (Just sourceFragment)]
+        -- If the object is an array then the index must have reference type (because we are, for
+        -- now, disregarding the case where the user references a property of the array other than
+        -- an element.)
+        ++ [Rule (childWSToMeta ex2) (IntIfArrayType (childWSToMeta ex1)) (Just sourceFragment)])
+    ++ (astChildRules ex1 dIDs)
+    ++ (astChildRules ex2 dIDs)
+-- The type of a "instanceof" expression is bool.
+-- TODO: Added in 2014. Revisit.
+astChildRules (LabBinary (" instanceof ", _) ex1 ex2, n, sourceFragment) dIDs =
+    [Rule (Meta n) BoolType (Just sourceFragment)]
+    -- FIXME: If ex2 isn't a function then JS throws a  TypeError. There should be a Rule equating
+    -- ex2 with Function, but there isn't at this stage. Might need to introduce a new Type for
+    -- this.
+    ++ (astChildRules ex1 dIDs)
+    ++ (astChildRules ex2 dIDs)
+-- Postfix '++' or '--' only operate on numbers. They type of the expression is number (integer if
+-- ex is integer and float if ex is float).
+astChildRules (LabUnaryPost op ex, n, sourceFragment) dIDs =
+    [Rule (childWSToMeta ex) NumType (Just sourceFragment)]
+    ++ [Rule (Meta n) (childWSToMeta ex) (Just sourceFragment)]
+    ++ (astChildRules ex dIDs)
+-- These only operate on numbers. The type of the expression is the type of ex.
+astChildRules (LabUnaryPre (op, _) ex, n, sourceFragment) dIDs | elem op ["++", "--", "-", "+"] =
+    [Rule (childWSToMeta ex) NumType (Just sourceFragment)]
+    ++ [Rule (Meta n) (childWSToMeta ex) (Just sourceFragment)]
+    ++ (astChildRules ex dIDs)
+-- The type of a not expression is bool.
+astChildRules (LabUnaryPre ("!", _) ex, n, sourceFragment) dIDs =
+    [Rule (Meta n) BoolType (Just sourceFragment)]
+    ++ (astChildRules ex dIDs)
+-- The type of a "typeof" expression is string.
+-- TODO: Added in 2014. Revisit.
+astChildRules (LabUnaryPre ("typeof ", _) ex, n, sourceFragment) dIDs =
+    [Rule (Meta n) StringType (Just sourceFragment)]
+    ++ (astChildRules ex dIDs)
+-- The type of the condition in a ternary expression is bool. They type of the whole expression is
+-- the type of the two optional expressions. If they don't have the same type then type inference on
+-- the expression fails.
+astChildRules (LabTernary ex1 ex2 ex3, n, sourceFragment) dIDs =
+    [boolRule ex1]
+    ++ [Rule (Meta n) (childWSToMeta ex2) (Just sourceFragment)]
+    ++ [Rule (Meta n) (childWSToMeta ex3) (Just sourceFragment)]
+    ++ (astChildRules ex1 dIDs)
+    ++ (astChildRules ex2 dIDs)
+    ++ (astChildRules ex3 dIDs)
+-- They type of an assignment expression is the type of the value that is being assigned to the
+-- variable. The type of the variable is the type if its assigned value.
+astChildRules (LabAssignment ("=", _) ex1 ex2, n, sourceFragment) dIDs =
+    [Rule (Meta n) (childWSToMeta ex2) (Just sourceFragment)]
+    ++ [Rule (childWSToMeta ex1) (childWSToMeta ex2) (Just sourceFragment)]
+    ++ (astChildRules ex1 dIDs)
+    ++ (astChildRules ex2 dIDs)
+-- Similar to the '+' operator. This introduces a horrible cycle but I don't think I can avoid it,
+-- because the new type of the variable depends on its old type. The unification algorith will have
+-- to handle it.
+astChildRules (LabAssignment ("+=", _) ex1 ex2, n, sourceFragment) dIDs =
+    [Rule (Meta n) (PlusType (childWSToMeta ex1) (childWSToMeta ex2)) (Just sourceFragment)]
+    ++ [Rule (childWSToMeta ex1) (Meta n) (Just sourceFragment)]
+    ++ (astChildRules ex1 dIDs)
+    ++ (astChildRules ex2 dIDs)
+-- Similar to the '-', '*' and '%' operators. This also introduces a cycle, but I don't think I can
+-- avoid it, as the new type of the variable depends on its old type. The unification algorithm will
+-- have to handle it.
+astChildRules (LabAssignment (op, _) ex1 ex2, n, sourceFragment) dIDs | elem op ["-=", "*=", "%="] =
+    [Rule (Meta n) (IntAndInt (childWSToMeta ex1) (childWSToMeta ex2)) (Just sourceFragment)]
+    ++ [Rule (childWSToMeta ex1) (Meta n) (Just sourceFragment)]
+    ++ [Rule (childWSToMeta ex2) NumType (Just sourceFragment)]
+    ++ (astChildRules ex1 dIDs)
+    ++ (astChildRules ex2 dIDs)
+-- Similar to the '/' operator.
+astChildRules (LabAssignment (op, _) ex1 ex2, n, sourceFragment) dIDs | elem op ["/="] =
+    [Rule (Meta n) FloatType (Just sourceFragment)]
+    ++ [Rule (childWSToMeta ex1) FloatType (Just sourceFragment)]
+    ++ [Rule (childWSToMeta ex2) NumType (Just sourceFragment)]
+    ++ (astChildRules ex1 dIDs)
+    ++ (astChildRules ex2 dIDs)
+-- Bitwise operator assignments. See bitwise operators above.
+astChildRules (LabAssignment op ex1 ex2, n, sourceFragment) dIDs =
+    [Rule (Meta n) IntType (Just sourceFragment)]
+    ++ [Rule (childWSToMeta ex1) NumType (Just sourceFragment)]
+    ++ [Rule (childWSToMeta ex2) NumType (Just sourceFragment)]
+    ++ (astChildRules ex1 dIDs)
+    ++ (astChildRules ex2 dIDs)
+-- The type of an identifier is the same as the type of the variable it contains and vice versa.
+astChildRules (LabIdentifier var, n, sourceFragment) dIDs =
+    [Rule (Meta n) (childToMeta var) (Just sourceFragment)]
+    ++ [Rule (childToMeta var) (Meta n) (Just sourceFragment)]
+    ++ (varChildRules var dIDs)
+-- The type of a reference statement equals reference type and the type of that reference type
+-- equals the type of the statement.
+astChildRules (LabReference ex1 ex2, n, sourceFragment) dIDs =
+    [Rule (Meta n) (ReferenceType (childWSToMeta ex1) (getPropName ex2)) (Just sourceFragment)]
+    ++ [Rule (ReferenceType (childWSToMeta ex1) (getPropName ex2)) (Meta n) (Just sourceFragment)]
+    -- The object must contain the property being referenced.
+    ++ [Rule (childWSToMeta ex1) (AtLeastObjectType [(getPropName ex2)]) (Just sourceFragment)]
+    ++ (astChildRules ex1 dIDs)
+    where
+        getPropName (LabIdentifier (prop, q), r, sf) = VariableProperty prop
+-- An index represents a reference to a property of an object or an element of an array using square
+-- bracket notation. There is no way to differentiate between the two using local static analysis.
+astChildRules (LabIndex ex1 ex2, n, sourceFragment) dIDs =
+    (astChildRules ex1 dIDs)
+    -- I don't really want to require the index to be an int literal or a string literal.In the case
+    -- of arrays, we don't care about the types of particular elements, we justcare that all
+    -- elements have the same type. Of course this is not the case for objects,since we need to know
+    -- which property of the object we are modifying so we can check itstype (i.e. the *value* of
+    -- the index matters).
+
+    -- Having said that, accesses to previously non-existent elements of arrays after their creation
+    -- simply "creates" the element (returns undefined on reads and adds the element the the array
+    -- on writes, I'm pretty sure). If we define the type of an array to be array-type plus its size
+    -- plus the type of its elements then adding elements to arrays after creation is not type safe.
+    -- If we define the type of an array to be array-type plus the type of its elements then adding
+    -- elements to an array after creation is type safe (provided sub- operations are type safe;
+    -- e.g. the types of the elements remains homogeneous). Both are legitimate definitions. If we
+    -- use the first definition then we require the user to define the array at its creation, which
+    -- translates easily to C (as C doesn't automatically cope with dynamic arrays); but it means
+    -- that we can't allow indexing of the array via anything but an integer literal. If we use the
+    -- second definition then our C needs to implement dynamically expanding arrays; growing the
+    -- array to accomodate any index that comes up during execution and filling any un- assigned
+    -- elements to undefined. But it also means that we can support loops over arrays rather than
+    -- failing type inference on the array whenever the user tries to loop over it. A big win! This
+    -- is why this project needs a precise definition of type safety.
+
+    -- Shane says that we should support dynamic arrays with elements that are all of the same type
+    -- or undefined. For now I will just assume that all arrays have static size. I will also ignore
+    -- the Array constructor for now and only deal with literally defined arrays.
+
+    -- TODO: To make this work I will need to differentiate between references into arrays and
+    -- references into objects.
+
+    -- TODO: Also need to do something with the type of the index. Basically if the thing we're
+    -- indexing into is an array then the index must be of type int. For the moment we will ignore
+    -- (as in, pretend it can't happen) references to properties of array objects, other than
+    -- elements of the array, using square brackets.
+
+    -- If the index is an integer literal then the statement has type ReferenceType and the
+    -- reference has the same type as the statement.
+    ++
+    (if (isIntLiteral ex2) then
+        [Rule (Meta n) (ReferenceType (childWSToMeta ex1) (IndexProperty $ getIntLiteral ex2)) (Just sourceFragment)]
+        ++ [Rule (ReferenceType (childWSToMeta ex1) (IndexProperty $ getIntLiteral ex2)) (Meta n) (Just sourceFragment)]
+        -- The object or array must contain the member being referenced.
+        ++ [Rule (childWSToMeta ex1) (AtLeastObjectType [(IndexProperty $ getIntLiteral ex2)]) (Just sourceFragment)]
+    -- If the index is a string literal then the statement has type ReferenceType and the reference
+    -- has the same type as the statement.
+    else if (isStringLiteral ex2) then
+        [Rule
+            (Meta n)
+            (ReferenceType (childWSToMeta ex1) (VariableProperty $ getStringLiteral ex2))
+            (Just sourceFragment)
+        ]
+        ++
+        [Rule
+            (ReferenceType (childWSToMeta ex1) (VariableProperty $ getStringLiteral ex2))
+            (Meta n)
+            (Just sourceFragment)
+        ]
+        ++
+        -- The object or array must contain the member being referenced.
+        [Rule
+            (childWSToMeta ex1)
+            (AtLeastObjectType [(VariableProperty $ getStringLiteral ex2)])
+            (Just sourceFragment)
+        ]
+    -- If the index is not an integer or sting literal then we cannot determine its value.
+    else
+        -- Record the type of the reference, even though we don't know which property it is. In the
+        -- case that the object is an array, all such rules must relate references to elements of
+        -- that array to the same type.
+        [Rule (Meta n) (ReferenceType (childWSToMeta ex1) (UnknownProperty)) (Just sourceFragment)]
+        ++ [Rule (ReferenceType (childWSToMeta ex1) (UnknownProperty)) (Meta n) (Just sourceFragment)]
+        -- If the object is not an array then type inference on the object and all of its members
+        -- must fail.
+        ++ [Rule (childWSToMeta ex1) (CorruptIfObjectType (childWSToMeta ex1)) (Just sourceFragment)]
+        -- If the object is an array then the index must have reference type (because we are, for
+        -- now, disregarding the case where the user references a property of the array other than
+        -- an element.)
+        ++ [Rule (childWSToMeta ex2) (IntIfArrayType (childWSToMeta ex1)) (Just sourceFragment)]
+        -- FIXME: Does this need to be outside the "if"?
+        ++ (astChildRules ex2 dIDs))
+-- The type of a LabValue is the type of the value it contains.
+astChildRules (LabValue val, n, sourceFragment) dIDs =
+    [Rule (Meta n) (childToMeta val) (Just sourceFragment)]
+    ++ (valueChildRules val dIDs)
+-- The type of a function call is the EvaluationType <EvaluationType fun>,
+-- where fun has type
+-- <FunctionType (ArguentsIDType x) (ReturnType y) (InstantiationType z)>.
+-- <EvaluationType fun> is equal to (i.e. should unify with) y.
+astChildRules (LabCall ex1 ex2, n, sourceFragment) dIDs =
+    [Rule (Meta n) (EvaluationType (childWSToMeta ex1)) (Just sourceFragment)]
+    -- The arguments passed to the function when calling it should match the parameters in the
+    -- function definition.
+    ++ [Rule (ArgumentsIDType (childWSToMeta ex1)) (ArgumentsType (argsToMeta ex2)) (Just sourceFragment)]
+    ++ (astChildRules ex1 dIDs)
+    ++ (astChildRules ex2 dIDs)
+    where
+        argsToMeta (LabArguments args, n, sf) = map childWSToMeta args
+-- TODO: Do I need to bind n to something? (is it ever a link in the chain?) Not much to say about
+-- arguments.
+--
+-- TODO: Does this even get called?
+astChildRules (LabArguments args, n, sourceFragment) dIDs = mapASTChildRules args dIDs
+-- The type of a ParenExpression is they type of the expression it contains.
+astChildRules (LabParenExpression ex, n, sourceFragment) dIDs =
+    [Rule (Meta n) (childWSToMeta ex) (Just sourceFragment)]
+    ++ [Rule (childWSToMeta ex) (Meta n) (Just sourceFragment)]
+    ++ (astChildRules ex dIDs)
+-- TODO: Do I need to bind n to something? (is it ever a link in the chain?)
+--
+-- Not much to say about break statments. They don't really have a type and I don't think that they
+-- can be used on the RHS of an assignment, nor can they be returned or return anything (in the
+-- normal sense).
+astChildRules (LabBreak var, n, sourceFragment) dIDs = maybeVarChildRules var dIDs
+-- TODO: Do I need to bind n to something? (is it ever a link in the chain?)
+--
+-- Not much to say about continue statments. They don't really have a type and I don't think that
+-- they can be used on the RHS of an assignment, nor can they be returned or return anything (in the
+-- normal sense).
+astChildRules (LabContinue var, n, sourceFragment) dIDs = maybeVarChildRules var dIDs
+-- TODO: Do I need to bind n to something? (is it ever a link in the chain?)
+--
+-- Not much to say about throw statments. They don't really have a type and I don't think that they
+-- can be used on the RHS of an assignment, nor can they be returned or return anything (in the
+-- normal sense).
+astChildRules (LabThrow ex, n, sourceFragment) dIDs = (astChildRules ex dIDs)
+-- A CallExpression is a reference to a property of an evaluation of a function that returns an
+-- object.
+astChildRules (LabCallExpression ex1 (".", _) ex2, n, sourceFragment) dIDs =
+    -- The type of the statement is ReferenceType and the type of that reference is the type of the
+    -- statement.
+    [Rule (Meta n) (ReferenceType (childWSToMeta ex1) (getPropName ex2)) (Just sourceFragment)]
+    ++ [Rule (ReferenceType (childWSToMeta ex1) (getPropName ex2)) (Meta n) (Just sourceFragment)]
+    -- The object must containt the property being reference.
+    ++ [Rule (childWSToMeta ex1) (AtLeastObjectType [(getPropName ex2)]) (Just sourceFragment)]
+    ++ (astChildRules ex1 dIDs)
+    where
+        -- Assuming that property names appear here as identifiers.
+        --
+        -- FIXME: Not sure if correct.
+        getPropName (LabIdentifier (prop, q), r, sf) = VariableProperty prop
+-- A CallExpression is a reference to a property of an evaluation of a function that returns an
+-- object.
+astChildRules (LabCallExpression ex1 ("[]", _) ex2, n, sourceFragment) dIDs =
+    (astChildRules ex1 dIDs)
+    ++
+    -- If the index is an integer literal then the type of the statment is ReferenceType and the
+    -- type of that reference is the type of they statement.
+    (if (isIntLiteral $ ex2) then
+        [Rule (Meta n) (ReferenceType (childWSToMeta ex1) (IndexProperty (getIntLiteral ex2))) (Just sourceFragment)]
+        ++ [Rule (ReferenceType (childWSToMeta ex1) (IndexProperty (getIntLiteral ex2))) (Meta n) (Just sourceFragment)]
+        -- The object must contain the property being referenced.
+        ++ [Rule (childWSToMeta ex1) (AtLeastObjectType [(IndexProperty (getIntLiteral ex2))]) (Just sourceFragment)]
+    -- If the index is a string literal then the type of the statment is ReferenceType and the type
+    -- of that reference is the type of they statement.
+    else if (isStringLiteral ex2) then
+        [Rule
+            (Meta n)
+            (ReferenceType (childWSToMeta ex1) (VariableProperty (getStringLiteral ex2)))
+            (Just sourceFragment)
+        ]
+        ++
+        [Rule
+            (ReferenceType (childWSToMeta ex1) (VariableProperty (getStringLiteral ex2)))
+            (Meta n)
+            (Just sourceFragment)
+        ]
+        ++
+        -- The object must contain the property being referenced.
+        [Rule
+            (childWSToMeta ex1)
+            (AtLeastObjectType [(VariableProperty (getStringLiteral ex2))])
+            (Just sourceFragment)
+        ]
+    -- If the type of the index is not an int or string literal then we cannot know its value and
+    -- thus type inference on the object fails.
+    else
+        [Rule (Meta n) AmbiguousType (Just sourceFragment)]
+        ++ [Rule (childWSToMeta ex1) AmbiguousType (Just sourceFragment)]
+        ++ (astChildRules ex2 dIDs))
+-- The type of the statment is functionType. A FunctionType includes an ArgumentsIDType, a
+-- ReturnType and a ConstructorType.
+astChildRules (LabFunctionExpression mv vls body, n, sourceFragment) dIDs =
+    [Rule
+        (Meta n)
+        (FunctionType
+            (ArgumentsIDType (Meta n))
+            (ReturnType (childWSToMeta body))
+            (ConstructorType (childWSToMeta body)))
+        (Just sourceFragment)
+    ]
+    -- Make a rule for the types of the arguments.
+    ++ [Rule
+            (ArgumentsIDType (Meta n))
+            (ArgumentsType (map (makeIDType . argMakeLabel) vls))
+            (Just sourceFragment)
+        ]
+    -- Make rules for the name of the function expression if it has one.
+    ++ (nameRule mv (funExprMakeLabel thisFunEx) n)
+    where
+        thisFunEx = (LabFunctionExpression mv vls body, n, sourceFragment)
+        nameRule Nothing _ _= []
+        nameRule _ Nothing _ = []
+        nameRule (Just (name, x)) (Just d) y =
+            [Rule (Meta x) (makeIDType d) (Just sourceFragment)]
+            ++ [Rule (makeIDType d) (Meta y) (Just sourceFragment)]
+        makeIDType (DeclaredIdentifier ident lab) = IdentifierType ident lab
+-- Variable declarations.
+astChildRules (LabVarDeclaration var mex, n, sourceFragment) dIDs =
+    -- The type of the statement equals the type of mex if mex is not Nothing.
+    (maybeMetaRule n mex)
+    -- The type of the variable is equal to the type of mex if mex is not Nothing.
+    ++ (maybeMetaRule (childGetLabel var) mex)
+    ++ (varChildRules var dIDs)
+    ++ (maybeASTChildRules mex dIDs)
+    where
+        maybeMetaRule x Nothing = [Rule (Meta x) UndefType (Just sourceFragment)]
+        maybeMetaRule x (Just expr) = [Rule (Meta x) (childWSToMeta expr) (Just sourceFragment)]
+-- The type of a 'new' statment is they instantiation type of the function (constructor) that it
+-- calls.
+astChildRules (LabNew (LabCall ex1 ex2, p, sourceFragment1), n, sourceFragment2) dIDs =
+    [Rule (Meta n) (InstantiationType (childWSToMeta ex1)) (Just sourceFragment2)]
+    -- The types of the arguments that the constructor is called with must match the types of the
+    -- arguments in its definition.
+    ++ [Rule (ArgumentsIDType (childWSToMeta ex1)) (ArgumentsType (argsToMeta ex2)) (Just sourceFragment1)]
+    ++ (astChildRules ex1 dIDs)
+    ++ (astChildRules ex2 dIDs)
+    where
+        argsToMeta (LabArguments args, n, sf) = map childWSToMeta args

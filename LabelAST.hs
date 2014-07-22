@@ -23,10 +23,8 @@
 
 module LabelAST
 ( ASTChild
-, ExprChild
-, IndexChild
 , ASTLabel
-, LabelledExpression(..)
+, IndexChild
 , LabelledAST(..)
 , LabelledPropertyName(..)
 , LabelledValue(..)
@@ -75,10 +73,11 @@ type ValueChild = (LabelledValue, ASTLabel)
 
 
 -- A LabelledExpression (which is a labelled subtree) and a label.
-type ExprChild = (LabelledExpression, ASTLabel, SourceFragment)
+-- type ASTChild = (LabelledExpression, ASTLabel, SourceFragment)
 
 
 -- A LabelledAST (which is a labelled subree) an a label.
+-- TODO: Rename to LabelledAST && rename LabelledAST to LabAST (or LAST).
 type ASTChild = (LabelledAST, ASTLabel, SourceFragment)
 
 
@@ -92,78 +91,76 @@ data LabelledPropertyName =
 -- value and no label. LabelledValues representing objects and arrays are labelled recursively.
 -- LabUndefined and LabNull have no value or label.
 data LabelledValue =
-      LabArray [ExprChild]
+      LabArray [ASTChild]
     | LabBool Bool
     | LabDQString String
     | LabFloat Double
     | LabInt Int
     | LabNull
-    | LabObject [ExprChild]
+    | LabObject [ASTChild]
     | LabString String
     | LabUndefined deriving (Show)
 
 
--- FIXME: Some of these contain Maybe *Child values. "Nothing" has no label. Is that a problem?
---
--- A recursively labelled subtree, rooted at a LabelledExpression.
-data LabelledExpression =
-      LabArguments [ExprChild]
-    | LabAssignment OpChild ExprChild ExprChild
-    | LabBinary OpChild ExprChild ExprChild
-    | LabBreak (Maybe VarChild)
-    | LabCall ExprChild ExprChild
-    | LabCallExpression ExprChild OpChild ExprChild
-    | LabContinue (Maybe VarChild)
-    | LabFunctionExpression (Maybe VarChild) [VarChild] ASTChild
-    | LabIdentifier VarChild
-    | LabIndex ExprChild ExprChild
-    | LabList [ExprChild]
-    | LabNew ExprChild
-    | LabParenExpression ExprChild
-    | LabPropNameValue PropertyNameChild ExprChild
-    | LabReference ExprChild ExprChild
-    | LabTernary ExprChild ExprChild ExprChild
-    | LabThrow ExprChild
-    | LabUnaryPost OpChild ExprChild
-    | LabUnaryPre OpChild ExprChild
-    | LabValue ValueChild
-    | LabVarDeclaration VarChild (Maybe ExprChild) deriving (Show)
-
-
 -- A recursively labelled subrtree, rooted at a LabelledAST.
 data LabelledAST =
-      LabBlock [ASTChild]
-    | LabCase ExprChild ASTChild
-    | LabCatch VarChild (Maybe ExprChild) ASTChild
+      LabBlock ASTChild
+    | LabCase ASTChild ASTChild
+    | LabCatch VarChild (Maybe ASTChild) ASTChild
     | LabDefault ASTChild
-    | LabDoWhile ASTChild ExprChild
+    | LabDoWhile ASTChild ASTChild
     | LabFinally ASTChild
-    | LabFor (Maybe ExprChild) (Maybe ExprChild) (Maybe ExprChild) ASTChild
-    | LabForIn [VarChild] ExprChild ASTChild
-    | LabForVar [ExprChild] (Maybe ExprChild) (Maybe ExprChild) ASTChild
-    | LabForVarIn ExprChild ExprChild ASTChild
+    | LabFor (Maybe ASTChild) (Maybe ASTChild) (Maybe ASTChild) ASTChild
+    | LabForIn [VarChild] ASTChild ASTChild
+    | LabForVar [ASTChild] (Maybe ASTChild) (Maybe ASTChild) ASTChild
+    | LabForVarIn ASTChild ASTChild ASTChild
     | LabFunctionBody [ASTChild]
     | LabFunctionDeclaration VarChild [VarChild] ASTChild
-    | LabIf ExprChild ASTChild
-    | LabIfElse ExprChild ASTChild ASTChild
+    | LabIf ASTChild ASTChild
+    | LabIfElse ASTChild ASTChild ASTChild
     | LabLabelled VarChild ASTChild
-    | LabReturn ExprChild
-    | LabStatement ExprChild
-    | LabSwitch ExprChild ASTChild
+    | LabReturn ASTChild
+    | LabStatement ASTChild
+    | LabSwitch ASTChild ASTChild
     | LabTry ASTChild ASTChild
-    | LabWhile ExprChild ASTChild deriving (Show)
+    | LabWhile ASTChild ASTChild
+
+    | LabArguments [ASTChild]
+    | LabAssignment OpChild ASTChild ASTChild
+    | LabBinary OpChild ASTChild ASTChild
+    | LabBreak (Maybe VarChild)
+    | LabCall ASTChild ASTChild
+    | LabCallExpression ASTChild OpChild ASTChild
+    | LabContinue (Maybe VarChild)
+    | LabExpression [ASTChild]
+    | LabFunctionExpression (Maybe VarChild) [VarChild] ASTChild
+    | LabIdentifier VarChild
+    | LabIndex ASTChild ASTChild
+    | LabList [ASTChild]
+    | LabNew ASTChild
+    | LabParenExpression ASTChild
+    | LabPropNameValue PropertyNameChild ASTChild
+    | LabReference ASTChild ASTChild
+    | LabStatementList [ASTChild]
+    | LabTernary ASTChild ASTChild ASTChild
+    | LabThrow ASTChild
+    | LabUnaryPost OpChild ASTChild
+    | LabUnaryPre OpChild ASTChild
+    | LabValue ValueChild
+    | LabVarDeclaration VarChild (Maybe ASTChild) deriving (Show)
 
 
 -- Takes an unlabelled AST and labels the whole thing.
-label :: [ASTWithSourceFragment] -> [ASTChild]
-label list = labelASTList list 0
+label :: ASTWithSourceFragment -> ASTChild
+-- label list = labelASTList list 0
+label ast = labelAST ast 0
 
 
 -- Extract the ASTLabel from a VarChild, IndexChild etc.
 childGetLabel :: (a, ASTLabel) -> ASTLabel
 childGetLabel (child, lab) = lab
 
--- Extract the ASTLabel from a ASTChild, ExprChild etc.
+-- Extract the ASTLabel from a ASTChild, ASTChild etc.
 childWSGetLabel :: (a, ASTLabel, b) -> ASTLabel
 childWSGetLabel (_, lab, _) = lab
 
@@ -175,7 +172,7 @@ listGetLabels :: [(a, ASTLabel)] -> [ASTLabel]
 listGetLabels [] = []
 listGetLabels (c:cs) = ((childGetLabel c):(listGetLabels cs))
 
--- Extract the labels from a list of ASTChild, ExprChild etc.
+-- Extract the labels from a list of ASTChild, ASTChild etc.
 listWSGetLabels :: [(a, ASTLabel, b)] -> [ASTLabel]
 listWSGetLabels [] = []
 listWSGetLabels (c:cs) = ((childWSGetLabel c):(listWSGetLabels cs))
@@ -201,10 +198,10 @@ labelVarList (v:vx) n = (v, n + 1):(labelVarList vx (n + 1))
 
 
 -- Label a list of Expressions.
-labelExpressionList :: [ExprWithSourceFragment] -> ASTLabel -> [ExprChild]
+labelExpressionList :: [ASTWithSourceFragment] -> ASTLabel -> [ASTChild]
 labelExpressionList [] _ = []
 labelExpressionList (e:ex) n =
-    let (le, m, sf) = labelExpression e n in ((le, m, sf):(labelExpressionList ex m))
+    let (le, m, sf) = labelAST e n in ((le, m, sf):(labelExpressionList ex m))
 
 
 -- Label a list of ASTs.
@@ -268,123 +265,21 @@ labelValue (WSUndefined) n = (LabUndefined, n + 1)
 labelValue (WSNull) n = (LabNull, n + 1)
 
 
--- Label an Expression. Recursively process any child fields.
-labelExpression :: ExprWithSourceFragment -> ASTLabel -> ExprChild
-labelExpression (EWSF (WSList ex) sourceFragment) n =
-    ((LabList (field1)), (maximum ((listWSGetLabels field1) ++ [n])) + 1, sourceFragment)
-    where
-        field1 = labelExpressionList ex n
-labelExpression (EWSF (WSBinary op ex1 ex2) sourceFragment) n =
-    ((LabBinary field1 field2 field3), (childWSGetLabel field3) + 1, sourceFragment)
-    where
-        field1 = labelOperator op n
-        field2 = labelExpression ex1 (childGetLabel field1)
-        field3 = labelExpression ex2 (childWSGetLabel field2)
-labelExpression (EWSF (WSUnaryPost op ex) sourceFragment) n =
-    ((LabUnaryPost field1 field2), (childWSGetLabel field2) + 1, sourceFragment)
-    where
-        field1 = labelOperator op n
-        field2 = labelExpression ex (childGetLabel field1)
-labelExpression (EWSF (WSUnaryPre op ex) sourceFragment) n =
-    ((LabUnaryPre field1 field2), (childWSGetLabel field2) + 1, sourceFragment)
-    where
-        field1 = labelOperator op n
-        field2 = labelExpression ex (childGetLabel field1)
-labelExpression (EWSF (WSTernary ex1 ex2 ex3) sourceFragment) n =
-    ((LabTernary field1 field2 field3), (childWSGetLabel field3) + 1, sourceFragment)
-    where
-        field1 = labelExpression ex1 n
-        field2 = labelExpression ex2 (childWSGetLabel field1)
-        field3 = labelExpression ex3 (childWSGetLabel field2)
-labelExpression (EWSF (WSAssignment op ex1 ex2) sourceFragment) n =
-    ((LabAssignment field1 field2 field3), (childWSGetLabel field3) + 1, sourceFragment)
-    where
-        field1 = labelOperator op n
-        field2 = labelExpression ex1 (childGetLabel field1)
-        field3 = labelExpression ex2 (childWSGetLabel field2)
-labelExpression (EWSF (WSIdentifier ident) sourceFragment) n =
-    ((LabIdentifier field1), (childGetLabel field1) + 1, sourceFragment)
-    where
-        field1 = labelVariable ident n
-labelExpression (EWSF (WSReference ex1 ex2) sourceFragment) n =
-    ((LabReference field1 field2), (childWSGetLabel field2) + 1, sourceFragment)
-    where
-        field1 = labelExpression ex1 n
-        field2 = labelExpression ex2 (childWSGetLabel field1)
-labelExpression (EWSF (WSIndex ex1 ex2) sourceFragment) n =
-    ((LabIndex field1 field2), (childWSGetLabel field2) + 1, sourceFragment)
-    where
-        field1 = labelExpression ex1 n
-        field2 = labelExpression ex2 (childWSGetLabel field1)
-labelExpression (EWSF (WSValue val) sourceFragment) n =
-    ((LabValue field1), (childGetLabel field1) + 1, sourceFragment)
-    where
-        field1 = labelValue val n
-labelExpression (EWSF (WSPropNameValue name ex) sourceFragment) n =
-    ((LabPropNameValue field1 field2), (childWSGetLabel field2) + 1, sourceFragment)
-    where
-        field1 = labelPropertyName name n
-        field2 = labelExpression ex (childGetLabel field1)
-labelExpression (EWSF (WSCall ex1 ex2) sourceFragment) n =
-    ((LabCall field1 field2), (childWSGetLabel field2) + 1, sourceFragment)
-    where
-        field1 = labelExpression ex1 n
-        field2 = labelExpression ex2 (childWSGetLabel field1)
-labelExpression (EWSF (WSArguments args) sourceFragment) n =
-    ((LabArguments (field1)), (maximum ((listWSGetLabels field1) ++ [n])) + 1, sourceFragment)
-    where
-        field1 = labelExpressionList args n
-labelExpression (EWSF (WSParenExpression ex) sourceFragment) n =
-    ((LabParenExpression field1), (childWSGetLabel field1) + 1, sourceFragment)
-    where
-        field1 = labelExpression ex n
-labelExpression (EWSF (WSBreak vars) sourceFragment) n =
-    ((LabBreak field1), (maxMaybeLabel field1 n) + 1, sourceFragment)
-    where
-        field1 = labelMaybeVar vars n
-labelExpression (EWSF (WSContinue vars) sourceFragment) n =
-    ((LabContinue field1), (maxMaybeLabel field1 n) + 1, sourceFragment)
-    where
-        field1 = labelMaybeVar vars n
-labelExpression (EWSF (WSThrow ex) sourceFragment) n =
-    ((LabThrow field1), (childWSGetLabel field1) + 1, sourceFragment)
-    where
-        field1 = labelExpression ex n
-labelExpression (EWSF (WSCallExpression ex1 op ex2) sourceFragment) n =
-    ((LabCallExpression field1 field2 field3), (childWSGetLabel field3) + 1, sourceFragment)
-    where
-        field1 = labelExpression ex1 n
-        field2 = labelOperator op (childWSGetLabel field1)
-        field3 = labelExpression ex2 (childGetLabel field2)
-labelExpression (EWSF (WSFunctionExpression var vars ast) sourceFragment) n =
-    ((LabFunctionExpression field1 field2 field3), (childWSGetLabel field3) + 1, sourceFragment)
-    where
-        field1 = labelMaybeVar var n
-        field2 = labelVarList vars (maxMaybeLabel field1 n)
-        field3 = labelAST ast (maximum ((listGetLabels field2) ++ [n]))
-labelExpression (EWSF (WSVarDeclaration var ex) sourceFragment) n =
-    ((LabVarDeclaration field1 field2), (maxMaybeWSLabel field2 (childGetLabel field1)) + 1, sourceFragment)
-    where
-        field1 = labelVariable var n
-        field2 = labelMaybeExpression ex (childGetLabel field1)
-labelExpression (EWSF (WSNew ex) sourceFragment) n =
-    ((LabNew field1), (childWSGetLabel field1) + 1, sourceFragment)
-    where
-        field1 = labelExpression ex n
-
-
 -- Label a Maybe Expression if it is not Nothing.
-labelMaybeExpression :: (Maybe ExprWithSourceFragment) -> ASTLabel -> (Maybe ExprChild)
-labelMaybeExpression Nothing n = Nothing
-labelMaybeExpression (Just ex) n = Just $ labelExpression ex n
+-- FIXME: Replace with monad operations.
+labelMaybeAST :: (Maybe ASTWithSourceFragment) -> ASTLabel -> (Maybe ASTChild)
+labelMaybeAST Nothing n = Nothing
+labelMaybeAST (Just ex) n = Just $ labelAST ex n
 
 
 -- Label a AST. Recursively process any child fields.
 labelAST :: ASTWithSourceFragment -> ASTLabel -> ASTChild
-labelAST (AWSF (WSBlock astList) sourceFragment) n =
-    ((LabBlock field1), (maximum ((listWSGetLabels field1) ++ [n])) + 1, sourceFragment)
+-- FIXME: WSBlock handler changed in a rush after child changed from a list to just one node. Double
+-- check it.
+labelAST (AWSF (WSBlock body) sourceFragment) n =
+    ((LabBlock field1), (childWSGetLabel field1) + 1, sourceFragment)
     where
-        field1 = labelASTList astList n
+        field1 = labelAST body n
 labelAST (AWSF (WSFunctionBody astList) sourceFragment) n =
     ((LabFunctionBody field1), (maximum ((listWSGetLabels field1) ++ [n])) + 1, sourceFragment)
     where
@@ -404,9 +299,9 @@ labelAST (AWSF (WSForVar ex1 ex2 ex3 body) sourceFragment) n =
     ((LabForVar field1 field2 field3 field4), (childWSGetLabel field4) + 1, sourceFragment)
     where
         field1 = labelExpressionList ex1 n
-        field2 = labelMaybeExpression ex2 $ maximum ((listWSGetLabels field1) ++ [n])
+        field2 = labelMaybeAST ex2 $ maximum ((listWSGetLabels field1) ++ [n])
         field3 =
-            labelMaybeExpression ex3 $ maximum ((listWSGetLabels field1) ++ [maxMaybeWSLabel field2 n])
+            labelMaybeAST ex3 $ maximum ((listWSGetLabels field1) ++ [maxMaybeWSLabel field2 n])
         field4 =
             labelAST
                 body
@@ -417,10 +312,10 @@ labelAST (AWSF (WSForVar ex1 ex2 ex3 body) sourceFragment) n =
 labelAST (AWSF (WSFor ex1 ex2 ex3 body) sourceFragment) n =
     ((LabFor field1 field2 field3 field4), (childWSGetLabel field4) + 1, sourceFragment)
     where
-        field1 = labelMaybeExpression ex1 n
-        field2 = labelMaybeExpression ex2 (maxMaybeWSLabel field1 n)
+        field1 = labelMaybeAST ex1 n
+        field2 = labelMaybeAST ex2 (maxMaybeWSLabel field1 n)
         field3 =
-            labelMaybeExpression ex3 $ max (maxMaybeWSLabel field1 n) (maxMaybeWSLabel field2 n)
+            labelMaybeAST ex3 $ max (maxMaybeWSLabel field1 n) (maxMaybeWSLabel field2 n)
         field4 =
             labelAST
                 body
@@ -432,59 +327,61 @@ labelAST (AWSF (WSForIn vars ex body) sourceFragment) n =
     ((LabForIn field1 field2 field3), (childWSGetLabel field3) + 1, sourceFragment)
     where
         field1 = labelVarList vars n
-        field2 = labelExpression ex $ maximum ((listGetLabels field1) ++ [n])
+        field2 = labelAST ex $ maximum ((listGetLabels field1) ++ [n])
         field3 = labelAST body (childWSGetLabel field2)
 labelAST (AWSF (WSForVarIn ex1 ex2 body) sourceFragment) n =
     ((LabForVarIn field1 field2 field3), (childWSGetLabel field3) + 1, sourceFragment)
     where
-        field1 = labelExpression ex1 n
-        field2 = labelExpression ex2 (childWSGetLabel field1)
+        field1 = labelAST ex1 n
+        field2 = labelAST ex2 (childWSGetLabel field1)
         field3 = labelAST body (childWSGetLabel field2)
 labelAST (AWSF (WSWhile ex body) sourceFragment) n =
     ((LabWhile field1 field2), (childWSGetLabel field2) + 1, sourceFragment)
     where
-        field1 = labelExpression ex n
+        field1 = labelAST ex n
         field2 = labelAST body (childWSGetLabel field1)
 labelAST (AWSF (WSDoWhile body ex) sourceFragment) n  =
     ((LabDoWhile field1 field2), (childWSGetLabel field2) + 1, sourceFragment)
     where
         field1 = labelAST body n
-        field2 = labelExpression ex (childWSGetLabel field1)
+        field2 = labelAST ex (childWSGetLabel field1)
 labelAST (AWSF (WSIf ex body) sourceFragment) n =
     ((LabIf field1 field2), (childWSGetLabel field2) + 1, sourceFragment)
     where
-        field1 = labelExpression ex n
+        field1 = labelAST ex n
         field2 = labelAST body (childWSGetLabel field1)
 labelAST (AWSF (WSIfElse ex bodyT bodyF) sourceFragment) n =
     ((LabIfElse field1 field2 field3), (childWSGetLabel field3) + 1, sourceFragment)
     where
-        field1 = labelExpression ex n
+        field1 = labelAST ex n
         field2 = labelAST bodyT (childWSGetLabel field1)
         field3 = labelAST bodyF (childWSGetLabel field2)
-labelAST (AWSF (WSSwitch ex cs) sourceFragment) n =
-    ((LabSwitch field1 field2), (childWSGetLabel field2) + 1, sourceFragment)
-    where
-        field1 = labelExpression ex n
-        field2 = labelAST cs (childWSGetLabel field1)
+-- FIXME: Uncomment this and fix it (second field is a list now)
+-- labelAST (AWSF (WSSwitch ex cs) sourceFragment) n =
+--     ((LabSwitch field1 field2), (childWSGetLabel field2) + 1, sourceFragment)
+--     where
+--         field1 = labelAST ex n
+--         field2 = labelAST cs (childWSGetLabel field1)
 labelAST (AWSF (WSCase ex body) sourceFragment) n =
     ((LabCase field1 field2), (childWSGetLabel field2) + 1, sourceFragment)
     where
-        field1 = labelExpression ex n
+        field1 = labelAST ex n
         field2 = labelAST body (childWSGetLabel field1)
 labelAST (AWSF (WSDefault body) sourceFragment) n =
     ((LabDefault field1), (childWSGetLabel field1) + 1, sourceFragment)
     where
         field1 = labelAST body n
-labelAST (AWSF (WSTry body ctch) sourceFragment) n =
-    ((LabTry field1 field2), (childWSGetLabel field2) + 1, sourceFragment)
-    where
-        field1 = labelAST body n
-        field2 = labelAST ctch (childWSGetLabel field1)
+-- FIXME: Uncomment this and fix it (second field is a list now)
+-- labelAST (AWSF (WSTry body ctch) sourceFragment) n =
+--     ((LabTry field1 field2), (childWSGetLabel field2) + 1, sourceFragment)
+--     where
+--         field1 = labelAST body n
+--         field2 = labelAST ctch (childWSGetLabel field1)
 labelAST (AWSF (WSCatch var ex body) sourceFragment) n =
     ((LabCatch field1 field2 field3), (childWSGetLabel field3) + 1, sourceFragment)
     where
         field1 = labelVariable var n
-        field2 = labelMaybeExpression ex (childGetLabel field1)
+        field2 = labelMaybeAST ex (childGetLabel field1)
         field3 = labelAST body (maxMaybeWSLabel field2 (childGetLabel field1))
 labelAST (AWSF (WSFinally body) sourceFragment) n =
     ((LabFinally field1), (childWSGetLabel field1) + 1, sourceFragment)
@@ -493,8 +390,117 @@ labelAST (AWSF (WSFinally body) sourceFragment) n =
 labelAST (AWSF (WSReturn ex) sourceFragment) n =
     ((LabReturn field1), (childWSGetLabel field1) + 1, sourceFragment)
     where
-        field1 = labelExpression ex n
+        field1 = labelAST ex n
 labelAST (AWSF (WSStatement ex) sourceFragment) n =
     ((LabStatement field1), (childWSGetLabel field1) + 1, sourceFragment)
     where
-        field1 = labelExpression ex n
+        field1 = labelAST ex n
+labelAST (AWSF (WSList ex) sourceFragment) n =
+    ((LabList (field1)), (maximum ((listWSGetLabels field1) ++ [n])) + 1, sourceFragment)
+    where
+        field1 = labelExpressionList ex n
+labelAST (AWSF (WSExpression ex) sourceFragment) n =
+    ((LabExpression (field1)), (maximum ((listWSGetLabels field1) ++ [n])) + 1, sourceFragment)
+    where
+        field1 = labelExpressionList ex n
+labelAST (AWSF (WSStatementList ex) sourceFragment) n =
+    ((LabStatementList (field1)), (maximum ((listWSGetLabels field1) ++ [n])) + 1, sourceFragment)
+    where
+        field1 = labelExpressionList ex n
+labelAST (AWSF (WSBinary op ex1 ex2) sourceFragment) n =
+    ((LabBinary field1 field2 field3), (childWSGetLabel field3) + 1, sourceFragment)
+    where
+        field1 = labelOperator op n
+        field2 = labelAST ex1 (childGetLabel field1)
+        field3 = labelAST ex2 (childWSGetLabel field2)
+labelAST (AWSF (WSUnaryPost op ex) sourceFragment) n =
+    ((LabUnaryPost field1 field2), (childWSGetLabel field2) + 1, sourceFragment)
+    where
+        field1 = labelOperator op n
+        field2 = labelAST ex (childGetLabel field1)
+labelAST (AWSF (WSUnaryPre op ex) sourceFragment) n =
+    ((LabUnaryPre field1 field2), (childWSGetLabel field2) + 1, sourceFragment)
+    where
+        field1 = labelOperator op n
+        field2 = labelAST ex (childGetLabel field1)
+labelAST (AWSF (WSTernary ex1 ex2 ex3) sourceFragment) n =
+    ((LabTernary field1 field2 field3), (childWSGetLabel field3) + 1, sourceFragment)
+    where
+        field1 = labelAST ex1 n
+        field2 = labelAST ex2 (childWSGetLabel field1)
+        field3 = labelAST ex3 (childWSGetLabel field2)
+labelAST (AWSF (WSAssignment op ex1 ex2) sourceFragment) n =
+    ((LabAssignment field1 field2 field3), (childWSGetLabel field3) + 1, sourceFragment)
+    where
+        field1 = labelOperator op n
+        field2 = labelAST ex1 (childGetLabel field1)
+        field3 = labelAST ex2 (childWSGetLabel field2)
+labelAST (AWSF (WSIdentifier ident) sourceFragment) n =
+    ((LabIdentifier field1), (childGetLabel field1) + 1, sourceFragment)
+    where
+        field1 = labelVariable ident n
+labelAST (AWSF (WSReference ex1 ex2) sourceFragment) n =
+    ((LabReference field1 field2), (childWSGetLabel field2) + 1, sourceFragment)
+    where
+        field1 = labelAST ex1 n
+        field2 = labelAST ex2 (childWSGetLabel field1)
+labelAST (AWSF (WSIndex ex1 ex2) sourceFragment) n =
+    ((LabIndex field1 field2), (childWSGetLabel field2) + 1, sourceFragment)
+    where
+        field1 = labelAST ex1 n
+        field2 = labelAST ex2 (childWSGetLabel field1)
+labelAST (AWSF (WSValue val) sourceFragment) n =
+    ((LabValue field1), (childGetLabel field1) + 1, sourceFragment)
+    where
+        field1 = labelValue val n
+labelAST (AWSF (WSPropNameValue name ex) sourceFragment) n =
+    ((LabPropNameValue field1 field2), (childWSGetLabel field2) + 1, sourceFragment)
+    where
+        field1 = labelPropertyName name n
+        field2 = labelAST ex (childGetLabel field1)
+labelAST (AWSF (WSCall ex1 ex2) sourceFragment) n =
+    ((LabCall field1 field2), (childWSGetLabel field2) + 1, sourceFragment)
+    where
+        field1 = labelAST ex1 n
+        field2 = labelAST ex2 (childWSGetLabel field1)
+labelAST (AWSF (WSArguments args) sourceFragment) n =
+    ((LabArguments (field1)), (maximum ((listWSGetLabels field1) ++ [n])) + 1, sourceFragment)
+    where
+        field1 = labelExpressionList args n
+labelAST (AWSF (WSParenExpression ex) sourceFragment) n =
+    ((LabParenExpression field1), (childWSGetLabel field1) + 1, sourceFragment)
+    where
+        field1 = labelAST ex n
+labelAST (AWSF (WSBreak vars) sourceFragment) n =
+    ((LabBreak field1), (maxMaybeLabel field1 n) + 1, sourceFragment)
+    where
+        field1 = labelMaybeVar vars n
+labelAST (AWSF (WSContinue vars) sourceFragment) n =
+    ((LabContinue field1), (maxMaybeLabel field1 n) + 1, sourceFragment)
+    where
+        field1 = labelMaybeVar vars n
+labelAST (AWSF (WSThrow ex) sourceFragment) n =
+    ((LabThrow field1), (childWSGetLabel field1) + 1, sourceFragment)
+    where
+        field1 = labelAST ex n
+labelAST (AWSF (WSCallExpression ex1 op ex2) sourceFragment) n =
+    ((LabCallExpression field1 field2 field3), (childWSGetLabel field3) + 1, sourceFragment)
+    where
+        field1 = labelAST ex1 n
+        field2 = labelOperator op (childWSGetLabel field1)
+        field3 = labelAST ex2 (childGetLabel field2)
+labelAST (AWSF (WSFunctionExpression var vars ast) sourceFragment) n =
+    ((LabFunctionExpression field1 field2 field3), (childWSGetLabel field3) + 1, sourceFragment)
+    where
+        field1 = labelMaybeVar var n
+        field2 = labelVarList vars (maxMaybeLabel field1 n)
+        field3 = labelAST ast (maximum ((listGetLabels field2) ++ [n]))
+labelAST (AWSF (WSVarDeclaration var ex) sourceFragment) n =
+    ((LabVarDeclaration field1 field2), (maxMaybeWSLabel field2 (childGetLabel field1)) + 1, sourceFragment)
+    where
+        field1 = labelVariable var n
+        field2 = labelMaybeAST ex (childGetLabel field1)
+labelAST (AWSF (WSNew ex) sourceFragment) n =
+    ((LabNew field1), (childWSGetLabel field1) + 1, sourceFragment)
+    where
+        field1 = labelAST ex n

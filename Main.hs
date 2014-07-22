@@ -67,10 +67,10 @@ main = do
 	-- **PRETTY PRINTED**
 	-- Prints the rules, indented base on their scope, with optional source code, and an optional
 	-- list of the identifiers that are visible at that each scope.
-	putStrLn ""
-	putStrLn "Pretty print cleaned function rules with identifiers"
-	putStr "Top Level:"
-	printCleanedRulesList ((makeCleanedFunctionRules pr infile):[]) (makeIndent "") False True
+	-- putStrLn ""
+	-- putStrLn "Pretty print cleaned function rules with identifiers"
+	-- putStr "Top Level:"
+	-- printCleanedRulesList ((makeCleanedFunctionRules pr infile):[]) (makeIndent "") False True
 
 	-- PRETTY PRINTED (could be improved with pretty printing for types)
 	-- Print all the rules, optionally with source code.
@@ -103,18 +103,18 @@ main = do
 	-- Print the cleaned ATS with labels and source.
 	putStrLn ""
 	putStrLn "Pretty print labelled AST with labels and source fragments"
-	mapPrintASTChild (makeLabelledAST pr infile) (makeIndent "") True True
+	printASTChild (makeLabelledAST pr infile) (makeIndent "") True True
 
 	-- **PRETTY PRINTED**
 	-- Pretty print the ASTWithSourceFragment with source fragments
 	putStrLn ""
 	putStrLn "Pretty print ASTWithSourceFragment with source fragments"
-	mapPrintASTWS (makeASTWithSourceFragments pr infile) (makeIndent "") True
+	printASTWS (makeASTWithSourceFragments pr infile) (makeIndent "") True
 	-- **PRETTY PRINTED**
 	-- Pretty print the ASTWithSourceFragment without source fragments
 	putStrLn ""
 	putStrLn "Pretty print ASTWithSourceFragment without source fragments"
-	mapPrintASTWS (makeASTWithSourceFragments pr infile) (makeIndent "") False
+	printASTWS (makeASTWithSourceFragments pr infile) (makeIndent "") False
 
 	-- Prints the first AST (pre-labels).
 	-- putStrLn ""
@@ -153,16 +153,14 @@ makeDeclarationGraph input fileName =
 		(fileName, 1, 1, ((length $ lines input) + 1), 1)
 
 
-makeLabelledAST :: String -> SourceFileName -> [ASTChild]
+makeLabelledAST :: String -> SourceFileName -> ASTChild
 makeLabelledAST input fileName = label $ makeASTWithSourceFragments input fileName
 
 
--- FIXME: Passing the file name here might mean that we don't need to thread it through the whole
--- AST.
-makeASTWithSourceFragments :: String -> SourceFileName -> [ASTWithSourceFragment]
+makeASTWithSourceFragments :: String -> SourceFileName -> ASTWithSourceFragment
 makeASTWithSourceFragments input fileName =
-	astListWSMakeSourceFragments (makeAST input fileName) (SpanPoint fileName ((length $ lines input) + 1) 1)
+	astWSMakeSourceFragment (makeAST input fileName) (SpanPoint fileName ((length $ lines input) + 1) 1)
 
 
-makeAST :: String -> SourceFileName -> ([ASTWithSourceSpan], SourceFileName)
+makeAST :: String -> SourceFileName -> (ASTWithSourceSpan, SourceFileName)
 makeAST input fileName = getASTWithSource (parseTree input fileName) fileName
