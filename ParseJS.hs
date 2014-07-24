@@ -54,6 +54,7 @@ import Data.Functor.Identity
 import Data.List
     ( delete
     , find
+    , groupBy
     , intercalate
     , nub
     ,(\\)
@@ -215,10 +216,11 @@ listToASTExpression :: [JSNode] -> ASTWithSourceSpan
 listToASTExpression [item] = toAST item
 listToASTExpression [(NS (JSUnary operator) srcSpan), (NS (JSDecimal x) _)]
     | (operator == "-") =
-        if (elem '.' x) then
-            AWSS (Value xFloat) srcSpan
-        else
-            AWSS (Value xInt) srcSpan
+        if (elem '.' x)
+            then
+                AWSS (Value xFloat) srcSpan
+            else
+                AWSS (Value xInt) srcSpan
         where
             xFloat = JSFloat (-1 * (read x))
             xInt = JSInt (-1 * (read x))
@@ -303,7 +305,7 @@ toASTVarDeclaration (NS (JSVarDecl name value) srcSpan) =
         srcSpan
 
 
--- TODO: Check use of this. Probably used in more places than needed.
+-- TODO: Check use of this function. Probably used in more places than needed.
 filterSemicolons :: [JSNode] -> [JSNode]
 filterSemicolons jsnList =
     filter isNotSemi jsnList
@@ -374,7 +376,7 @@ toAST (NS (JSCatch var test body) srcSpan) =
 -- with a value and a literal semicolon.
 toAST (NS (JSContinue label) srcSpan) =
     AWSS
-        (Continue (liftM (identifierGetString . jsnGetNode) (listToMaybe $ init label)))
+        (Continue (liftM (identifierGetString . jsnGetNode) (listToMaybe $ filterSemicolons label)))
         srcSpan
 toAST (NS (JSDefault body) srcSpan) =
     AWSS
@@ -486,7 +488,7 @@ toAST (NS (JSPropertyNameandValue name value) srcSpan) =
     AWSS
         (PropNameValue
             (getPropertyName $ jsnGetNode name)
-            -- This can be a proper list of JSNodes, eg. var o = { p: x = 2 };
+            -- Value can be a proper list of JSNodes, eg. var o = { p: x = 2 };
             (listToASTExpression value))
         srcSpan
     where
@@ -496,14 +498,14 @@ toAST (NS (JSPropertyNameandValue name value) srcSpan) =
 toAST (NS (JSReturn value) srcSpan) =
     AWSS
         (Return
-            (returnValue value))
+            (returnValue $ filterSemicolons value))
         srcSpan
     where
         -- The list in a JSReturn is always either a singleton list containing a semicolon, or a
         -- 2-list containing a JSNode (representing the value to be returned) and a semicolon.
         returnValue :: [JSNode] -> ASTWithSourceSpan
-        returnValue [semi] = AWSS (Value JSUndefined) srcSpan
-        returnValue [val, semi] = toAST val
+        returnValue [] = AWSS (Value JSUndefined) srcSpan
+        returnValue [val] = toAST val
 toAST (NS (JSSwitch var cases) srcSpan) =
     AWSS
         (Switch
@@ -641,51 +643,125 @@ getNearestSrcSpan (SpanEmpty) s = s
 getNearestSrcSpan s _ = s
 
 
--- Takes the parse tree representation of an array literal, deals with elisions at the start of the
--- array, then processes what's left.
-processArray :: [JSNode] -> [[JSNode]] -> SrcSpan -> [[JSNode]]
-processArray [] current _ = current
-processArray ((NS (JSElision es) srcSpan):rest) current nearestSpan =
-    processArray
-        rest
-        (current ++ [[NS (JSIdentifier "undefined") (getNearestSrcSpan srcSpan nearestSpan)]])
-        (getNearestSrcSpan srcSpan nearestSpan)
--- processArray jsArray current nearestSpan = arrayGetElements jsArray current nearestSpan
-processArray jsArray current nearestSpan = current ++ (arrayGetElements jsArray [] nearestSpan)
+-- -- Takes the parse tree representation of an array literal, deals with elisions at the start of the
+-- -- array, then processes what's left.
+-- processArray :: [JSNode] -> [[JSNode]] -> SrcSpan -> [[JSNode]]
+-- processArray [] current _ = current
+-- processArray ((NS (JSElision es) srcSpan):rest) current nearestSpan =
+--     processArray
+--         rest
+--         (current ++ [[NS (JSIdentifier "undefined") (getNearestSrcSpan srcSpan nearestSpan)]])
+--         (getNearestSrcSpan srcSpan nearestSpan)
+-- -- processArray jsArray current nearestSpan = arrayGetElements jsArray current nearestSpan
+-- processArray jsArray current nearestSpan = current ++ (arrayGetElements jsArray [] nearestSpan)
 
 
 -- Process the remainder an array literal after any leading commas have been processed.
 -- FIXME: Try to improve source spans.
-arrayGetElements :: [JSNode] -> [[JSNode]] -> SrcSpan -> [[JSNode]]
-arrayGetElements [] current nearestSpan = current
--- Ignore one trailing comma at the end of the array.
-arrayGetElements [(NS (JSLiteral ",") _)] current _ = current
--- A single elision at the end of the parsed array occurs when there are two commas at the end of
--- the array or when the array is equal to [,]
-arrayGetElements [(NS (JSElision e) srcSpan)] current nearestSpan =
-    current ++ [[(NS (JSIdentifier "undefined") (getNearestSrcSpan srcSpan nearestSpan))]]
--- Two elisions in a row (that aren't at the beginning of the array) indicates one undefined entry,
--- then a comma seperator, then the next entry.
-arrayGetElements
-    ((NS (JSElision _) srcSpan1):(NS (JSElision e) srcSpan2):rest) current nearestSpan  =
-        arrayGetElements
-            ((NS (JSElision e) srcSpan2):rest)
-            (current
-            ++ [[NS (JSIdentifier "undefined") (getNearestSrcSpan srcSpan1 nearestSpan)]])
-            (getNearestSrcSpan srcSpan1 nearestSpan)
--- One elision and then a non-elision entry indicates a comma seperator and then the entry.
-arrayGetElements ((NS (JSElision _) srcSpan):(jsn):rest) current nearestSpan =
-    arrayGetElements rest (current ++ [[jsn]]) (getNearestSrcSpan srcSpan nearestSpan)
-arrayGetElements (jsn:rest) [] nearestSpan =
-    arrayGetElements
-        rest
-        [[jsn]]
-        (getNearestSrcSpan (jsnGetSource jsn) nearestSpan)
-arrayGetElements (jsn:rest) current nearestSpan =
-    arrayGetElements
-        rest
-        ((init current) ++ [(last current) ++ [jsn]])
-        (getNearestSrcSpan (jsnGetSource jsn) nearestSpan)
+-- arrayGetElements :: [JSNode] -> [[JSNode]] -> SrcSpan -> [[JSNode]]
+-- arrayGetElements [] current nearestSpan = current
+-- -- Ignore one trailing comma at the end of the array.
+-- arrayGetElements [(NS (JSLiteral ",") _)] current _ = current
+-- -- A single elision at the end of the parsed array occurs when there are two commas at the end of
+-- -- the array or when the array is equal to [,]
+-- arrayGetElements [(NS (JSElision e) srcSpan)] current nearestSpan =
+--     current ++ [[(NS (JSIdentifier "undefined") (getNearestSrcSpan srcSpan nearestSpan))]]
+-- -- Two elisions in a row (that aren't at the beginning of the array) indicates one undefined entry,
+-- -- then a comma seperator, then the next entry.
+-- arrayGetElements
+--     ((NS (JSElision _) srcSpan1):(NS (JSElision e) srcSpan2):rest) current nearestSpan  =
+--         arrayGetElements
+--             ((NS (JSElision e) srcSpan2):rest)
+--             (current
+--             ++ [[NS (JSIdentifier "undefined") (getNearestSrcSpan srcSpan1 nearestSpan)]])
+--             (getNearestSrcSpan srcSpan1 nearestSpan)
+-- -- One elision and then a non-elision entry indicates a comma seperator and then the entry.
+-- arrayGetElements ((NS (JSElision _) srcSpan):(jsn):rest) current nearestSpan =
+--     arrayGetElements rest (current ++ [[jsn]]) (getNearestSrcSpan srcSpan nearestSpan)
+-- arrayGetElements (jsn:rest) [] nearestSpan =
+--     arrayGetElements
+--         rest
+--         [[jsn]]
+--         (getNearestSrcSpan (jsnGetSource jsn) nearestSpan)
+-- arrayGetElements (jsn:rest) current nearestSpan =
+--     arrayGetElements
+--         rest
+--         ((init current) ++ [(last current) ++ [jsn]])
+--         (getNearestSrcSpan (jsnGetSource jsn) nearestSpan)
+
+
+-- Takes the parse tree representation of an array literal, deals with elisions at the start of the
+-- array, then processes what's left.
+-- processArray :: [JSNode] -> [[JSNode]] -> SrcSpan -> [[JSNode]]
+-- processArray [] current _ = current
+-- processArray ((NS (JSElision es) srcSpan):rest) current nearestSpan =
+--     processArray
+--         rest
+--         (current ++ [[NS (JSIdentifier "undefined") (getNearestSrcSpan srcSpan nearestSpan)]])
+--         (getNearestSrcSpan srcSpan nearestSpan)
+-- processArray jsArray current nearestSpan = current ++ (sublists jsArray)
+
+isElision (NS (JSElision _) _) = True
+isElision _ = False
+
+processArray :: [JSNode] -> SrcSpan -> [[JSNode]]
+processArray [] _ = []
+processArray list nearestSpan =
+    if (null leadingElisions)
+        then
+            (sublists (drop (length $ processLeadingElisions list nearestSpan) list))
+        else
+            [leadingElisions] ++ (sublists (drop (length $ processLeadingElisions list nearestSpan) list))
+    where
+        leadingElisions = processLeadingElisions list nearestSpan
+
+processLeadingElisions :: [JSNode] -> SrcSpan -> [JSNode]
+processLeadingElisions [] _ = []
+processLeadingElisions list nearestSpan =
+    [(NS (JSIdentifier "undefined") (getNearestSrcSpan (jsnGetSource el) nearestSpan)) | el <- (takeWhile isElision list)]
+
+sublists :: [JSNode] -> [[JSNode]]
+sublists list =
+    seperateUndefineds
+        $ mapElisionsToUndefined
+            $ breakAtElision
+                $ stripTrailingComma list
+
+-- if the last thing is a JSLiteral "," just drop it
+stripTrailingComma :: [JSNode] -> [JSNode]
+stripTrailingComma [] = []
+stripTrailingComma list = if ((jsnGetNode $ last list) == (JSLiteral ",")) then init list else list
+
+-- walking through the list, if we see an elision and then a non elision, replace the elision with a
+-- "break"
+breakAtElision :: [JSNode] -> [[JSNode]]
+breakAtElision [] = []
+breakAtElision list =
+    filter (not . null) (map killElisions (init $ groupBy compareElements list) ++ [(last $ groupBy compareElements list)])
+killElisions ((NS (JSElision _) _):rest) = rest
+killElisions ls = ls
+compareElements (NS (JSElision _) _) (NS (JSElision _) _) = True
+compareElements (NS (JSElision _) _) _ = False
+compareElements _ (NS (JSElision _) _) = False
+compareElements _ _ = True
+
+-- walking through the broken-up list, replace any remaining elisions with "undefined"
+mapElisionsToUndefined :: [[JSNode]] -> [[JSNode]]
+mapElisionsToUndefined list = map (map elisionToUndefined) list
+elisionToUndefined (NS (JSElision _) srcSpan) = NS (JSIdentifier "undefined") srcSpan
+elisionToUndefined n = n
+
+-- break up lists of undefineds
+-- [[x, y, z], [undef, undef, undef]]
+-- map seperateIfUndefined: [[[x, y, z]], [[undef], [undef], [undef]]]
+-- concat [[[x, y, z]], [[undef], [undef], [undef]]]: [[x, y, z], [undef], [undef], [undef]]
+seperateUndefineds :: [[JSNode]] -> [[JSNode]]
+seperateUndefineds list = concat $ map seperateIfUndefined list
+seperateIfUndefined ((NS (JSIdentifier "undefined") srcSpan):[]) =
+    [[(NS (JSIdentifier "undefined") srcSpan)]]
+seperateIfUndefined ((NS (JSIdentifier "undefined") srcSpan):rest) =
+    [[(NS (JSIdentifier "undefined") srcSpan)]] ++ (seperateIfUndefined rest)
+seperateIfUndefined ls = [ls]
 
 
 -- Takes a Node that represents a literal value and makes an AST node for that value.
@@ -712,12 +788,14 @@ toASTValue (NS (JSArrayLiteral arr) srcSpan) =
     -- TODO: Check this.
     -- [[JSIdentifier \"y\", JSOperator \"=\", JSDecimal \"10\"], [JSDecimal \"3\"]]
     JSArray
-        (map listToASTExpression (processArray arr [] srcSpan))
+        (map listToASTExpression (processArray arr srcSpan))
+        -- (map listToASTExpression (processArray arr [] srcSpan))
 toASTValue (NS (JSDecimal s) _) =
-    if elem '.' s then
-        JSFloat (read s)
-    else
-        JSInt (read s)
+    if elem '.' s
+        then
+            JSFloat (read s)
+        else
+            JSInt (read s)
 toASTValue (NS (JSLiteral "false") _) = JSBool False
 toASTValue (NS (JSLiteral "true") _) = JSBool True
 -- FIXME: Can there ever be semicolons in the list?

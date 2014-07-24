@@ -49,12 +49,12 @@ main = do
 	pr <- readFile infile
 	putStrLn ""
 	-- *****************
-	putStrLn ""
-	putStrLn "Print the stripped parse tree"
-	printParseTreeStripped $ jsnGetNode $ parseTree pr infile
-	putStrLn ""
-	putStrLn "Print the raw parse tree"
-	putStrLn $ show $ parse pr infile
+	-- putStrLn ""
+	-- putStrLn "Print the stripped parse tree"
+	-- printParseTreeStripped $ jsnGetNode $ parseTree pr infile
+	-- putStrLn ""
+	-- putStrLn "Print the raw parse tree"
+	-- putStrLn $ show $ parse pr infile
 	-- *****************
 	-- PRETTY PRINTED
 	-- Prints declared functions and function expressions, and the identifiers
@@ -101,15 +101,15 @@ main = do
 	-- mapPrintASTChild (makeLabelledAST pr infile) (makeIndent "") True False
 	-- **PRETTY PRINTED**
 	-- Print the cleaned ATS with labels and source.
-	putStrLn ""
-	putStrLn "Pretty print labelled AST with labels and source fragments"
-	printASTChild (makeLabelledAST pr infile) (makeIndent "") True True
+	-- putStrLn ""
+	-- putStrLn "Pretty print labelled AST with labels and source fragments"
+	-- printASTChild (makeLabelledAST pr infile) (makeIndent "") True True
 
 	-- **PRETTY PRINTED**
 	-- Pretty print the ASTWithSourceFragment with source fragments
-	putStrLn ""
-	putStrLn "Pretty print ASTWithSourceFragment with source fragments"
-	printASTWS (makeASTWithSourceFragments pr infile) (makeIndent "") True
+	-- putStrLn ""
+	-- putStrLn "Pretty print ASTWithSourceFragment with source fragments"
+	-- printASTWS (makeASTWithSourceFragments pr infile) (makeIndent "") True
 	-- **PRETTY PRINTED**
 	-- Pretty print the ASTWithSourceFragment without source fragments
 	putStrLn ""
