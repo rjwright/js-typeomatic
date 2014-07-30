@@ -706,19 +706,20 @@ isElision _ = False
 
 processArray :: [JSNode] -> SrcSpan -> [[JSNode]]
 processArray [] _ = []
-processArray list nearestSpan =
-    if (null leadingElisions)
-        then
-            (sublists (drop (length $ processLeadingElisions list nearestSpan) list))
-        else
-            [leadingElisions] ++ (sublists (drop (length $ processLeadingElisions list nearestSpan) list))
-    where
-        leadingElisions = processLeadingElisions list nearestSpan
+processArray list nearestSpan
+    | null leadingElisions =
+        (sublists (drop (length $ processLeadingElisions list nearestSpan) list))
+    | (length leadingElisions) == (length list) =
+        leadingElisions
+    | otherwise =
+        leadingElisions ++ (sublists (drop (length $ processLeadingElisions list nearestSpan) list))
+        where
+            leadingElisions = processLeadingElisions list nearestSpan
 
-processLeadingElisions :: [JSNode] -> SrcSpan -> [JSNode]
+processLeadingElisions :: [JSNode] -> SrcSpan -> [[JSNode]]
 processLeadingElisions [] _ = []
 processLeadingElisions list nearestSpan =
-    [(NS (JSIdentifier "undefined") (getNearestSrcSpan (jsnGetSource el) nearestSpan)) | el <- (takeWhile isElision list)]
+    [[(NS (JSIdentifier "undefined") (getNearestSrcSpan (jsnGetSource el) nearestSpan))] | el <- (takeWhile isElision list)]
 
 sublists :: [JSNode] -> [[JSNode]]
 sublists list =
