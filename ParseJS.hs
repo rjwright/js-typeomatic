@@ -723,15 +723,16 @@ processArray list nearestSpan
 
 sublists :: [JSNode] -> [[JSNode]]
 sublists list =
-    elisionsToUndefineds
-        -- $ seperateElisions
-            $ breakAtElision
-                $ dropWhileEnd (((==) (JSLiteral ",")) . jsnGetNode) list
+    breakAtElisions
+        $ dropWhileEnd (((==) (JSLiteral ",")) . jsnGetNode) list
+    -- elisionsToUndefineds
+    --     $ breakAtElisions
+    --         $ dropWhileEnd (((==) (JSLiteral ",")) . jsnGetNode) list
 
 -- Seperate elisions from non-elisions.
-breakAtElision :: [JSNode] -> [[JSNode]]
-breakAtElision [] = []
-breakAtElision list =
+breakAtElisions :: [JSNode] -> [[JSNode]]
+breakAtElisions [] = []
+breakAtElisions list =
     filter (not . null) (separateElisions $ groupBy compareElements list)
     where
         compareElements l r
@@ -741,31 +742,29 @@ breakAtElision list =
         -- We delete one elision per group of elisions, except at the end of the array. Then break
         -- the groups up into singleton lists.
         -- [[a, b], [el, el, el], [c], [el]] -> [[a, b], [el, el], [c], [el]]
+        -- separateElisions [ls] =
+        --     if (isElision $ head ls)
+        --         then [[el] | el <- ls]
+        --         else [ls]
+        -- separateElisions (ls:others) =
+        --     if (isElision $ head ls)
+        --         then [[el] | el <- drop 1 ls] ++ (separateElisions others)
+        --         else [ls] ++ (separateElisions others)
         separateElisions [ls] =
             if (isElision $ head ls)
-                then groupBy (\_ _ -> False) ls
+                then [[NS (JSIdentifier "undefined") (jsnGetSource el)] | el <- ls]
                 else [ls]
         separateElisions (ls:others) =
             if (isElision $ head ls)
-                then (groupBy (\_ _ -> False) (drop 1 ls)) ++ (separateElisions others)
+                then [[NS (JSIdentifier "undefined") (jsnGetSource el)] | el <- drop 1 ls] ++ (separateElisions others)
                 else [ls] ++ (separateElisions others)
 
--- break up lists of undefineds
--- [[x, y, z], [undef, undef, undef]]
--- map seperateIfUndefined: [[[x, y, z]], [[undef], [undef], [undef]]]
--- concat [[[x, y, z]], [[undef], [undef], [undef]]]: [[x, y, z], [undef], [undef], [undef]]
--- seperateElisions :: [[JSNode]] -> [[JSNode]]
--- seperateElisions list = concat $ map seperateIfElision list
--- seperateIfElision [jsn] | isElision jsn = [[jsn]]
--- seperateIfElision (jsn:rest) | isElision jsn = [[jsn]] ++ (seperateIfElision rest)
--- seperateIfElision ls = [ls]
-
 -- walking through the broken-up list, replace any remaining elisions with "undefined"
-elisionsToUndefineds :: [[JSNode]] -> [[JSNode]]
-elisionsToUndefineds list =
-    map (map elToUndefined) list
-    where
-        elToUndefined n = if isElision n then NS (JSIdentifier "undefined") (jsnGetSource n) else n
+-- elisionsToUndefineds :: [[JSNode]] -> [[JSNode]]
+-- elisionsToUndefineds list =
+--     map (map elToUndefined) list
+--     where
+--         elToUndefined n = if isElision n then NS (JSIdentifier "undefined") (jsnGetSource n) else n
 
 
 -- Takes a Node that represents a literal value and makes an AST node for that value.
