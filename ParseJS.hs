@@ -638,90 +638,29 @@ toAST val =
 -- [1,,2]
 -- JSArrayLiteral [ JSDecimal \"1\", JSElision [], JSElision [], JSDecimal \"2\" ]
 
-
 -- Some elisions have SpanEmpty so we need to use the last non-empty SpanPoint.
 getNearestSrcSpan :: SrcSpan -> SrcSpan -> SrcSpan
 getNearestSrcSpan (SpanEmpty) s = s
 getNearestSrcSpan s _ = s
 
 
--- -- Takes the parse tree representation of an array literal, deals with elisions at the start of the
--- -- array, then processes what's left.
--- processArray :: [JSNode] -> [[JSNode]] -> SrcSpan -> [[JSNode]]
--- processArray [] current _ = current
--- processArray ((NS (JSElision es) srcSpan):rest) current nearestSpan =
---     processArray
---         rest
---         (current ++ [[NS (JSIdentifier "undefined") (getNearestSrcSpan srcSpan nearestSpan)]])
---         (getNearestSrcSpan srcSpan nearestSpan)
--- -- processArray jsArray current nearestSpan = arrayGetElements jsArray current nearestSpan
--- processArray jsArray current nearestSpan = current ++ (arrayGetElements jsArray [] nearestSpan)
-
-
--- Process the remainder an array literal after any leading commas have been processed.
--- FIXME: Try to improve source spans.
--- arrayGetElements :: [JSNode] -> [[JSNode]] -> SrcSpan -> [[JSNode]]
--- arrayGetElements [] current nearestSpan = current
--- -- Ignore one trailing comma at the end of the array.
--- arrayGetElements [(NS (JSLiteral ",") _)] current _ = current
--- -- A single elision at the end of the parsed array occurs when there are two commas at the end of
--- -- the array or when the array is equal to [,]
--- arrayGetElements [(NS (JSElision e) srcSpan)] current nearestSpan =
---     current ++ [[(NS (JSIdentifier "undefined") (getNearestSrcSpan srcSpan nearestSpan))]]
--- -- Two elisions in a row (that aren't at the beginning of the array) indicates one undefined entry,
--- -- then a comma seperator, then the next entry.
--- arrayGetElements
---     ((NS (JSElision _) srcSpan1):(NS (JSElision e) srcSpan2):rest) current nearestSpan  =
---         arrayGetElements
---             ((NS (JSElision e) srcSpan2):rest)
---             (current
---             ++ [[NS (JSIdentifier "undefined") (getNearestSrcSpan srcSpan1 nearestSpan)]])
---             (getNearestSrcSpan srcSpan1 nearestSpan)
--- -- One elision and then a non-elision entry indicates a comma seperator and then the entry.
--- arrayGetElements ((NS (JSElision _) srcSpan):(jsn):rest) current nearestSpan =
---     arrayGetElements rest (current ++ [[jsn]]) (getNearestSrcSpan srcSpan nearestSpan)
--- arrayGetElements (jsn:rest) [] nearestSpan =
---     arrayGetElements
---         rest
---         [[jsn]]
---         (getNearestSrcSpan (jsnGetSource jsn) nearestSpan)
--- arrayGetElements (jsn:rest) current nearestSpan =
---     arrayGetElements
---         rest
---         ((init current) ++ [(last current) ++ [jsn]])
---         (getNearestSrcSpan (jsnGetSource jsn) nearestSpan)
-
-
--- Takes the parse tree representation of an array literal, deals with elisions at the start of the
--- array, then processes what's left.
--- processArray :: [JSNode] -> [[JSNode]] -> SrcSpan -> [[JSNode]]
--- processArray [] current _ = current
--- processArray ((NS (JSElision es) srcSpan):rest) current nearestSpan =
---     processArray
---         rest
---         (current ++ [[NS (JSIdentifier "undefined") (getNearestSrcSpan srcSpan nearestSpan)]])
---         (getNearestSrcSpan srcSpan nearestSpan)
--- processArray jsArray current nearestSpan = current ++ (sublists jsArray)
-
-
 isElision (NS (JSElision _) _) = True
 isElision _ = False
 
 
--- FIXME: Source spans could be better
 processArray :: [JSNode] -> SrcSpan -> [[JSNode]]
 processArray list nearestSpan =
         leadingElisions ++ (processElisions $ stripTrailingComma rest)
         where
             leadingElisions =
-                [[NS (JSIdentifier "undefined") (getNearestSrcSpan (jsnGetSource el) nearestSpan)] | el <- (takeWhile isElision list)]
+                [[NS (JSIdentifier "undefined") (getNearestSrcSpan (jsnGetSource el) nearestSpan)]
+                    | el <- (takeWhile isElision list)]
             rest = drop (length leadingElisions) list
+            stripTrailingComma :: [JSNode] -> [JSNode]
+            stripTrailingComma list = dropWhileEnd (((==) (JSLiteral ",")) . jsnGetNode) list
 
 
-stripTrailingComma :: [JSNode] -> [JSNode]
-stripTrailingComma list = dropWhileEnd (((==) (JSLiteral ",")) . jsnGetNode) list
-
-
+-- FIXME: Source spans could be better
 processElisions :: [JSNode] -> [[JSNode]]
 processElisions [] = []
 processElisions list =
@@ -740,7 +679,9 @@ processElisions list =
                 else [ls]
         separateElisions (ls:others) =
             if (isElision $ head ls)
-                then [[NS (JSIdentifier "undefined") (jsnGetSource el)] | el <- drop 1 ls] ++ (separateElisions others)
+                then
+                    [[NS (JSIdentifier "undefined") (jsnGetSource el)] | el <- drop 1 ls]
+                    ++ (separateElisions others)
                 else [ls] ++ (separateElisions others)
 
 
