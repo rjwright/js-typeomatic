@@ -53,6 +53,8 @@ import Control.Monad.State
 import Data.Functor.Identity
 import Data.List
     ( delete
+    , deleteBy
+    , dropWhileEnd
     , find
     , groupBy
     , intercalate
@@ -704,65 +706,66 @@ getNearestSrcSpan s _ = s
 isElision (NS (JSElision _) _) = True
 isElision _ = False
 
+-- FIXME: Source spans could be better
 processArray :: [JSNode] -> SrcSpan -> [[JSNode]]
 processArray [] _ = []
 processArray list nearestSpan
     | null leadingElisions =
-        (sublists (drop (length $ processLeadingElisions list nearestSpan) list))
+        (sublists (drop (length $ leadingElisions) list))
+    -- FIXME: remove this case (or the empty list case)?
     | (length leadingElisions) == (length list) =
         leadingElisions
     | otherwise =
-        leadingElisions ++ (sublists (drop (length $ processLeadingElisions list nearestSpan) list))
+        leadingElisions ++ (sublists (drop (length $ leadingElisions) list))
         where
-            leadingElisions = processLeadingElisions list nearestSpan
-
-processLeadingElisions :: [JSNode] -> SrcSpan -> [[JSNode]]
-processLeadingElisions [] _ = []
-processLeadingElisions list nearestSpan =
-    [[(NS (JSIdentifier "undefined") (getNearestSrcSpan (jsnGetSource el) nearestSpan))] | el <- (takeWhile isElision list)]
+            leadingElisions =
+                [[(NS (JSIdentifier "undefined") (getNearestSrcSpan (jsnGetSource el) nearestSpan))] | el <- (takeWhile isElision list)]
 
 sublists :: [JSNode] -> [[JSNode]]
 sublists list =
-    seperateUndefineds
-        $ mapElisionsToUndefined
+    elisionsToUndefineds
+        -- $ seperateElisions
             $ breakAtElision
-                $ stripTrailingComma list
+                $ dropWhileEnd (((==) (JSLiteral ",")) . jsnGetNode) list
 
--- if the last thing is a JSLiteral "," just drop it
-stripTrailingComma :: [JSNode] -> [JSNode]
-stripTrailingComma [] = []
-stripTrailingComma list = if ((jsnGetNode $ last list) == (JSLiteral ",")) then init list else list
-
--- walking through the list, if we see an elision and then a non elision, replace the elision with a
--- "break"
+-- Seperate elisions from non-elisions.
 breakAtElision :: [JSNode] -> [[JSNode]]
 breakAtElision [] = []
 breakAtElision list =
-    filter (not . null) (map killElisions (init $ groupBy compareElements list) ++ [(last $ groupBy compareElements list)])
-killElisions ((NS (JSElision _) _):rest) = rest
-killElisions ls = ls
-compareElements (NS (JSElision _) _) (NS (JSElision _) _) = True
-compareElements (NS (JSElision _) _) _ = False
-compareElements _ (NS (JSElision _) _) = False
-compareElements _ _ = True
-
--- walking through the broken-up list, replace any remaining elisions with "undefined"
-mapElisionsToUndefined :: [[JSNode]] -> [[JSNode]]
-mapElisionsToUndefined list = map (map elisionToUndefined) list
-elisionToUndefined (NS (JSElision _) srcSpan) = NS (JSIdentifier "undefined") srcSpan
-elisionToUndefined n = n
+    filter (not . null) (separateElisions $ groupBy compareElements list)
+    where
+        compareElements l r
+            | (isElision l) && (isElision r) = True
+            | (not $ isElision l) && (not $ isElision r) = True
+            | otherwise = False
+        -- We delete one elision per group of elisions, except at the end of the array. Then break
+        -- the groups up into singleton lists.
+        -- [[a, b], [el, el, el], [c], [el]] -> [[a, b], [el, el], [c], [el]]
+        separateElisions [ls] =
+            if (isElision $ head ls)
+                then groupBy (\_ _ -> False) ls
+                else [ls]
+        separateElisions (ls:others) =
+            if (isElision $ head ls)
+                then (groupBy (\_ _ -> False) (drop 1 ls)) ++ (separateElisions others)
+                else [ls] ++ (separateElisions others)
 
 -- break up lists of undefineds
 -- [[x, y, z], [undef, undef, undef]]
 -- map seperateIfUndefined: [[[x, y, z]], [[undef], [undef], [undef]]]
 -- concat [[[x, y, z]], [[undef], [undef], [undef]]]: [[x, y, z], [undef], [undef], [undef]]
-seperateUndefineds :: [[JSNode]] -> [[JSNode]]
-seperateUndefineds list = concat $ map seperateIfUndefined list
-seperateIfUndefined ((NS (JSIdentifier "undefined") srcSpan):[]) =
-    [[(NS (JSIdentifier "undefined") srcSpan)]]
-seperateIfUndefined ((NS (JSIdentifier "undefined") srcSpan):rest) =
-    [[(NS (JSIdentifier "undefined") srcSpan)]] ++ (seperateIfUndefined rest)
-seperateIfUndefined ls = [ls]
+-- seperateElisions :: [[JSNode]] -> [[JSNode]]
+-- seperateElisions list = concat $ map seperateIfElision list
+-- seperateIfElision [jsn] | isElision jsn = [[jsn]]
+-- seperateIfElision (jsn:rest) | isElision jsn = [[jsn]] ++ (seperateIfElision rest)
+-- seperateIfElision ls = [ls]
+
+-- walking through the broken-up list, replace any remaining elisions with "undefined"
+elisionsToUndefineds :: [[JSNode]] -> [[JSNode]]
+elisionsToUndefineds list =
+    map (map elToUndefined) list
+    where
+        elToUndefined n = if isElision n then NS (JSIdentifier "undefined") (jsnGetSource n) else n
 
 
 -- Takes a Node that represents a literal value and makes an AST node for that value.
