@@ -107,9 +107,9 @@ main = do
 
 	-- **PRETTY PRINTED**
 	-- Pretty print the ASTWithSourceFragment with source fragments
-	-- putStrLn ""
-	-- putStrLn "Pretty print ASTWithSourceFragment with source fragments"
-	-- printASTWS (makeASTWithSourceFragments pr infile) (makeIndent "") True
+	putStrLn ""
+	putStrLn "Pretty print ASTWithSourceFragment with source fragments"
+	printASTWS (makeASTWithSourceFragments pr infile) (makeIndent "") True
 	-- **PRETTY PRINTED**
 	-- Pretty print the ASTWithSourceFragment without source fragments
 	putStrLn ""

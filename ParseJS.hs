@@ -52,14 +52,8 @@ module ParseJS
 import Control.Monad.State
 import Data.Functor.Identity
 import Data.List
-    ( delete
-    , deleteBy
-    , dropWhileEnd
-    , find
+    ( dropWhileEnd
     , groupBy
-    , intercalate
-    , nub
-    ,(\\)
     )
 import Data.Maybe
     ( catMaybes
@@ -639,9 +633,9 @@ toAST val =
 -- JSArrayLiteral [ JSDecimal \"1\", JSElision [], JSElision [], JSDecimal \"2\" ]
 
 -- Some elisions have SpanEmpty so we need to use the last non-empty SpanPoint.
-getNearestSrcSpan :: SrcSpan -> SrcSpan -> SrcSpan
-getNearestSrcSpan (SpanEmpty) s = s
-getNearestSrcSpan s _ = s
+getNearestSrcSpan :: JSNode -> SrcSpan -> SrcSpan
+getNearestSrcSpan (NS _ SpanEmpty) s = s
+getNearestSrcSpan s _ = jsnGetSource s
 
 
 isElision (NS (JSElision _) _) = True
@@ -650,21 +644,23 @@ isElision _ = False
 
 processArray :: [JSNode] -> SrcSpan -> [[JSNode]]
 processArray list nearestSpan =
-        leadingElisions ++ (processElisions $ stripTrailingComma rest)
+        leadingElisions ++ (processElisions (stripTrailingComma rest) nearestSpanForRest)
         where
             leadingElisions =
-                [[NS (JSIdentifier "undefined") (getNearestSrcSpan (jsnGetSource el) nearestSpan)]
+                [[NS (JSIdentifier "undefined") (getNearestSrcSpan el nearestSpan)]
                     | el <- (takeWhile isElision list)]
             rest = drop (length leadingElisions) list
+            nearestSpanForRest
+                | null leadingElisions = nearestSpan
+                | otherwise = getNearestSrcSpan (last $ last leadingElisions) nearestSpan
             stripTrailingComma :: [JSNode] -> [JSNode]
             stripTrailingComma list = dropWhileEnd (((==) (JSLiteral ",")) . jsnGetNode) list
 
 
--- FIXME: Source spans could be better
-processElisions :: [JSNode] -> [[JSNode]]
-processElisions [] = []
-processElisions list =
-    filter (not . null) (separateElisions $ groupBy compareElements list)
+processElisions :: [JSNode] -> SrcSpan -> [[JSNode]]
+processElisions [] _ = []
+processElisions list nearestSpan =
+    filter (not . null) (separateElisions (groupBy compareElements list) nearestSpan)
     where
         compareElements l r
             | (isElision l) && (isElision r) = True
@@ -673,16 +669,20 @@ processElisions list =
         -- We delete one elision per group of elisions, except at the end of the array. Then break
         -- the groups of elisions up into singleton lists, and replace elisions with undefineds.
         -- [[a, b], [el, el, el], [c], [el]] -> [[a, b], [el, el], [c], [el]]
-        separateElisions [ls] =
+        --
+        -- FIXME: The source spans for undefineds will all come out as the same one. There
+        -- is no obvious way to fix this (without fixing the parser).
+        separateElisions :: [[JSNode]] -> SrcSpan -> [[JSNode]]
+        separateElisions [ls] ns =
             if (isElision $ head ls)
-                then [[NS (JSIdentifier "undefined") (jsnGetSource el)] | el <- ls]
+                then [[NS (JSIdentifier "undefined") ns] | el <- ls]
                 else [ls]
-        separateElisions (ls:others) =
+        separateElisions (ls:others) ns =
             if (isElision $ head ls)
                 then
-                    [[NS (JSIdentifier "undefined") (jsnGetSource el)] | el <- drop 1 ls]
-                    ++ (separateElisions others)
-                else [ls] ++ (separateElisions others)
+                    [[NS (JSIdentifier "undefined") ns] | el <- drop 1 ls]
+                    ++ (separateElisions others ns)
+                else [ls] ++ (separateElisions others (getNearestSrcSpan (last ls) ns))
 
 
 -- Takes a Node that represents a literal value and makes an AST node for that value.
@@ -710,7 +710,6 @@ toASTValue (NS (JSArrayLiteral arr) srcSpan) =
     -- [[JSIdentifier \"y\", JSOperator \"=\", JSDecimal \"10\"], [JSDecimal \"3\"]]
     JSArray
         (map listToASTExpression (processArray arr srcSpan))
-        -- (map listToASTExpression (processArray arr [] srcSpan))
 toASTValue (NS (JSDecimal s) _) =
     if elem '.' s
         then
