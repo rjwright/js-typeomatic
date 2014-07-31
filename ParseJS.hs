@@ -196,8 +196,8 @@ jsnGetSource :: JSNode -> SrcSpan
 jsnGetSource (NS _ srcSpan) = srcSpan
 
 
-identifierGetString :: Node -> String
-identifierGetString (JSIdentifier jsid) = jsid
+jsIdentifierGetString :: Node -> String
+jsIdentifierGetString (JSIdentifier jsid) = jsid
 
 
 listToMaybeExpression :: [JSNode] -> Maybe ASTWithSourceSpan
@@ -296,7 +296,7 @@ toASTVarDeclaration :: JSNode -> ASTWithSourceSpan
 toASTVarDeclaration (NS (JSVarDecl name value) srcSpan) =
     AWSS
         (VarDeclaration
-            (identifierGetString $ jsnGetNode name)
+            (jsIdentifierGetString $ jsnGetNode name)
             (listToMaybeExpression value))
         srcSpan
 
@@ -351,7 +351,7 @@ toAST (NS (JSVariables _ varDecs) srcSpan) =
         srcSpan
 toAST (NS (JSBreak label _) srcSpan) =
     AWSS
-        (Break (liftM (identifierGetString . jsnGetNode) (listToMaybe label)))
+        (Break (liftM (jsIdentifierGetString . jsnGetNode) (listToMaybe label)))
         srcSpan
 toAST (NS (JSCase cs body) srcSpan) =
     AWSS
@@ -363,7 +363,7 @@ toAST (NS (JSCase cs body) srcSpan) =
 toAST (NS (JSCatch var test body) srcSpan) =
     AWSS
         (Catch
-            (identifierGetString $ jsnGetNode var)
+            (jsIdentifierGetString $ jsnGetNode var)
             (listToMaybeExpression test)
             -- body is a JSBlock.
             (toAST body))
@@ -372,7 +372,7 @@ toAST (NS (JSCatch var test body) srcSpan) =
 -- with a value and a literal semicolon.
 toAST (NS (JSContinue label) srcSpan) =
     AWSS
-        (Continue (liftM (identifierGetString . jsnGetNode) (listToMaybe $ filterSemicolons label)))
+        (Continue (liftM (jsIdentifierGetString . jsnGetNode) (listToMaybe $ filterSemicolons label)))
         srcSpan
 toAST (NS (JSDefault body) srcSpan) =
     AWSS
@@ -422,7 +422,7 @@ toAST (NS (JSFor vars test count body) srcSpan) =
 toAST (NS (JSForIn vars obj body) srcSpan) =
     AWSS
         (ForIn
-            (map (identifierGetString . jsnGetNode) vars)
+            (map (jsIdentifierGetString . jsnGetNode) vars)
             (toAST obj)
             -- body is a JSStatementBlock.
             (toAST body))
@@ -450,8 +450,8 @@ toAST (NS (JSForVarIn var obj body) srcSpan) =
 toAST (NS (JSFunction name args body) srcSpan) =
     AWSS
         (FunctionDeclaration
-            (identifierGetString $ jsnGetNode name)
-            (map (identifierGetString . jsnGetNode) args)
+            (jsIdentifierGetString $ jsnGetNode name)
+            (map (jsIdentifierGetString . jsnGetNode) args)
             (toAST body))
         srcSpan
 toAST (NS (JSIf test body) srcSpan) =
@@ -472,7 +472,7 @@ toAST (NS (JSIfElse test trueBody falseBody) srcSpan) =
 toAST (NS (JSLabelled label body) srcSpan) =
     AWSS
         (Labelled
-            (identifierGetString $ jsnGetNode label)
+            (jsIdentifierGetString $ jsnGetNode label)
             -- Body can be anything.
             (toAST body))
         srcSpan
@@ -564,8 +564,8 @@ toAST (NS (JSExpressionTernary expr ifTrue ifFalse) srcSpan) =
 toAST (NS (JSFunctionExpression name args body) srcSpan) =
     AWSS
         (FunctionExpression
-            (liftM (identifierGetString . jsnGetNode) (listToMaybe name))
-            (map (identifierGetString . jsnGetNode) args)
+            (liftM (jsIdentifierGetString . jsnGetNode) (listToMaybe name))
+            (map (jsIdentifierGetString . jsnGetNode) args)
             (toAST body))
         srcSpan
 toAST (NS (JSIdentifier "undefined") srcSpan) =
@@ -644,15 +644,9 @@ isElision _ = False
 
 processArray :: [JSNode] -> SrcSpan -> [[JSNode]]
 processArray list nearestSpan =
-        leadingElisions ++ (processElisions (stripTrailingComma rest) nearestSpanForRest)
+        [[NS (JSIdentifier "undefined") nearestSpan] | el <- (takeWhile isElision list)]
+        ++ (processElisions (stripTrailingComma $ dropWhile isElision list) nearestSpan)
         where
-            leadingElisions =
-                [[NS (JSIdentifier "undefined") (getNearestSrcSpan el nearestSpan)]
-                    | el <- (takeWhile isElision list)]
-            rest = drop (length leadingElisions) list
-            nearestSpanForRest
-                | null leadingElisions = nearestSpan
-                | otherwise = getNearestSrcSpan (last $ last leadingElisions) nearestSpan
             stripTrailingComma :: [JSNode] -> [JSNode]
             stripTrailingComma list = dropWhileEnd (((==) (JSLiteral ",")) . jsnGetNode) list
 
@@ -662,6 +656,7 @@ processElisions [] _ = []
 processElisions list nearestSpan =
     filter (not . null) (separateElisions (groupBy compareElements list) nearestSpan)
     where
+        compareElements :: JSNode -> JSNode -> Bool
         compareElements l r
             | (isElision l) && (isElision r) = True
             | (not $ isElision l) && (not $ isElision r) = True
