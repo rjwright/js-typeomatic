@@ -631,49 +631,55 @@ toAST val =
 --
 -- [1,,2]
 -- JSArrayLiteral [ JSDecimal \"1\", JSElision [], JSElision [], JSDecimal \"2\" ]
+isComma :: JSNode -> Bool
+isComma (NS (JSLiteral ",") _) = True
+isComma _ = False
+
+isElision :: JSNode -> Bool
+isElision (NS (JSElision _) _) = True
+isElision _ = False
+
 
 -- FIXME: The source spans for a group of undefineds will all come out the same. There
 -- is no obvious way to fix this (without fixing the parser).
 processArray :: [JSNode] -> SrcSpan -> [[JSNode]]
 processArray array nearestSpan =
-        (processLeadingElisions array)
+        (processLeadingElisions array nearestSpan)
         ++ (processTail (dropWhileEnd isComma $ dropWhile isElision array) nearestSpan)
-        where
-            isComma :: JSNode -> Bool
-            isComma (NS (JSLiteral ",") _) = True
-            isComma _ = False
-            isElision :: JSNode -> Bool
-            isElision (NS (JSElision _) _) = True
-            isElision _ = False
-            processLeadingElisions :: [JSNode] -> [[JSNode]]
-            processLeadingElisions arr =
-                [[NS (JSIdentifier "undefined") nearestSpan] | el <- (takeWhile isElision arr)]
-            processTail :: [JSNode] -> SrcSpan -> [[JSNode]]
-            processTail [] _ = []
-            processTail arr nearestSpan =
-                filter (not . null) (processTailElisions (groupBy equateElisions arr) nearestSpan)
-                where
-                    equateElisions :: JSNode -> JSNode -> Bool
-                    equateElisions l r
-                        | (isElision l) && (isElision r) = True
-                        | (not $ isElision l) && (not $ isElision r) = True
-                        | otherwise = False
-                    -- Delete one elision per group of elisions, except at the end of the array.
-                    -- Then break the groups of elisions up into singleton lists, and replace
-                    -- elisions with undefineds.
-                    --
-                    -- [[a, b], [EL, EL, EL], [c], [EL]] -> [[a, b], [UD], [UD], [c], [UD]]
-                    processTailElisions :: [[JSNode]] -> SrcSpan -> [[JSNode]]
-                    processTailElisions [ls] ns =
-                        if (isElision $ head ls)
-                            then [[NS (JSIdentifier "undefined") ns] | el <- ls]
-                            else [ls]
-                    processTailElisions (ls:others) ns =
-                        if (isElision $ head ls)
-                            then
-                                [[NS (JSIdentifier "undefined") ns] | el <- drop 1 ls]
-                                ++ (processTailElisions others ns)
-                            else [ls] ++ (processTailElisions others (jsnGetSource $ last ls))
+
+
+processLeadingElisions :: [JSNode] -> SrcSpan -> [[JSNode]]
+processLeadingElisions arr nearestSpan =
+    [[NS (JSIdentifier "undefined") nearestSpan] | el <- (takeWhile isElision arr)]
+
+
+processTail :: [JSNode] -> SrcSpan -> [[JSNode]]
+processTail [] _ = []
+processTail arr nearestSpan =
+    filter (not . null) (processTailElisions (groupBy equateElisions arr) nearestSpan)
+    where
+        equateElisions :: JSNode -> JSNode -> Bool
+        equateElisions l r
+            | (isElision l) && (isElision r) = True
+            | (not $ isElision l) && (not $ isElision r) = True
+            | otherwise = False
+
+-- Delete one elision per group of elisions, except at the end of the array.
+-- Then break the groups of elisions up into singleton lists, and replace
+-- elisions with undefineds.
+--
+-- [[a, b], [EL, EL, EL], [c], [EL]] -> [[a, b], [UD], [UD], [c], [UD]]
+processTailElisions :: [[JSNode]] -> SrcSpan -> [[JSNode]]
+processTailElisions [ls] ns =
+    if (isElision $ head ls)
+        then [[NS (JSIdentifier "undefined") ns] | el <- ls]
+        else [ls]
+processTailElisions (ls:others) ns =
+    if (isElision $ head ls)
+        then
+            [[NS (JSIdentifier "undefined") ns] | el <- drop 1 ls]
+            ++ (processTailElisions others ns)
+        else [ls] ++ (processTailElisions others (jsnGetSource $ last ls))
 
 
 -- Takes a Node that represents a literal value and makes an AST node for that value.
