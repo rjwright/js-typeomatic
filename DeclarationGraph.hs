@@ -487,6 +487,10 @@ astGetFunRules (LabReturn ex, n, sourceFragment) parent dIDs = []
 -- function declaration. Return nothing.
 astGetFunRules (LabStatement ex, n, sourceFragment) parent dIDs = []
 
+-- Make FunctionExpressionRules from an Expression. All of these, with the exception of
+-- LabFunctionExpression, either return nothing (when they don't contain any fields that could
+-- contain a function expression), or recursively process any expression or value fields.
+-- astGetFunExprRules :: ASTChild -> ParentFunction -> [DeclaredIdentifier] -> [FunctionExpressionRules]
 
 -- Make FunctionExpressionRules from an AST. An ASTChild can't immediately represent a function
 -- expression. Recursively process all child ASTs and expressions.
@@ -629,23 +633,15 @@ valueGetFunExprRules (LabArray els, n) parent dIDs = mapExpGetFER els parent dID
 valueGetFunExprRules _ _ _ = []
 
 
--- Make FunctionExpressionRules from an Expression. All of these, with the exception of
--- LabFunctionExpression, either return nothing (when they don't contain any fields that could
--- contain a function expression), or recursively process any expression or value fields.
--- astGetFunExprRules :: ASTChild -> ParentFunction -> [DeclaredIdentifier] -> [FunctionExpressionRules]
-
-
-
 -- Make FunctionExpressionRules from Maybe ASTChild.
 getMaybeFunExprRules :: (Maybe ASTChild) -> ParentFunction -> [DeclaredIdentifier] -> [FunctionExpressionRules]
-getMaybeFunExprRules Nothing parent dIDs = []
-getMaybeFunExprRules (Just ex) parent dIDs = astGetFunExprRules ex parent dIDs
+getMaybeFunExprRules maybeASTChild parent dIDs =
+    maybeToProperList (\astChild -> astGetFunExprRules astChild parent dIDs) maybeASTChild
 
 
 -- Find variable declarations in a Maybe ASTChild.
 maybeExprGetVarDecs :: (Maybe ASTChild) -> [DeclaredIdentifier]
-maybeExprGetVarDecs Nothing = []
-maybeExprGetVarDecs (Just ex) = astGetVarDecs ex
+maybeExprGetVarDecs maybeASTChild = maybeToProperList astGetVarDecs maybeASTChild
 
 
 -- Find all identifiers declared in a AST. All of these, with the exception of

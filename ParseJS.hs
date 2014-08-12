@@ -51,17 +51,8 @@ module ParseJS
 
 import Control.Monad.State
 import Data.Functor.Identity
-import Data.List
-    ( dropWhileEnd
-    , groupBy
-    )
-import Data.Maybe
-    ( catMaybes
-    , fromJust
-    , isJust
-    , listToMaybe
-    , mapMaybe
-    )
+import Data.List (dropWhileEnd, groupBy)
+import Data.Maybe (listToMaybe)
 import Language.JavaScript.Parser (parse)
 import Language.JavaScript.Parser.AST
 
@@ -199,11 +190,12 @@ jsnGetSource (NS _ srcSpan) = srcSpan
 jsIdentifierGetString :: Node -> String
 jsIdentifierGetString (JSIdentifier jsid) = jsid
 
--- maybeToWholeList
 
+-- FIXME: So far only used in one place. Remove?
 properListToMaybe :: ([a] -> b) -> [a] -> Maybe b
 properListToMaybe _ [] = Nothing
 properListToMaybe f list = Just $ f list
+
 
 listToMaybeExpression :: [JSNode] -> Maybe ASTWithSourceSpan
 listToMaybeExpression jsnList = properListToMaybe listToASTExpression jsnList

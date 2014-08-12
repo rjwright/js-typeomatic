@@ -40,10 +40,12 @@ module TypeRules
 , funExprMakeLabel
 , labelledMakeLabel
 , mapASTChildRules
+, maybeToProperList
 , varDecMakeLabel
 ) where
 
 import Control.Monad.State
+import Data.Maybe (maybeToList)
 import LabelAST
 import ParseJS
 import ResolveSourceFragments
@@ -181,6 +183,10 @@ argMakeLabel :: VarChild -> DeclaredIdentifier
 argMakeLabel (var, n) = DeclaredIdentifier var (IDLabel n)
 ----------------------------------------------------------------------------------------------------
 
+maybeToProperList :: (a -> [b]) -> (Maybe a) -> [b]
+maybeToProperList _ Nothing = []
+maybeToProperList f (Just x) = f x
+
 
 -- Extract the value (strip label) from a VarChild, ASTChild, ValueChild or ASTChild.
 childGetValue :: (a, ASTLabel) -> a
@@ -191,28 +197,20 @@ childGetValue (val, lab) = val
 childToMeta :: (a, ASTLabel) -> Type
 childToMeta ch = Meta (childGetLabel ch)
 
+
 -- Create a Meta type from the label on a VarChild, ASTChild, ValueChild or ASTChild.
 childWSToMeta :: (a, ASTLabel, b) -> Type
 childWSToMeta ch = Meta (childWSGetLabel ch)
 
-maybeToProperList :: (a -> [b]) -> (Maybe a) -> [b]
-maybeToProperList _ Nothing = []
-maybeToProperList f (Just x) = f x
 
 -- Generate rules from a Maybe VarChild
 maybeVarChildRules :: (Maybe VarChild) -> [DeclaredIdentifier] -> [Rule]
 maybeVarChildRules maybeVarChild dIDs = maybeToProperList (\varChild -> varChildRules varChild dIDs) maybeVarChild
 
--- -- Generate rules from a Maybe VarChild
--- maybeVarChildRules :: (Maybe VarChild) -> [DeclaredIdentifier] -> [Rule]
--- maybeVarChildRules (Just vc) dIDs = varChildRules vc dIDs
--- maybeVarChildRules Nothing _ = []
-
 
 -- Generate rules from a Maybe ASTChild
 maybeASTChildRules :: (Maybe ASTChild) -> [DeclaredIdentifier] -> [Rule]
-maybeASTChildRules (Just ec) dIDs = astChildRules ec dIDs
-maybeASTChildRules Nothing _ = []
+maybeASTChildRules maybeASTChild dIDs = maybeToProperList (\astChild -> astChildRules astChild dIDs) maybeASTChild
 
 
 -- Generate rules from a VarChild list
@@ -221,14 +219,6 @@ mapVarChildRules var dIDs =
     concat $ map mapVarChildRules' var
     where
         mapVarChildRules' v = varChildRules v dIDs
-
-
--- Generate rules from an ASTChild list
--- mapASTChildRules :: [ASTChild] -> [DeclaredIdentifier] -> [Rule]
--- mapASTChildRules ex dIDs =
---     concat $ map mapASTChildRules' ex
---     where
---         mapASTChildRules' e = astChildRules e dIDs
 
 
 -- Gernerate rules from an ASTChild list
@@ -587,8 +577,7 @@ boolRule ex = Rule (childWSToMeta ex) BoolType (Just $ childGetSource ex)
 
 -- Make a list of rules from a Maybe ASTChild of Boolean type.
 maybeBoolRule :: (Maybe ASTChild) -> [Rule]
-maybeBoolRule (Just t) = [boolRule t]
-maybeBoolRule Nothing = []
+maybeBoolRule astChild = map boolRule (maybeToList astChild)
 
 
 -- Generate rules from an AST

@@ -181,15 +181,15 @@ listWSGetLabels (c:cs) = ((childWSGetLabel c):(listWSGetLabels cs))
 -- Find the greater of the label on a Maybe *Child and a given value.
 maxMaybeLabel :: (Maybe (a, ASTLabel)) -> ASTLabel -> ASTLabel
 -- If the Maybe *Child is nothing then the given value is the greatest.
-maxMaybeLabel Nothing v = v
-maxMaybeLabel (Just e) v = max (childGetLabel e) v
+maxMaybeLabel maybeASTChild label =
+    maybe label (\astChild -> max (childGetLabel astChild) label) maybeASTChild
 
 
 -- Find the greater of the label on a Maybe *Child and a given value.
 maxMaybeWSLabel :: (Maybe (a, ASTLabel, b)) -> ASTLabel -> ASTLabel
 -- If the Maybe *Child is nothing then the given value is the greatest.
-maxMaybeWSLabel Nothing v = v
-maxMaybeWSLabel (Just e) v = max (childWSGetLabel e) v
+maxMaybeWSLabel maybeASTChild label =
+    maybe label (\astChild -> max (childWSGetLabel astChild) label) maybeASTChild
 
 -- Label a list of Varialbes.
 labelVarList :: [Variable] -> ASTLabel -> [VarChild]
@@ -216,11 +216,13 @@ labelVariable :: Variable -> ASTLabel -> VarChild
 labelVariable var n = (var, n + 1)
 
 
+-- -- Label a Maybe Variable if it is not Nothing.
+-- labelMaybeVar :: (Maybe Variable) -> ASTLabel -> (Maybe VarChild)
+-- labelMaybeVar maybeVar label = maybe Nothing (\var -> Just $ labelVariable var label) maybeVar
+
 -- Label a Maybe Variable if it is not Nothing.
 labelMaybeVar :: (Maybe Variable) -> ASTLabel -> (Maybe VarChild)
-labelMaybeVar Nothing n = Nothing
-labelMaybeVar (Just var) n = Just (labelVariable var n)
-
+labelMaybeVar maybeVar label = maybeVar >>= (\var -> Just $ labelVariable var label)
 
 -- Label an Operator.
 labelOperator :: Operator -> ASTLabel -> OpChild
@@ -268,8 +270,7 @@ labelValue (WSNull) n = (LabNull, n + 1)
 -- Label a Maybe Expression if it is not Nothing.
 -- FIXME: Replace with monad operations.
 labelMaybeAST :: (Maybe ASTWithSourceFragment) -> ASTLabel -> (Maybe ASTChild)
-labelMaybeAST Nothing n = Nothing
-labelMaybeAST (Just ex) n = Just $ labelAST ex n
+labelMaybeAST maybeAST label = maybeAST >>= (\ast -> Just $ labelAST ast label)
 
 
 -- Label a AST. Recursively process any child fields.
