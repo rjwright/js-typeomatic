@@ -199,10 +199,18 @@ jsnGetSource (NS _ srcSpan) = srcSpan
 jsIdentifierGetString :: Node -> String
 jsIdentifierGetString (JSIdentifier jsid) = jsid
 
+-- maybeToWholeList
+
+properListToMaybe :: ([a] -> b) -> [a] -> Maybe b
+properListToMaybe _ [] = Nothing
+properListToMaybe f list = Just $ f list
 
 listToMaybeExpression :: [JSNode] -> Maybe ASTWithSourceSpan
-listToMaybeExpression [] = Nothing
-listToMaybeExpression jsn = Just $ listToASTExpression jsn
+listToMaybeExpression jsnList = properListToMaybe listToASTExpression jsnList
+
+-- listToMaybeExpression :: [JSNode] -> Maybe ASTWithSourceSpan
+-- listToMaybeExpression [] = Nothing
+-- listToMaybeExpression jsnList = Just $ listToASTExpression jsnList
 
 
 -- Some parser nodes contain lists of JSNodes that represent whole expressions. This function takes
@@ -634,6 +642,7 @@ toAST val =
 isComma :: JSNode -> Bool
 isComma (NS (JSLiteral ",") _) = True
 isComma _ = False
+
 
 isElision :: JSNode -> Bool
 isElision (NS (JSElision _) _) = True

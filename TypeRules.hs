@@ -43,7 +43,7 @@ module TypeRules
 , varDecMakeLabel
 ) where
 
-
+import Control.Monad.State
 import LabelAST
 import ParseJS
 import ResolveSourceFragments
@@ -162,11 +162,8 @@ data DeclaredIdentifier = DeclaredIdentifier Variable IdentifierLabel deriving (
 -- *************************************************************************************************
 -- TODO: Move these into a module?
 funExprMakeLabel :: ASTChild -> (Maybe DeclaredIdentifier)
-funExprMakeLabel (LabFunctionExpression mv vls body, n, sourceFragment) =
-    maybeID mv n
-    where
-        maybeID Nothing _ = Nothing
-        maybeID (Just (ident, _)) x = Just (DeclaredIdentifier ident (IDLabel x))
+funExprMakeLabel (LabFunctionExpression maybeFunName _ _, lab, _) =
+    liftM (\varChild -> DeclaredIdentifier (fst varChild) (IDLabel lab)) maybeFunName
 
 
 varDecMakeLabel :: ASTChild -> DeclaredIdentifier
@@ -198,10 +195,18 @@ childToMeta ch = Meta (childGetLabel ch)
 childWSToMeta :: (a, ASTLabel, b) -> Type
 childWSToMeta ch = Meta (childWSGetLabel ch)
 
+maybeToProperList :: (a -> [b]) -> (Maybe a) -> [b]
+maybeToProperList _ Nothing = []
+maybeToProperList f (Just x) = f x
+
 -- Generate rules from a Maybe VarChild
 maybeVarChildRules :: (Maybe VarChild) -> [DeclaredIdentifier] -> [Rule]
-maybeVarChildRules (Just vc) dIDs = varChildRules vc dIDs
-maybeVarChildRules Nothing _ = []
+maybeVarChildRules maybeVarChild dIDs = maybeToProperList (\varChild -> varChildRules varChild dIDs) maybeVarChild
+
+-- -- Generate rules from a Maybe VarChild
+-- maybeVarChildRules :: (Maybe VarChild) -> [DeclaredIdentifier] -> [Rule]
+-- maybeVarChildRules (Just vc) dIDs = varChildRules vc dIDs
+-- maybeVarChildRules Nothing _ = []
 
 
 -- Generate rules from a Maybe ASTChild
