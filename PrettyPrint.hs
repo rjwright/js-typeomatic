@@ -20,16 +20,16 @@
 -- Top level functions are:
 --
 		-- mapPrintASTWS
-		-- 	(jsastListWSMakeSourceFragments
-		-- 		(getJSASTWithSource (parseTree program file) file)
+		-- 	(astListWSMakeSourceFragments
+		-- 		(getASTWithSource (parseTree program file) file)
 		-- 		span)
 		-- 	padding
 		-- 	printSrc
 --
 --		mapPrintASTChild
 --			(label
---				jsastListWSMakeSourceFragments
---					(getJSASTWithSource (parseTree program file) file)
+--				(astListWSMakeSourceFragments
+--					(getASTWithSource (parseTree program file) file)
 --					span))
 --			padding
 --			printSrc
@@ -49,7 +49,7 @@
 --
 -- TODO:
 --		ParseJS.parseTree (JSNode)
--- 		ParseJS.getJSASTWithSource (JSASTWithSource*Span*)
+-- 		ParseJS.getASTWithSource (ASTWithSource*Span*)
 -- 		DeclarationGraph.getDeclarationGraph (FunctionRules) - Might not be useful.
 --		DeclarationGraph.graphGetAllRules (Rule Type Type Maybe SourceFragment) would
 -- 		look better with pretty-printed Types.
@@ -57,8 +57,8 @@
 
 module PrettyPrint
 ( makeIndent
-, mapPrintASTWS
-, mapPrintASTChild
+, printASTChild
+, printASTWS
 , printCleanedElementList
 , printCleanedRulesList
 , printParseTreeStripped
@@ -69,7 +69,7 @@ module PrettyPrint
 import Data.Char
 import Data.List
 import DeclarationGraph
-import LabelJSAST
+import LabelAST
 import Language.JavaScript.Parser
 import ParseJS
 import ResolveSourceFragments
@@ -77,7 +77,7 @@ import System.Environment
 import TypeRules
 
 
--- TODO: Consider turn combinations of these into macros, to make function calls less confusing.
+-- TODO: Consider turning combinations of these into macros, to make function calls less confusing.
 type SourceFlag = Bool
 type LabFlag = Bool
 type LineFlag = Bool
@@ -87,12 +87,12 @@ makeIndent :: String -> String
 makeIndent s = s ++ "..."
 
 
-printStrAndLabel :: String -> JSASTLabel -> LabFlag -> IO()
+printStrAndLabel :: String -> ASTLabel -> LabFlag -> IO()
 printStrAndLabel str lab False = putStr str
 printStrAndLabel str lab True = putStr (str ++ " <" ++ (show lab) ++ ">")
 
 
-printLnStrAndLabel :: String -> JSASTLabel -> LabFlag -> IO()
+printLnStrAndLabel :: String -> ASTLabel -> LabFlag -> IO()
 printLnStrAndLabel str lab printLab = do
 	printStrAndLabel str lab printLab
 	putStrLn ""
@@ -241,45 +241,56 @@ mapPrintASTChild children padding printSrc printLab =
 		printChild c = printASTChild c padding printSrc printLab
 
 
+-- FIXME: Print the "Just". See maybePrintVarChild
+maybePrintASTChild :: Maybe ASTChild -> String -> SourceFlag -> LabFlag -> IO()
+maybePrintASTChild (Just expr) padding printSrc printLab =
+	printASTChild expr padding printSrc printLab
+-- FIXME: Nothings have no label. Is that a problem?
+-- TODO: Print the source fragment
+maybePrintASTChild Nothing padding _ _ = putStrLn (padding ++ " Nothing")
+
+
 -- TODO: Still need to do:
+-- 		LabBreak (Maybe VarChild)
+-- 		LabContinue (Maybe VarChild)
 -- 		LabDefault ASTChild
--- 		LabDoWhile ASTChild ExprChild
+-- 		LabDoWhile ASTChild ASTChild
 -- 		LabFinally ASTChild
--- 		LabFor (Maybe ExprChild) (Maybe ExprChild) (Maybe ExprChild) ASTChild
--- 		LabForIn [VarChild] ExprChild ASTChild
+-- 		LabFor (Maybe ASTChild) (Maybe ASTChild) (Maybe ASTChild) ASTChild
+-- 		LabForIn [VarChild] ASTChild ASTChild
 -- 		LabLabelled VarChild ASTChild
 printASTChild :: ASTChild -> String -> SourceFlag -> LabFlag -> IO()
 printASTChild ((LabBlock children), lab, sourceFragment) padding printSrc printLab = do
 	printLnStrAndLabel (padding ++ " LabBlock") lab printLab
 	printSource sourceFragment padding printSrc
-	mapPrintASTChild children (makeIndent padding) printSrc printLab
+	printASTChild children (makeIndent padding) printSrc printLab
 printASTChild ((LabCase val child), lab, sourceFragment) padding printSrc printLab = do
 	printLnStrAndLabel (padding ++ " LabCase") lab printLab
 	printSource sourceFragment padding printSrc
 	let p = makeIndent padding
-	printExprChild val p printSrc printLab
+	printASTChild val p printSrc printLab
 	printASTChild child p printSrc printLab
 printASTChild ((LabCatch var expr child), lab, sourceFragment) padding printSrc printLab = do
 	printLnStrAndLabel (padding ++ " LabCatch") lab printLab
 	printSource sourceFragment padding printSrc
 	let p = makeIndent padding
 	printVarChild var p printLab True
-	maybePrintExprChild expr p printSrc printLab
+	maybePrintASTChild expr p printSrc printLab
 	printASTChild child p printSrc printLab
 printASTChild ((LabForVar decs cond expr child), lab, sourceFragment) padding printSrc printLab = do
 	printLnStrAndLabel (padding ++ " LabForVar") lab printLab
 	printSource sourceFragment padding printSrc
 	let p = makeIndent padding
-	mapPrintExprChild decs p printSrc printLab
-	maybePrintExprChild cond p printSrc printLab
-	maybePrintExprChild expr p printSrc printLab
+	mapPrintASTChild decs p printSrc printLab
+	maybePrintASTChild cond p printSrc printLab
+	maybePrintASTChild expr p printSrc printLab
 	printASTChild child p printSrc printLab
 printASTChild ((LabForVarIn var obj child), lab, sourceFragment) padding printSrc printLab = do
 	printLnStrAndLabel (padding ++ " LabForVarIn") lab printLab
 	printSource sourceFragment padding printSrc
 	let p = makeIndent padding
-	printExprChild var p printSrc printLab
-	printExprChild obj p printSrc printLab
+	printASTChild var p printSrc printLab
+	printASTChild obj p printSrc printLab
 	printASTChild child p printSrc printLab
 printASTChild ((LabFunctionBody children), lab, sourceFragment) padding printSrc printLab = do
 	printLnStrAndLabel (padding ++ " LabFunctionBody") lab printLab
@@ -297,28 +308,28 @@ printASTChild ((LabIf cond child), lab, sourceFragment) padding printSrc printLa
 	printLnStrAndLabel (padding ++ " LabIf") lab printLab
 	printSource sourceFragment padding printSrc
 	let p = makeIndent padding
-	printExprChild cond p printSrc printLab
+	printASTChild cond p printSrc printLab
 	printASTChild child p printSrc printLab
 printASTChild ((LabIfElse cond childTrue childFalse), lab, sourceFragment) padding printSrc printLab = do
 	printLnStrAndLabel (padding ++ " LabIfElse") lab printLab
 	printSource sourceFragment padding printSrc
 	let p = makeIndent padding
-	printExprChild cond p printSrc printLab
+	printASTChild cond p printSrc printLab
 	printASTChild childTrue p printSrc printLab
 	printASTChild childFalse p printSrc printLab
 printASTChild ((LabReturn expr), lab, sourceFragment) padding printSrc printLab = do
 	printLnStrAndLabel (padding ++ " LabReturn") lab printLab
 	printSource sourceFragment padding printSrc
-	printExprChild expr (makeIndent padding) printSrc printLab
+	printASTChild expr (makeIndent padding) printSrc printLab
 printASTChild ((LabStatement expr), lab, sourceFragment) padding printSrc printLab = do
 	printLnStrAndLabel (padding ++ " LabStatement") lab printLab
 	printSource sourceFragment padding printSrc
-	printExprChild expr (makeIndent padding) printSrc printLab
+	printASTChild expr (makeIndent padding) printSrc printLab
 printASTChild ((LabSwitch var child), lab, sourceFragment) padding printSrc printLab = do
 	printLnStrAndLabel (padding ++ " LabSwitch") lab printLab
 	printSource sourceFragment padding printSrc
 	let p = makeIndent padding
-	printExprChild var p printSrc printLab
+	printASTChild var p printSrc printLab
 	printASTChild child p printSrc printLab
 printASTChild ((LabTry tryChild catchChild), lab, sourceFragment) padding printSrc printLab = do
 	printLnStrAndLabel (padding ++ " LabTry") lab printLab
@@ -330,57 +341,40 @@ printASTChild ((LabWhile cond child), lab, sourceFragment) padding printSrc prin
 	printLnStrAndLabel (padding ++ " LabWhile") lab printLab
 	printSource sourceFragment padding printSrc
 	let p = makeIndent padding
-	printExprChild cond p printSrc printLab
+	printASTChild cond p printSrc printLab
 	printASTChild child p printSrc printLab
-printASTChild (n, lab, sourceFragment) padding printSrc printLab = do
-	printLnStrAndLabel (padding ++ " OTHER ASTCHILD") lab printLab
-	printSource sourceFragment padding printSrc
-	putStrLn ((makeIndent padding) ++ " " ++ (show n))
-
-
-mapPrintExprChild :: [ExprChild] -> String -> SourceFlag -> LabFlag -> IO()
-mapPrintExprChild children padding printSrc printLab =
-	mapM_ printChild children
-	where
-		printChild c = printExprChild c padding printSrc printLab
-
-
--- TODO: Still need to do
--- 		LabBreak (Maybe VarChild)
--- 		LabContinue (Maybe VarChild)
-printExprChild :: ExprChild -> String -> SourceFlag -> LabFlag -> IO()
-printExprChild ((LabArguments exprs), lab, sourceFragment) padding printSrc printLab = do
+printASTChild ((LabArguments exprs), lab, sourceFragment) padding printSrc printLab = do
 	printLnStrAndLabel (padding ++ " LabArguments") lab printLab
 	printSource sourceFragment padding printSrc
-	mapPrintExprChild exprs (makeIndent padding) printSrc printLab
-printExprChild ((LabAssignment op expr1 expr2), lab, sourceFragment) padding printSrc printLab = do
+	mapPrintASTChild exprs (makeIndent padding) printSrc printLab
+printASTChild ((LabAssignment op expr1 expr2), lab, sourceFragment) padding printSrc printLab = do
 	printLnStrAndLabel (padding ++ " LabAssignment") lab printLab
 	printSource sourceFragment padding printSrc
 	let p = makeIndent padding
 	printOpChild op p printLab True
-	printExprChild expr1 p printSrc printLab
-	printExprChild expr2 p printSrc printLab
-printExprChild ((LabBinary op expr1 expr2), lab, sourceFragment) padding printSrc printLab = do
+	printASTChild expr1 p printSrc printLab
+	printASTChild expr2 p printSrc printLab
+printASTChild ((LabBinary op expr1 expr2), lab, sourceFragment) padding printSrc printLab = do
 	printLnStrAndLabel (padding ++ " LabBinary") lab printLab
 	printSource sourceFragment padding printSrc
 	let p = makeIndent padding
 	printOpChild op p printLab True
-	printExprChild expr1 p printSrc printLab
-	printExprChild expr2 p printSrc printLab
-printExprChild ((LabCall fid args), lab, sourceFragment) padding printSrc printLab = do
+	printASTChild expr1 p printSrc printLab
+	printASTChild expr2 p printSrc printLab
+printASTChild ((LabCall fid args), lab, sourceFragment) padding printSrc printLab = do
 	printLnStrAndLabel (padding ++ " LabCall") lab printLab
 	printSource sourceFragment padding printSrc
 	let p = makeIndent padding
-	printExprChild fid p printSrc printLab
-	printExprChild args p printSrc printLab
-printExprChild ((LabCallExpression call op expr), lab, sourceFragment) padding printSrc printLab = do
+	printASTChild fid p printSrc printLab
+	printASTChild args p printSrc printLab
+printASTChild ((LabCallExpression call op expr), lab, sourceFragment) padding printSrc printLab = do
 	printLnStrAndLabel (padding ++ " LabCallExpression") lab printLab
 	printSource sourceFragment padding printSrc
 	let p = makeIndent padding
-	printExprChild call p printSrc printLab
+	printASTChild call p printSrc printLab
 	printOpChild op p printLab True
-	printExprChild expr p printSrc printLab
-printExprChild ((LabFunctionExpression vChild args child), lab, sourceFragment) padding printSrc printLab = do
+	printASTChild expr p printSrc printLab
+printASTChild ((LabFunctionExpression vChild args child), lab, sourceFragment) padding printSrc printLab = do
 	printStrAndLabel (padding ++ " LabFunctionExpression") lab printLab
 	maybePrintVarChild vChild "" printLab False
 	putStr " ["
@@ -388,96 +382,87 @@ printExprChild ((LabFunctionExpression vChild args child), lab, sourceFragment) 
 	putStrLn " ]"
 	printSource sourceFragment padding printSrc
 	printASTChild child (makeIndent padding) printSrc printLab
-printExprChild ((LabIdentifier var), lab, sourceFragment) padding printSrc printLab = do
+printASTChild ((LabIdentifier var), lab, sourceFragment) padding printSrc printLab = do
 	printStrAndLabel (padding ++ " LabIdentifier") lab printLab
 	printVarChild var "" printLab True
 	printSource sourceFragment padding printSrc
-printExprChild ((LabIndex obj prop), lab, sourceFragment) padding printSrc printLab = do
+printASTChild ((LabIndex obj prop), lab, sourceFragment) padding printSrc printLab = do
 	printLnStrAndLabel (padding ++ " LabIndex") lab printLab
 	printSource sourceFragment padding printSrc
 	let p = makeIndent padding
-	printExprChild obj p printSrc printLab
-	printExprChild prop p printSrc printLab
-printExprChild ((LabList exprs), lab, sourceFragment) padding printSrc printLab = do
+	printASTChild obj p printSrc printLab
+	printASTChild prop p printSrc printLab
+printASTChild ((LabList exprs), lab, sourceFragment) padding printSrc printLab = do
 	printLnStrAndLabel (padding ++ " LabList") lab printLab
 	printSource sourceFragment padding printSrc
-	mapPrintExprChild exprs (makeIndent padding) printSrc printLab
-printExprChild ((LabNew cons), lab, sourceFragment) padding printSrc printLab = do
+	mapPrintASTChild exprs (makeIndent padding) printSrc printLab
+printASTChild ((LabNew cons), lab, sourceFragment) padding printSrc printLab = do
 	printLnStrAndLabel (padding ++ " LabNew") lab printLab
 	printSource sourceFragment padding printSrc
 	let p = makeIndent padding
-	printExprChild cons p printSrc printLab
-printExprChild ((LabParenExpression child), lab, sourceFragment) padding printSrc printLab = do
+	printASTChild cons p printSrc printLab
+printASTChild ((LabParenExpression child), lab, sourceFragment) padding printSrc printLab = do
 	printLnStrAndLabel (padding ++ " LabParenExpression") lab printLab
 	printSource sourceFragment padding printSrc
-	printExprChild child (makeIndent padding) printSrc printLab
-printExprChild ((LabPropNameValue prop expr), lab, sourceFragment) padding printSrc printLab = do
+	printASTChild child (makeIndent padding) printSrc printLab
+printASTChild ((LabPropNameValue prop expr), lab, sourceFragment) padding printSrc printLab = do
 	printLnStrAndLabel (padding ++ " LabPropNameValue") lab printLab
 	printSource sourceFragment padding printSrc
 	let p = makeIndent padding
 	printPropertyNameChild prop p printLab
-	printExprChild expr p printSrc printLab
-printExprChild ((LabReference obj prop), lab, sourceFragment) padding printSrc printLab = do
+	printASTChild expr p printSrc printLab
+printASTChild ((LabReference obj prop), lab, sourceFragment) padding printSrc printLab = do
 	printLnStrAndLabel (padding ++ " LabReference") lab printLab
 	printSource sourceFragment padding printSrc
 	let p = makeIndent padding
-	printExprChild obj p printSrc printLab
-	printExprChild prop p printSrc printLab
-printExprChild ((LabTernary cond exprTrue exprFalse), lab, sourceFragment) padding printSrc printLab = do
+	printASTChild obj p printSrc printLab
+	printASTChild prop p printSrc printLab
+printASTChild ((LabTernary cond exprTrue exprFalse), lab, sourceFragment) padding printSrc printLab = do
 	printLnStrAndLabel (padding ++ " LabTernary") lab printLab
 	printSource sourceFragment padding printSrc
 	let p = makeIndent padding
-	printExprChild cond p printSrc printLab
-	printExprChild exprTrue p printSrc printLab
-	printExprChild exprFalse p printSrc printLab
-printExprChild ((LabThrow child), lab, sourceFragment) padding printSrc printLab = do
+	printASTChild cond p printSrc printLab
+	printASTChild exprTrue p printSrc printLab
+	printASTChild exprFalse p printSrc printLab
+printASTChild ((LabThrow child), lab, sourceFragment) padding printSrc printLab = do
 	printLnStrAndLabel (padding ++ " LabThrow") lab printLab
 	printSource sourceFragment padding printSrc
 	let p = makeIndent padding
-	printExprChild child p printSrc printLab
-printExprChild ((LabUnaryPost op expr), lab, sourceFragment) padding printSrc printLab = do
+	printASTChild child p printSrc printLab
+printASTChild ((LabUnaryPost op expr), lab, sourceFragment) padding printSrc printLab = do
 	printLnStrAndLabel (padding ++ " LabUnaryPost") lab printLab
 	printSource sourceFragment padding printSrc
 	let p = makeIndent padding
 	printOpChild op p printLab True
-	printExprChild expr p printSrc printLab
-printExprChild ((LabUnaryPre op expr), lab, sourceFragment) padding printSrc printLab = do
+	printASTChild expr p printSrc printLab
+printASTChild ((LabUnaryPre op expr), lab, sourceFragment) padding printSrc printLab = do
 	printLnStrAndLabel (padding ++ " LabUnaryPre") lab printLab
 	printSource sourceFragment padding printSrc
 	let p = makeIndent padding
 	printOpChild op p printLab True
-	printExprChild expr p printSrc printLab
-printExprChild ((LabValue (LabObject props, objLab)), lab, sourceFragment) padding printSrc printLab = do
+	printASTChild expr p printSrc printLab
+printASTChild ((LabValue (LabObject props, objLab)), lab, sourceFragment) padding printSrc printLab = do
 	printLnStrAndLabel (padding ++ " LabValue") lab printLab
 	printSource sourceFragment padding printSrc
 	printValueChild (LabObject props, objLab) (makeIndent padding) printSrc printLab True
-printExprChild ((LabValue (LabArray elems, arLab)), lab, sourceFragment) padding printSrc printLab = do
+printASTChild ((LabValue (LabArray elems, arLab)), lab, sourceFragment) padding printSrc printLab = do
 	printLnStrAndLabel (padding ++ " LabValue") lab printLab
 	printSource sourceFragment padding printSrc
 	printValueChild (LabArray elems, arLab) (makeIndent padding) printSrc printLab True
-printExprChild ((LabValue val), lab, sourceFragment) padding printSrc printLab = do
+printASTChild ((LabValue val), lab, sourceFragment) padding printSrc printLab = do
 	printStrAndLabel (padding ++ " LabValue") lab printLab
 	printValueChild val (makeIndent padding) printSrc printLab True
 	printSource sourceFragment padding printSrc
-printExprChild ((LabVarDeclaration var expr), lab, sourceFragment) padding printSrc printLab = do
+printASTChild ((LabVarDeclaration var expr), lab, sourceFragment) padding printSrc printLab = do
 	printLnStrAndLabel (padding ++ " LabVarDeclaration") lab printLab
 	printSource sourceFragment padding printSrc
 	let p = makeIndent padding
 	printVarChild var p printLab True
-	maybePrintExprChild expr p printSrc printLab
-printExprChild (n, lab, sourceFragment) padding printSrc printLab = do
-	printLnStrAndLabel (padding ++ " OTHER EXPRCHILD") lab printLab
+	maybePrintASTChild expr p printSrc printLab
+printASTChild (n, lab, sourceFragment) padding printSrc printLab = do
+	printLnStrAndLabel (padding ++ " OTHER ASTCHILD") lab printLab
 	printSource sourceFragment padding printSrc
 	putStrLn ((makeIndent padding) ++ " " ++ (show n))
-
-
--- FIXME: Print the "Just". See maybePrintVarChild
-maybePrintExprChild :: Maybe ExprChild -> String -> SourceFlag -> LabFlag -> IO()
-maybePrintExprChild (Just expr) padding printSrc printLab =
-	printExprChild expr padding printSrc printLab
--- FIXME: Nothings have no label. Is that a problem?
--- TODO: Print the source fragment
-maybePrintExprChild Nothing padding _ _ = putStrLn (padding ++ " Nothing")
 
 
 mapPrintVarChild :: [VarChild] -> String -> LabFlag -> LineFlag -> IO()
@@ -485,13 +470,6 @@ mapPrintVarChild children padding printLab printLine =
 	mapM_ printChild children
 	where
 		printChild c = printVarChild c padding printLab printLine
-
-
-printVarChild :: VarChild -> String -> LabFlag -> LineFlag -> IO()
-printVarChild (var, lab) padding printLab True =
-	printLnStrAndLabel (padding ++ " \"" ++ var ++ "\"") lab printLab
-printVarChild (var, lab) padding printLab False =
-	printStrAndLabel (padding ++ " \"" ++ var ++ "\"") lab printLab
 
 
 maybePrintVarChild :: Maybe VarChild -> String -> LabFlag -> LineFlag -> IO()
@@ -506,6 +484,13 @@ maybePrintVarChild Nothing padding printLab False =
 	putStr (padding ++ " \"Nothing\"")
 maybePrintVarChild Nothing padding printLab True =
 	putStrLn (padding ++ " \"Nothing\"")
+
+
+printVarChild :: VarChild -> String -> LabFlag -> LineFlag -> IO()
+printVarChild (var, lab) padding printLab True =
+	printLnStrAndLabel (padding ++ " \"" ++ var ++ "\"") lab printLab
+printVarChild (var, lab) padding printLab False =
+	printStrAndLabel (padding ++ " \"" ++ var ++ "\"") lab printLab
 
 
 printIndexChild :: IndexChild -> String -> LabFlag -> LineFlag -> IO()
@@ -543,7 +528,7 @@ printLabelledValue (LabArray elems) padding printSrc printLab False = do
 	-- TODO: Print the source?
 	let p = makeIndent padding
 	putStrLn (p ++ " [")
-	mapPrintExprChild elems p printSrc printLab
+	mapPrintASTChild elems p printSrc printLab
 	putStr (p ++ " ]")
 printLabelledValue (LabBool val) padding _ _ False =
 	putStr (" LabBool " ++ (show val))
@@ -558,7 +543,7 @@ printLabelledValue (LabNull) padding _ _ False =
 printLabelledValue (LabObject exprs) padding printSrc printLab _ = do
 	putStrLn (padding ++ " LabObject")
 	-- TODO: Print the source?
-	mapPrintExprChild exprs (makeIndent padding) printSrc printLab
+	mapPrintASTChild exprs (makeIndent padding) printSrc printLab
 printLabelledValue (LabString val) padding _ _ False =
 	putStr (" LabString " ++ (show val))
 printLabelledValue (LabUndefined) padding _ _ False =
@@ -577,7 +562,7 @@ printSource sourceFragment padding printSrc =
 	else
 		return()
 
-mapPrintASTWS :: [JSASTWithSourceFragment] -> String -> SourceFlag -> IO()
+mapPrintASTWS :: [ASTWithSourceFragment] -> String -> SourceFlag -> IO()
 mapPrintASTWS [] padding _ =
 	putStrLn (padding ++ " []")
 mapPrintASTWS nodes padding printSrc =
@@ -586,45 +571,55 @@ mapPrintASTWS nodes padding printSrc =
 		printAST n = printASTWS n padding printSrc
 
 
+-- FIXME: Print the "Just". See maybePrintVarChild
+maybePrintASTWS :: Maybe ASTWithSourceFragment -> String -> SourceFlag -> IO()
+maybePrintASTWS (Just expr) padding printSrc =
+	printASTWS expr padding printSrc
+maybePrintASTWS Nothing padding _ = putStrLn (padding ++ " Nothing")
+
+
+-- TODO: Remove all use of printLnStrAndLabel/printStrAndLabel.
 -- TODO: Still need to do:
---      WSDefault JSASTWithSourceFragment
---      WSDoWhile JSASTWithSourceFragment ExprWithSourceFragment
---      WSFinally JSASTWithSourceFragment
---      WSFor (Maybe ExprWithSourceFragment) (Maybe ExprWithSourceFragment) (Maybe ExprWithSourceFragment) JSASTWithSourceFragment
---      WSForIn [Variable] ExprWithSourceFragment JSASTWithSourceFragment
---      WSLabelled Variable JSASTWithSourceFragment
-printASTWS :: JSASTWithSourceFragment -> String -> SourceFlag -> IO()
+-- 		WSBreak (Maybe Variable)
+-- 		WSContinue (Maybe Variable)
+--      WSDefault ASTWithSourceFragment
+--      WSDoWhile ASTWithSourceFragment ASTWithSourceFragment
+--      WSFinally ASTWithSourceFragment
+--      WSFor (Maybe ASTWithSourceFragment) (Maybe ASTWithSourceFragment) (Maybe ASTWithSourceFragment) ASTWithSourceFragment
+--      WSForIn [Variable] ASTWithSourceFragment ASTWithSourceFragment
+--      WSLabelled Variable ASTWithSourceFragment
+printASTWS :: ASTWithSourceFragment -> String -> SourceFlag -> IO()
 printASTWS (AWSF (WSBlock list) sourceFragment) padding printSrc = do
 	putStrLn (padding ++ " Block")
 	printSource sourceFragment padding printSrc
-	mapPrintASTWS list (makeIndent padding) printSrc
+	printASTWS list (makeIndent padding) printSrc
 printASTWS (AWSF (WSCase val body) sourceFragment) padding printSrc = do
 	putStrLn (padding ++ " Case")
 	printSource sourceFragment padding printSrc
 	let p = makeIndent padding
-	printExprWS val p printSrc
+	printASTWS val p printSrc
 	printASTWS body p printSrc
 printASTWS (AWSF (WSCatch var expr body) sourceFragment) padding printSrc = do
 	putStrLn (padding ++ " Catch")
 	printSource sourceFragment padding printSrc
 	let p = makeIndent padding
 	printVariable var p True
-	maybePrintExprWS expr p printSrc
+	maybePrintASTWS expr p printSrc
 	printASTWS body p printSrc
 printASTWS (AWSF (WSForVar decs cond expr body) sourceFragment) padding printSrc = do
 	putStrLn (padding ++ " ForVar")
 	printSource sourceFragment padding printSrc
 	let p = makeIndent padding
-	mapPrintExprWS decs p printSrc
-	maybePrintExprWS cond p printSrc
-	maybePrintExprWS expr p printSrc
+	mapPrintASTWS decs p printSrc
+	maybePrintASTWS cond p printSrc
+	maybePrintASTWS expr p printSrc
 	printASTWS body p printSrc
 printASTWS (AWSF (WSForVarIn var obj body) sourceFragment) padding printSrc = do
 	putStrLn (padding ++ " ForVarIn")
 	printSource sourceFragment padding printSrc
 	let p = makeIndent padding
-	printExprWS var p printSrc
-	printExprWS obj p printSrc
+	printASTWS var p printSrc
+	printASTWS obj p printSrc
 	printASTWS body p printSrc
 printASTWS (AWSF (WSFunctionBody list) sourceFragment) padding printSrc = do
 	putStrLn (padding ++ " FunctionBody")
@@ -642,93 +637,77 @@ printASTWS (AWSF (WSIf cond body) sourceFragment) padding printSrc = do
 	putStrLn (padding ++ " If")
 	printSource sourceFragment padding printSrc
 	let p = makeIndent padding
-	printExprWS cond p printSrc
+	printASTWS cond p printSrc
 	printASTWS body p printSrc
 printASTWS (AWSF (WSIfElse cond bodyTrue bodyFalse) sourceFragment) padding printSrc = do
 	putStrLn (padding ++ " IfElse")
 	printSource sourceFragment padding printSrc
 	let p = makeIndent padding
-	printExprWS cond p printSrc
+	printASTWS cond p printSrc
 	printASTWS bodyTrue p printSrc
 	printASTWS bodyFalse p printSrc
 printASTWS (AWSF (WSReturn expr) sourceFragment) padding printSrc = do
 	putStrLn (padding ++ " Return")
 	printSource sourceFragment padding printSrc
-	printExprWS expr (makeIndent padding) printSrc
+	printASTWS expr (makeIndent padding) printSrc
 printASTWS (AWSF (WSStatement expr) sourceFragment) padding printSrc = do
 	putStrLn (padding ++ " Statement")
 	printSource sourceFragment padding printSrc
-	printExprWS expr (makeIndent padding) printSrc
+	printASTWS expr (makeIndent padding) printSrc
 printASTWS (AWSF (WSSwitch var body) sourceFragment) padding printSrc = do
 	putStrLn (padding ++ " Switch")
 	printSource sourceFragment padding printSrc
 	let p = makeIndent padding
-	printExprWS var p printSrc
-	printASTWS body p printSrc
+	printASTWS var p printSrc
+	mapPrintASTWS body p printSrc
 printASTWS (AWSF (WSTry tryBody catchBody) sourceFragment) padding printSrc = do
 	putStrLn (padding ++ " Try")
 	printSource sourceFragment padding printSrc
 	let p = makeIndent padding
 	printASTWS tryBody p printSrc
-	printASTWS catchBody p printSrc
+	mapPrintASTWS catchBody p printSrc
 printASTWS (AWSF (WSWhile cond body) sourceFragment) padding printSrc = do
 	putStrLn (padding ++ " While")
 	printSource sourceFragment padding printSrc
 	let p = makeIndent padding
-	printExprWS cond p printSrc
+	printASTWS cond p printSrc
 	printASTWS body p printSrc
-printASTWS (AWSF node sourceFragment) padding printSrc = do
-	putStrLn (padding ++ " OTHER JSAST")
-	printSource sourceFragment padding printSrc
-	putStrLn ((makeIndent padding) ++ " " ++ (show node))
-
-
-mapPrintExprWS :: [ExprWithSourceFragment] -> String -> SourceFlag -> IO()
-mapPrintExprWS [] padding _ =
-	putStrLn (padding ++ " []")
-mapPrintExprWS exprs padding printSrc =
-	mapM_ printExpr exprs
-	where
-		printExpr e = printExprWS e padding printSrc
-
-
--- TODO: Remove all use of printLnStrAndLabel/printStrAndLabel.
--- TODO: Still need to do
--- 		WSBreak (Maybe Variable)
--- 		WSContinue (Maybe Variable)
-printExprWS :: ExprWithSourceFragment -> String -> SourceFlag -> IO()
-printExprWS (EWSF (WSArguments exprs) sourceFragment) padding printSrc = do
+printASTWS (AWSF (WSArguments exprs) sourceFragment) padding printSrc = do
 	putStrLn (padding ++ " Arguments")
 	printSource sourceFragment padding printSrc
-	mapPrintExprWS exprs (makeIndent padding) printSrc
-printExprWS (EWSF (WSAssignment op expr1 expr2) sourceFragment) padding printSrc = do
+	mapPrintASTWS exprs (makeIndent padding) printSrc
+printASTWS (AWSF (WSAssignment op expr1 expr2) sourceFragment) padding printSrc = do
 	putStrLn (padding ++ " Assignment")
 	printSource sourceFragment padding printSrc
 	let p = makeIndent padding
 	printOperator op p True
-	printExprWS expr1 p printSrc
-	printExprWS expr2 p printSrc
-printExprWS (EWSF (WSBinary op expr1 expr2) sourceFragment) padding printSrc = do
+	printASTWS expr1 p printSrc
+	printASTWS expr2 p printSrc
+printASTWS (AWSF (WSBinary op expr1 expr2) sourceFragment) padding printSrc = do
 	putStrLn (padding ++ " Binary")
 	printSource sourceFragment padding printSrc
 	let p = makeIndent padding
 	printOperator op p True
-	printExprWS expr1 p printSrc
-	printExprWS expr2 p printSrc
-printExprWS (EWSF (WSCall fid args) sourceFragment) padding printSrc = do
+	printASTWS expr1 p printSrc
+	printASTWS expr2 p printSrc
+printASTWS (AWSF (WSCall fid args) sourceFragment) padding printSrc = do
 	putStrLn (padding ++ " Call")
 	printSource sourceFragment padding printSrc
 	let p = makeIndent padding
-	printExprWS fid p printSrc
-	printExprWS args p printSrc
-printExprWS (EWSF (WSCallExpression call op expr) sourceFragment) padding printSrc = do
+	printASTWS fid p printSrc
+	printASTWS args p printSrc
+printASTWS (AWSF (WSCallExpression call op expr) sourceFragment) padding printSrc = do
 	putStrLn (padding ++ " CallExpression")
 	printSource sourceFragment padding printSrc
 	let p = makeIndent padding
-	printExprWS call p printSrc
+	printASTWS call p printSrc
 	printOperator op p True
-	printExprWS expr p printSrc
-printExprWS (EWSF (WSFunctionExpression var args body) sourceFragment) padding printSrc = do
+	printASTWS expr p printSrc
+printASTWS (AWSF (WSExpression exprs) sourceFragment) padding printSrc = do
+	putStrLn (padding ++ " Expression")
+	printSource sourceFragment padding printSrc
+	mapPrintASTWS exprs (makeIndent padding) printSrc
+printASTWS (AWSF (WSFunctionExpression var args body) sourceFragment) padding printSrc = do
 	putStr (padding ++ " FunctionExpression")
 	maybePrintVariable var "" False
 	putStr " ["
@@ -736,86 +715,83 @@ printExprWS (EWSF (WSFunctionExpression var args body) sourceFragment) padding p
 	putStrLn " ]"
 	printSource sourceFragment padding printSrc
 	printASTWS body (makeIndent padding) printSrc
-printExprWS (EWSF (WSIdentifier var) sourceFragment) padding printSrc = do
+printASTWS (AWSF (WSIdentifier var) sourceFragment) padding printSrc = do
 	putStr (padding ++ " Identifier")
 	printVariable var "" True
 	printSource sourceFragment padding printSrc
-printExprWS (EWSF (WSIndex obj prop) sourceFragment) padding printSrc = do
+printASTWS (AWSF (WSIndex obj prop) sourceFragment) padding printSrc = do
 	putStrLn (padding ++ " Index")
 	printSource sourceFragment padding printSrc
 	let p = makeIndent padding
-	printExprWS obj p printSrc
-	printExprWS prop p printSrc
-printExprWS (EWSF (WSList exprs) sourceFragment) padding printSrc = do
+	printASTWS obj p printSrc
+	printASTWS prop p printSrc
+printASTWS (AWSF (WSList exprs) sourceFragment) padding printSrc = do
 	putStrLn (padding ++ " List")
 	printSource sourceFragment padding printSrc
-	mapPrintExprWS exprs (makeIndent padding) printSrc
-printExprWS (EWSF (WSNew cons) sourceFragment) padding printSrc = do
+	mapPrintASTWS exprs (makeIndent padding) printSrc
+printASTWS (AWSF (WSNew cons) sourceFragment) padding printSrc = do
 	putStrLn (padding ++ " New")
 	printSource sourceFragment padding printSrc
 	let p = makeIndent padding
-	printExprWS cons p printSrc
-printExprWS (EWSF (WSParenExpression child) sourceFragment) padding printSrc = do
+	printASTWS cons p printSrc
+printASTWS (AWSF (WSParenExpression child) sourceFragment) padding printSrc = do
 	putStrLn (padding ++ " ParenExpression")
 	printSource sourceFragment padding printSrc
-	printExprWS child (makeIndent padding) printSrc
-printExprWS (EWSF (WSPropNameValue prop expr) sourceFragment) padding printSrc = do
+	printASTWS child (makeIndent padding) printSrc
+printASTWS (AWSF (WSPropNameValue prop expr) sourceFragment) padding printSrc = do
 	putStrLn (padding ++ " PropNameValue")
 	printSource sourceFragment padding printSrc
 	let p = makeIndent padding
 	printPropertyName prop p
-	printExprWS expr p printSrc
-printExprWS (EWSF (WSReference obj prop) sourceFragment) padding printSrc = do
+	printASTWS expr p printSrc
+printASTWS (AWSF (WSReference obj prop) sourceFragment) padding printSrc = do
 	putStrLn (padding ++ " Reference")
 	printSource sourceFragment padding printSrc
 	let p = makeIndent padding
-	printExprWS obj p printSrc
-	printExprWS prop p printSrc
-printExprWS (EWSF (WSTernary cond exprTrue exprFalse) sourceFragment) padding printSrc = do
+	printASTWS obj p printSrc
+	printASTWS prop p printSrc
+printASTWS (AWSF (WSStatementList exprs) sourceFragment) padding printSrc = do
+	putStrLn (padding ++ " StatementList")
+	printSource sourceFragment padding printSrc
+	mapPrintASTWS exprs (makeIndent padding) printSrc
+printASTWS (AWSF (WSTernary cond exprTrue exprFalse) sourceFragment) padding printSrc = do
 	putStrLn (padding ++ " Ternary")
 	printSource sourceFragment padding printSrc
 	let p = makeIndent padding
-	printExprWS cond p printSrc
-	printExprWS exprTrue p printSrc
-	printExprWS exprFalse p printSrc
-printExprWS (EWSF (WSThrow child) sourceFragment) padding printSrc = do
+	printASTWS cond p printSrc
+	printASTWS exprTrue p printSrc
+	printASTWS exprFalse p printSrc
+printASTWS (AWSF (WSThrow child) sourceFragment) padding printSrc = do
 	putStrLn (padding ++ " Throw")
 	printSource sourceFragment padding printSrc
 	let p = makeIndent padding
-	printExprWS child p printSrc
-printExprWS (EWSF (WSUnaryPost op expr) sourceFragment) padding printSrc = do
+	printASTWS child p printSrc
+printASTWS (AWSF (WSUnaryPost op expr) sourceFragment) padding printSrc = do
 	putStrLn (padding ++ " UnaryPost")
 	printSource sourceFragment padding printSrc
 	let p = makeIndent padding
 	printOperator op p True
-	printExprWS expr p printSrc
-printExprWS (EWSF (WSUnaryPre op expr) sourceFragment) padding printSrc = do
+	printASTWS expr p printSrc
+printASTWS (AWSF (WSUnaryPre op expr) sourceFragment) padding printSrc = do
 	putStrLn (padding ++ " UnaryPre")
 	printSource sourceFragment padding printSrc
 	let p = makeIndent padding
 	printOperator op p True
-	printExprWS expr p printSrc
-printExprWS (EWSF (WSValue val) sourceFragment) padding printSrc = do
+	printASTWS expr p printSrc
+printASTWS (AWSF (WSValue val) sourceFragment) padding printSrc = do
 	putStr (padding ++ " Value")
 	printValueWS val (makeIndent padding) printSrc True
 	printSource sourceFragment padding printSrc
-printExprWS (EWSF (WSVarDeclaration var expr) sourceFragment) padding printSrc = do
+printASTWS (AWSF (WSVarDeclaration var expr) sourceFragment) padding printSrc = do
 	putStrLn (padding ++ " VarDeclaration")
 	printSource sourceFragment padding printSrc
 	let p = makeIndent padding
 	printVariable var p True
-	maybePrintExprWS expr p printSrc
-printExprWS (EWSF n sourceFragment) padding printSrc = do
+	maybePrintASTWS expr p printSrc
+printASTWS (AWSF node sourceFragment) padding printSrc = do
+	putStrLn (padding ++ " OTHER AST")
 	printSource sourceFragment padding printSrc
-	putStrLn (padding ++ " OTHER EXPRESSION")
-	putStrLn ((makeIndent padding) ++ " " ++ (show n))
-
-
--- FIXME: Print the "Just". See maybePrintVarChild
-maybePrintExprWS :: Maybe ExprWithSourceFragment -> String -> SourceFlag -> IO()
-maybePrintExprWS (Just expr) padding printSrc =
-	printExprWS expr padding printSrc
-maybePrintExprWS Nothing padding _ = putStrLn (padding ++ " Nothing")
+	putStrLn ((makeIndent padding) ++ " " ++ (show node))
 
 
 -- TODO: probably remove this. It doesn't do very much.
@@ -883,7 +859,7 @@ printValueWS (WSArray elems) padding printSrc False = do
 	putStrLn (padding ++ " Array")
 	let p = makeIndent padding
 	putStrLn (p ++ " [")
-	mapPrintExprWS elems p printSrc
+	mapPrintASTWS elems p printSrc
 	putStr (p ++ " ]")
 printValueWS (WSBool val) padding _ False =
 	putStr (" Bool " ++ (show val))
@@ -898,7 +874,7 @@ printValueWS (WSNull) padding _ False =
 printValueWS (WSObject exprs) padding printSrc _ = do
 	putStrLn ""
 	putStrLn (padding ++ " Object")
-	mapPrintExprWS exprs (makeIndent padding) printSrc
+	mapPrintASTWS exprs (makeIndent padding) printSrc
 printValueWS (WSString val) padding _ False =
 	putStr (" String " ++ (show val))
 printValueWS (WSUndefined) padding _ False =

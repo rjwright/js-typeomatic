@@ -29,8 +29,8 @@
 --
 --        (getDeclarationGraph
 --           (label
---               (jsastListWSMakeSourceFragments
---                   (getJSASTWithSource
+--               (astListWSMakeSourceFragments
+--                   (getASTWithSource
 --                       (parseTree
 --                           program
 --                           file)
@@ -67,7 +67,7 @@
 ) where
 
 
-import LabelJSAST
+import LabelAST
 import ParseJS
 import ResolveSourceFragments
 import System.Environment
@@ -79,8 +79,8 @@ import TypeRules
 -- Will it be useful when it comes time to compile? Should I alter it to use the unique identifiers?
 data ParentFunction =
       ParentFunDecl ASTChild
-    | ParentFunExpr ExprChild
-    | ParentGlobal [ASTChild]
+    | ParentFunExpr ASTChild
+    | ParentGlobal ASTChild
     | TopLevel deriving (Show)
 
 
@@ -330,21 +330,21 @@ mapFunExprGetAllRules [] rules = rules
 -- new scope when entered. Each node includes the type rules gathered from within that block. The
 -- rules are expressed with unique identifiers so that they can later be extracted from the tree and
 -- placed in a set without identifier collisions occuring.
-getDeclarationGraph :: [ASTChild] -> SourceFragment -> FunctionRules
+getDeclarationGraph :: ASTChild -> SourceFragment -> FunctionRules
 -- Make a dummy global function, with all global level functions and variables declared in the
 -- "body" of the global function.
-getDeclarationGraph jsastLab fragment =
+getDeclarationGraph astLab fragment =
     FunctionRules
         GlobalID
-        (mapASTChildRules jsastLab dIDs)
-        (mapASTGetFR jsastLab (ParentGlobal jsastLab) dIDs)
-        (mapASTGetFER jsastLab (ParentGlobal jsastLab) dIDs)
-        (concat $ map astGetVarDecs jsastLab)
+        (astChildRules astLab dIDs)
+        (astGetFunRules astLab (ParentGlobal astLab) dIDs)
+        (astGetFunExprRules astLab (ParentGlobal astLab) dIDs)
+        dIDs
         fragment
         TopLevel
     where
         -- Get identifiers for everything declared at the global level.
-        dIDs = (concat $ map astGetVarDecs jsastLab)
+        dIDs = (astGetVarDecs astLab)
 
 
 -- Find all indentifiers declared in the signature and body of a function.
@@ -359,7 +359,7 @@ funDecGetVarDecs (LabFunctionDeclaration var args body, n, sourceFragment) =
 
 
 -- Find all indentifiers declared in the signature and body of a function expression.
-funExprGetVarDecs :: ExprChild -> [DeclaredIdentifier]
+funExprGetVarDecs :: ASTChild -> [DeclaredIdentifier]
 funExprGetVarDecs (LabFunctionExpression mv args body, n, sourceFragment) =
     -- Add the name of the function expression, if it has one.
     (listID (funExprMakeLabel thisFun))
@@ -417,18 +417,19 @@ mapASTGetFER ast parent dIDs =
         mfr a = astGetFunExprRules a parent dIDs
 
 
--- Map exprGetFunExprRules over a list of labelled Expression nodes.
-mapExpGetFER :: [ExprChild] -> ParentFunction -> [DeclaredIdentifier] -> [FunctionExpressionRules]
+-- Map astGetFunExprRules over a list of labelled Expression nodes.
+mapExpGetFER :: [ASTChild] -> ParentFunction -> [DeclaredIdentifier] -> [FunctionExpressionRules]
 mapExpGetFER exList parent dIDs =
     concat $ map gfe exList
     where
-        gfe ex = exprGetFunExprRules ex parent dIDs
+        gfe ex = astGetFunExprRules ex parent dIDs
 
 
 -- Make FunctionRules from an labelled AST node. For most inputs, with the exception of
 -- LabFunctionDeclaration, LabReturn and LabStatement, just process the body recursively.
 astGetFunRules :: ASTChild -> ParentFunction -> [DeclaredIdentifier] -> [FunctionRules]
-astGetFunRules (LabBlock astList, n, sourceFragment) parent dIDs = (mapASTGetFR astList parent dIDs)
+-- FIXME: Uncomment this and fix it (second field is not a list any more)
+-- astGetFunRules (LabBlock astList, n, sourceFragment) parent dIDs = (mapASTGetFR astList parent dIDs)
 astGetFunRules (LabFunctionBody astList, n, sourceFragment) parent dIDs = (mapASTGetFR astList parent dIDs)
 -- For a FunctionDeclaration we add a new FunctionRules.
 astGetFunRules (LabFunctionDeclaration (fid, x) args body, n, sourceFragment) parent dIDs =
@@ -486,11 +487,16 @@ astGetFunRules (LabReturn ex, n, sourceFragment) parent dIDs = []
 -- function declaration. Return nothing.
 astGetFunRules (LabStatement ex, n, sourceFragment) parent dIDs = []
 
+-- Make FunctionExpressionRules from an Expression. All of these, with the exception of
+-- LabFunctionExpression, either return nothing (when they don't contain any fields that could
+-- contain a function expression), or recursively process any expression or value fields.
+-- astGetFunExprRules :: ASTChild -> ParentFunction -> [DeclaredIdentifier] -> [FunctionExpressionRules]
 
 -- Make FunctionExpressionRules from an AST. An ASTChild can't immediately represent a function
 -- expression. Recursively process all child ASTs and expressions.
 astGetFunExprRules :: ASTChild -> ParentFunction -> [DeclaredIdentifier] -> [FunctionExpressionRules]
-astGetFunExprRules (LabBlock astList, n, sourceFragment) parent dIDs = (mapASTGetFER astList parent dIDs)
+-- FIXME: Uncomment this and fix it (second field is not a list any more)
+-- astGetFunExprRules (LabBlock astList, n, sourceFragment) parent dIDs = (mapASTGetFER astList parent dIDs)
 astGetFunExprRules (LabFunctionBody astList, n, sourceFragment) parent dIDs = (mapASTGetFER astList parent dIDs)
 astGetFunExprRules (LabFunctionDeclaration fid args body, n, sourceFragment) parent dIDs = []
 astGetFunExprRules (LabLabelled label body, n, sourceFragment) parent dIDs = astGetFunExprRules body parent dIDs
@@ -506,30 +512,31 @@ astGetFunExprRules (LabFor varEx test count body, n, sourceFragment) parent dIDs
     ++ (getMaybeFunExprRules count parent dIDs)
 astGetFunExprRules (LabForIn varList obj body, n, sourceFragment) parent dIDs =
     (astGetFunExprRules body parent dIDs)
-    ++ (exprGetFunExprRules obj parent dIDs)
+    ++ (astGetFunExprRules obj parent dIDs)
 astGetFunExprRules (LabForVarIn varEx obj body, n, sourceFragment) parent dIDs =
     (astGetFunExprRules body parent dIDs)
-    ++ (exprGetFunExprRules obj parent dIDs)
-    ++ (exprGetFunExprRules varEx parent dIDs)
+    ++ (astGetFunExprRules obj parent dIDs)
+    ++ (astGetFunExprRules varEx parent dIDs)
 astGetFunExprRules (LabWhile test body, n, sourceFragment) parent dIDs =
     (astGetFunExprRules body parent dIDs)
-    ++ (exprGetFunExprRules test parent dIDs)
+    ++ (astGetFunExprRules test parent dIDs)
 astGetFunExprRules (LabDoWhile body test, n, sourceFragment) parent dIDs =
     (astGetFunExprRules body parent dIDs)
-    ++ (exprGetFunExprRules test parent dIDs)
+    ++ (astGetFunExprRules test parent dIDs)
 astGetFunExprRules (LabIf test body, n, sourceFragment) parent dIDs =
     (astGetFunExprRules body parent dIDs)
-    ++ (exprGetFunExprRules test parent dIDs)
+    ++ (astGetFunExprRules test parent dIDs)
 astGetFunExprRules (LabIfElse test bodyT bodyF, n, sourceFragment) parent dIDs =
     (astGetFunExprRules bodyT parent dIDs)
     ++ (astGetFunExprRules bodyF parent dIDs)
-    ++ (exprGetFunExprRules test parent dIDs)
+    ++ (astGetFunExprRules test parent dIDs)
 astGetFunExprRules (LabSwitch ident cases, n, sourceFragment) parent dIDs =
     (astGetFunExprRules cases parent dIDs)
-    ++ (exprGetFunExprRules ident parent dIDs)
-astGetFunExprRules (LabCase ex body, n, sourceFragment) parent dIDs =
-    (astGetFunExprRules body parent dIDs)
-    ++ (exprGetFunExprRules ex parent dIDs)
+    ++ (astGetFunExprRules ident parent dIDs)
+-- FIXME: Uncomment this and fix it (body is a list now)
+-- astGetFunExprRules (LabCase ex body, n, sourceFragment) parent dIDs =
+--     (astGetFunExprRules body parent dIDs)
+--     ++ (astGetFunExprRules ex parent dIDs)
 astGetFunExprRules (LabDefault body, n, sourceFragment) parent dIDs = astGetFunExprRules body parent dIDs
 astGetFunExprRules (LabTry body catches, n, sourceFragment) parent dIDs =
     (astGetFunExprRules body parent dIDs)
@@ -538,65 +545,50 @@ astGetFunExprRules (LabCatch var mTest body, n, sourceFragment) parent dIDs =
     (astGetFunExprRules body parent dIDs)
     ++ (getMaybeFunExprRules mTest parent dIDs)
 astGetFunExprRules (LabFinally body, n, sourceFragment) parent dIDs = astGetFunExprRules body parent dIDs
-astGetFunExprRules (LabReturn ex, n, sourceFragment) parent dIDs = exprGetFunExprRules ex parent dIDs
-astGetFunExprRules (LabStatement ex, n, sourceFragment) parent dIDs = exprGetFunExprRules ex parent dIDs
-
-
--- Does this make sense with the rules code that handles members of objects and arrays?
---
--- TODO: Search object and array literals for function expressions.
-valueGetFunExprRules :: ValueChild -> ParentFunction -> [DeclaredIdentifier] -> [FunctionExpressionRules]
-valueGetFunExprRules (LabObject ex, n) parent dIDs = mapExpGetFER ex parent dIDs
-valueGetFunExprRules (LabArray els, n) parent dIDs = mapExpGetFER els parent dIDs
-valueGetFunExprRules _ _ _ = []
-
-
--- Make FunctionExpressionRules from an Expression. All of these, with the exception of
--- LabFunctionExpression, either return nothing (when they don't contain any fields that could
--- contain a function expression), or recursively process any expression or value fields.
-exprGetFunExprRules :: ExprChild -> ParentFunction -> [DeclaredIdentifier] -> [FunctionExpressionRules]
-exprGetFunExprRules (LabList expList, n, sourceFragment) parent dIDs = mapExpGetFER expList parent dIDs
-exprGetFunExprRules (LabBinary op ex1 ex2, n, sourceFragment) parent dIDs =
-    (exprGetFunExprRules ex1 parent dIDs)
-    ++ (exprGetFunExprRules ex2 parent dIDs)
-exprGetFunExprRules (LabUnaryPost op ex, n, sourceFragment) parent dIDs = exprGetFunExprRules ex parent dIDs
-exprGetFunExprRules (LabUnaryPre op ex, n, sourceFragment) parent dIDs = exprGetFunExprRules ex parent dIDs
-exprGetFunExprRules (LabTernary ex1 ex2 ex3, n, sourceFragment) parent dIDs =
-    (exprGetFunExprRules ex1 parent dIDs)
-    ++ (exprGetFunExprRules ex2 parent dIDs)
-    ++ (exprGetFunExprRules ex3 parent dIDs)
-exprGetFunExprRules (LabAssignment op ex1 ex2, n, sourceFragment) parent dIDs =
-    (exprGetFunExprRules ex1 parent dIDs)
-    ++ (exprGetFunExprRules ex2 parent dIDs)
-exprGetFunExprRules (LabIdentifier var, n, sourceFragment) parent dIDs = []
-exprGetFunExprRules (LabReference ex1 ex2, n, sourceFragment) parent dIDs =
-    (exprGetFunExprRules ex1 parent dIDs)
-    ++ (exprGetFunExprRules ex2 parent dIDs)
-exprGetFunExprRules (LabIndex ex1 ex2, n, sourceFragment) parent dIDs =
-    (exprGetFunExprRules ex1 parent dIDs)
-    ++ (exprGetFunExprRules ex2 parent dIDs)
+astGetFunExprRules (LabReturn ex, n, sourceFragment) parent dIDs = astGetFunExprRules ex parent dIDs
+astGetFunExprRules (LabStatement ex, n, sourceFragment) parent dIDs = astGetFunExprRules ex parent dIDs
+astGetFunExprRules (LabList expList, n, sourceFragment) parent dIDs = mapExpGetFER expList parent dIDs
+astGetFunExprRules (LabBinary op ex1 ex2, n, sourceFragment) parent dIDs =
+    (astGetFunExprRules ex1 parent dIDs)
+    ++ (astGetFunExprRules ex2 parent dIDs)
+astGetFunExprRules (LabUnaryPost op ex, n, sourceFragment) parent dIDs = astGetFunExprRules ex parent dIDs
+astGetFunExprRules (LabUnaryPre op ex, n, sourceFragment) parent dIDs = astGetFunExprRules ex parent dIDs
+astGetFunExprRules (LabTernary ex1 ex2 ex3, n, sourceFragment) parent dIDs =
+    (astGetFunExprRules ex1 parent dIDs)
+    ++ (astGetFunExprRules ex2 parent dIDs)
+    ++ (astGetFunExprRules ex3 parent dIDs)
+astGetFunExprRules (LabAssignment op ex1 ex2, n, sourceFragment) parent dIDs =
+    (astGetFunExprRules ex1 parent dIDs)
+    ++ (astGetFunExprRules ex2 parent dIDs)
+astGetFunExprRules (LabIdentifier var, n, sourceFragment) parent dIDs = []
+astGetFunExprRules (LabReference ex1 ex2, n, sourceFragment) parent dIDs =
+    (astGetFunExprRules ex1 parent dIDs)
+    ++ (astGetFunExprRules ex2 parent dIDs)
+astGetFunExprRules (LabIndex ex1 ex2, n, sourceFragment) parent dIDs =
+    (astGetFunExprRules ex1 parent dIDs)
+    ++ (astGetFunExprRules ex2 parent dIDs)
 -- TODO: Needs to deal with objects and arrays, whose members can be function expressions.
 --
 -- TODO: Is this already done in the code that handles values?
 --
 -- FIXME: What is going on here vv
--- exprGetFunExprRules (LabValue (LabOjbect ex, r), n) parent dIDs = []
--- exprGetFunExprRules (LabValue (LabArray ex, r), n) parent dIDs = []
-exprGetFunExprRules (LabValue val, n, sourceFragment) parent dIDs = valueGetFunExprRules val parent dIDs
-exprGetFunExprRules (LabPropNameValue var ex, n, sourceFragment) parent dIDs = exprGetFunExprRules ex parent dIDs
-exprGetFunExprRules (LabCall ex1 ex2, n, sourceFragment) parent dIDs =
-    (exprGetFunExprRules ex1 parent dIDs)
-    ++ (exprGetFunExprRules ex2 parent dIDs)
-exprGetFunExprRules (LabArguments args, n, sourceFragment) parent dIDs = mapExpGetFER args parent dIDs
-exprGetFunExprRules (LabParenExpression ex, n, sourceFragment) parent dIDs = exprGetFunExprRules ex parent dIDs
-exprGetFunExprRules (LabBreak var, n, sourceFragment) parent dIDs = []
-exprGetFunExprRules (LabContinue var, n, sourceFragment) parent dIDs = []
-exprGetFunExprRules (LabThrow ex, n, sourceFragment) parent dIDs = exprGetFunExprRules ex parent dIDs
-exprGetFunExprRules (LabCallExpression ex1 op ex2, n, sourceFragment) parent dIDs =
-    (exprGetFunExprRules ex1 parent dIDs)
-    ++ (exprGetFunExprRules ex2 parent dIDs)
+-- astGetFunExprRules (LabValue (LabOjbect ex, r), n) parent dIDs = []
+-- astGetFunExprRules (LabValue (LabArray ex, r), n) parent dIDs = []
+astGetFunExprRules (LabValue val, n, sourceFragment) parent dIDs = valueGetFunExprRules val parent dIDs
+astGetFunExprRules (LabPropNameValue var ex, n, sourceFragment) parent dIDs = astGetFunExprRules ex parent dIDs
+astGetFunExprRules (LabCall ex1 ex2, n, sourceFragment) parent dIDs =
+    (astGetFunExprRules ex1 parent dIDs)
+    ++ (astGetFunExprRules ex2 parent dIDs)
+astGetFunExprRules (LabArguments args, n, sourceFragment) parent dIDs = mapExpGetFER args parent dIDs
+astGetFunExprRules (LabParenExpression ex, n, sourceFragment) parent dIDs = astGetFunExprRules ex parent dIDs
+astGetFunExprRules (LabBreak var, n, sourceFragment) parent dIDs = []
+astGetFunExprRules (LabContinue var, n, sourceFragment) parent dIDs = []
+astGetFunExprRules (LabThrow ex, n, sourceFragment) parent dIDs = astGetFunExprRules ex parent dIDs
+astGetFunExprRules (LabCallExpression ex1 op ex2, n, sourceFragment) parent dIDs =
+    (astGetFunExprRules ex1 parent dIDs)
+    ++ (astGetFunExprRules ex2 parent dIDs)
 -- For a LabFunctionExpression we add a new FunctionExpressionRules.
-exprGetFunExprRules (LabFunctionExpression mv vls body, n, sourceFragment) parent dIDs =
+astGetFunExprRules (LabFunctionExpression mv vls body, n, sourceFragment) parent dIDs =
     -- Make a new FunctionExpressionRules.
     [FunctionExpressionRules
         -- Include the name of the function expression, if it has one.
@@ -627,81 +619,40 @@ exprGetFunExprRules (LabFunctionExpression mv vls body, n, sourceFragment) paren
         getMaybeID (Just fid) = Just (FunctionID fid)
         -- This function expression's parent AST.
         newParent = ParentFunExpr thisExpr
-exprGetFunExprRules (LabVarDeclaration var mex, n, sourceFragment) parent dIDs =
+astGetFunExprRules (LabVarDeclaration var mex, n, sourceFragment) parent dIDs =
     getMaybeFunExprRules mex parent dIDs
-exprGetFunExprRules (LabNew ex, n, sourceFragment) parent dIDs = exprGetFunExprRules ex parent dIDs
+astGetFunExprRules (LabNew ex, n, sourceFragment) parent dIDs = astGetFunExprRules ex parent dIDs
 
 
--- Make FunctionExpressionRules from Maybe ExprChild.
-getMaybeFunExprRules :: (Maybe ExprChild) -> ParentFunction -> [DeclaredIdentifier] -> [FunctionExpressionRules]
-getMaybeFunExprRules Nothing parent dIDs = []
-getMaybeFunExprRules (Just ex) parent dIDs = exprGetFunExprRules ex parent dIDs
+-- Does this make sense with the rules code that handles members of objects and arrays?
+--
+-- TODO: Search object and array literals for function expressions.
+valueGetFunExprRules :: ValueChild -> ParentFunction -> [DeclaredIdentifier] -> [FunctionExpressionRules]
+valueGetFunExprRules (LabObject ex, n) parent dIDs = mapExpGetFER ex parent dIDs
+valueGetFunExprRules (LabArray els, n) parent dIDs = mapExpGetFER els parent dIDs
+valueGetFunExprRules _ _ _ = []
 
 
--- Find all identifiers declared in an Expression. All of these, with the exception of
--- LabVarDeclaration, return nothing or recursively process any expression fields recursively.
+-- Make FunctionExpressionRules from Maybe ASTChild.
+getMaybeFunExprRules :: (Maybe ASTChild) -> ParentFunction -> [DeclaredIdentifier] -> [FunctionExpressionRules]
+getMaybeFunExprRules maybeASTChild parent dIDs =
+    maybeToProperList (\astChild -> astGetFunExprRules astChild parent dIDs) maybeASTChild
+
+
+-- Find variable declarations in a Maybe ASTChild.
+maybeExprGetVarDecs :: (Maybe ASTChild) -> [DeclaredIdentifier]
+maybeExprGetVarDecs maybeASTChild = maybeToProperList astGetVarDecs maybeASTChild
+
+
+-- Find all identifiers declared in a AST. All of these, with the exception of
+-- LabFunctionDeclaration, LabLabelled and LabVarDeclaration, return nothing or recursively process
+-- any AST or expression fields.
 --
 -- NOTE: Argument lists declare variables (see testargscope.js). DONE - see funDecGetVarDecs.
---
 -- TODO: Possibly need to do the same for ForIn.
-exprGetVarDecs :: ExprChild -> [DeclaredIdentifier]
-exprGetVarDecs (LabList ex, n, sourceFragment) = concat $ map exprGetVarDecs ex
-exprGetVarDecs (LabBinary op ex1 ex2, n, sourceFragment) =
-    (exprGetVarDecs ex1)
-    ++ (exprGetVarDecs ex2)
-exprGetVarDecs (LabUnaryPost op ex, n, sourceFragment) = exprGetVarDecs ex
-exprGetVarDecs (LabUnaryPre op ex, n, sourceFragment) = exprGetVarDecs ex
-exprGetVarDecs (LabTernary ex1 ex2 ex3, n, sourceFragment) =
-    (exprGetVarDecs ex1)
-    ++ (exprGetVarDecs ex2)
-    ++ (exprGetVarDecs ex3)
-exprGetVarDecs (LabAssignment op ex1 ex2, n, sourceFragment) =
-    (exprGetVarDecs ex1)
-    ++ (exprGetVarDecs ex2)
-exprGetVarDecs (LabIdentifier var, n, sourceFragment) = []
-exprGetVarDecs (LabReference ex1 ex2, n, sourceFragment) =
-    (exprGetVarDecs ex1)
-    ++ (exprGetVarDecs ex2)
-exprGetVarDecs (LabIndex ex1 ex2, n, sourceFragment) =
-    (exprGetVarDecs ex1)
-    ++ (exprGetVarDecs ex2)
-exprGetVarDecs (LabValue val, n, sourceFragment) = []
-exprGetVarDecs (LabPropNameValue var ex, n, sourceFragment) = exprGetVarDecs ex
-exprGetVarDecs (LabCall ex1 ex2, n, sourceFragment) =
-    (exprGetVarDecs ex1)
-    ++ (exprGetVarDecs ex2)
-exprGetVarDecs (LabArguments ex, n, sourceFragment) = concat $ map exprGetVarDecs ex
-exprGetVarDecs (LabParenExpression ex, n, sourceFragment) = exprGetVarDecs ex
-exprGetVarDecs (LabBreak mv, n, sourceFragment) = []
-exprGetVarDecs (LabContinue mv, n, sourceFragment) = []
-exprGetVarDecs (LabThrow ex, n, sourceFragment) = exprGetVarDecs ex
-exprGetVarDecs (LabCallExpression ex1 op ex2, n, sourceFragment) =
-    (exprGetVarDecs ex1)
-    ++ (exprGetVarDecs ex2)
--- A function expression doesn't declare anything that is relevant at this scope.
-exprGetVarDecs (LabFunctionExpression mv var body, n, sourceFragment)  = []
--- Return the unique identifier for the variable being declared and recursively process the
--- expression field.
-exprGetVarDecs (LabVarDeclaration (var, x) mex, n, sourceFragment) =
-    [varDecMakeLabel thisVarDec]
-    ++ (maybeExprGetVarDecs mex)
-    where
-        -- Name the (Haskell Land) argument.
-        thisVarDec = (LabVarDeclaration (var, x) mex, n, sourceFragment)
-exprGetVarDecs (LabNew ex, n, sourceFragment) = exprGetVarDecs ex
-
-
--- Find variable declarations in a Maybe ExprChild.
-maybeExprGetVarDecs :: (Maybe ExprChild) -> [DeclaredIdentifier]
-maybeExprGetVarDecs Nothing = []
-maybeExprGetVarDecs (Just ex) = exprGetVarDecs ex
-
-
--- Find all identifiers declared in a JSAST. All of these, with the exception of
--- LabFunctionDeclaration and LabLabelled, return nothing or recursively process any AST or
--- expression fields.
 astGetVarDecs :: ASTChild -> [DeclaredIdentifier]
-astGetVarDecs (LabBlock body, n, sourceFragment) = concat $ map astGetVarDecs body
+-- FIXME: Uncomment this and fix it (second field is not a list any more)
+-- astGetVarDecs (LabBlock body, n, sourceFragment) = concat $ map astGetVarDecs body
 astGetVarDecs (LabFunctionBody body, n, sourceFragment) = concat $ map astGetVarDecs body
 -- Add the name of the function. Definitions of functions don't declare any variables that are
 -- relevant at this scope.
@@ -716,7 +667,7 @@ astGetVarDecs (LabLabelled (var, x) body, n, sourceFragment) =
     where
         thisLabelled = (LabLabelled (var, x) body, n, sourceFragment)
 astGetVarDecs (LabForVar ex mex1 mex2 body, n, sourceFragment) =
-    (concat $ map exprGetVarDecs ex)
+    (concat $ map astGetVarDecs ex)
     ++ (maybeExprGetVarDecs mex1)
     ++ (maybeExprGetVarDecs mex2)
     ++ (astGetVarDecs body)
@@ -726,30 +677,30 @@ astGetVarDecs (LabFor mex1 mex2 mex3 body, n, sourceFragment) =
     ++ (maybeExprGetVarDecs mex3)
     ++ (astGetVarDecs body)
 astGetVarDecs (LabForIn vars ex body, n, sourceFragment) =
-    (exprGetVarDecs ex)
+    (astGetVarDecs ex)
     ++ (astGetVarDecs body)
 astGetVarDecs (LabForVarIn ex1 ex2 body, n, sourceFragment) =
-    (exprGetVarDecs ex1)
-    ++ (exprGetVarDecs ex2)
+    (astGetVarDecs ex1)
+    ++ (astGetVarDecs ex2)
     ++ (astGetVarDecs body)
 astGetVarDecs (LabWhile ex body, n, sourceFragment) =
-    (exprGetVarDecs ex)
+    (astGetVarDecs ex)
     ++ (astGetVarDecs body)
 astGetVarDecs (LabDoWhile body ex, n, sourceFragment) =
     (astGetVarDecs body)
-    ++ (exprGetVarDecs ex)
+    ++ (astGetVarDecs ex)
 astGetVarDecs (LabIf ex body, n, sourceFragment) =
-    (exprGetVarDecs ex)
+    (astGetVarDecs ex)
     ++ (astGetVarDecs body)
 astGetVarDecs (LabIfElse ex bodyT bodyF, n, sourceFragment) =
-    (exprGetVarDecs ex)
+    (astGetVarDecs ex)
     ++ (astGetVarDecs bodyT)
     ++ (astGetVarDecs bodyF)
 astGetVarDecs (LabSwitch ex cases, n, sourceFragment) =
-    (exprGetVarDecs ex)
+    (astGetVarDecs ex)
     ++ (astGetVarDecs cases)
 astGetVarDecs (LabCase ex body, n, sourceFragment) =
-    (exprGetVarDecs ex)
+    (astGetVarDecs ex)
     ++ (astGetVarDecs body)
 astGetVarDecs (LabDefault body, n, sourceFragment) = astGetVarDecs body
 astGetVarDecs (LabTry body catchClause, n, sourceFragment) =
@@ -759,5 +710,51 @@ astGetVarDecs (LabCatch var mex body, n, sourceFragment) =
     (maybeExprGetVarDecs mex)
     ++ (astGetVarDecs body)
 astGetVarDecs (LabFinally body, n, sourceFragment) = astGetVarDecs body
-astGetVarDecs (LabReturn ex, n, sourceFragment) = exprGetVarDecs ex
-astGetVarDecs (LabStatement ex, n, sourceFragment) = exprGetVarDecs ex
+astGetVarDecs (LabReturn ex, n, sourceFragment) = astGetVarDecs ex
+astGetVarDecs (LabStatement ex, n, sourceFragment) = astGetVarDecs ex
+astGetVarDecs (LabList ex, n, sourceFragment) = concat $ map astGetVarDecs ex
+astGetVarDecs (LabStatementList ex, n, sourceFragment) = concat $ map astGetVarDecs ex
+astGetVarDecs (LabExpression ex, n, sourceFragment) = concat $ map astGetVarDecs ex
+astGetVarDecs (LabBinary op ex1 ex2, n, sourceFragment) =
+    (astGetVarDecs ex1)
+    ++ (astGetVarDecs ex2)
+astGetVarDecs (LabUnaryPost op ex, n, sourceFragment) = astGetVarDecs ex
+astGetVarDecs (LabUnaryPre op ex, n, sourceFragment) = astGetVarDecs ex
+astGetVarDecs (LabTernary ex1 ex2 ex3, n, sourceFragment) =
+    (astGetVarDecs ex1)
+    ++ (astGetVarDecs ex2)
+    ++ (astGetVarDecs ex3)
+astGetVarDecs (LabAssignment op ex1 ex2, n, sourceFragment) =
+    (astGetVarDecs ex1)
+    ++ (astGetVarDecs ex2)
+astGetVarDecs (LabIdentifier var, n, sourceFragment) = []
+astGetVarDecs (LabReference ex1 ex2, n, sourceFragment) =
+    (astGetVarDecs ex1)
+    ++ (astGetVarDecs ex2)
+astGetVarDecs (LabIndex ex1 ex2, n, sourceFragment) =
+    (astGetVarDecs ex1)
+    ++ (astGetVarDecs ex2)
+astGetVarDecs (LabValue val, n, sourceFragment) = []
+astGetVarDecs (LabPropNameValue var ex, n, sourceFragment) = astGetVarDecs ex
+astGetVarDecs (LabCall ex1 ex2, n, sourceFragment) =
+    (astGetVarDecs ex1)
+    ++ (astGetVarDecs ex2)
+astGetVarDecs (LabArguments ex, n, sourceFragment) = concat $ map astGetVarDecs ex
+astGetVarDecs (LabParenExpression ex, n, sourceFragment) = astGetVarDecs ex
+astGetVarDecs (LabBreak mv, n, sourceFragment) = []
+astGetVarDecs (LabContinue mv, n, sourceFragment) = []
+astGetVarDecs (LabThrow ex, n, sourceFragment) = astGetVarDecs ex
+astGetVarDecs (LabCallExpression ex1 op ex2, n, sourceFragment) =
+    (astGetVarDecs ex1)
+    ++ (astGetVarDecs ex2)
+-- A function expression doesn't declare anything that is relevant at this scope.
+astGetVarDecs (LabFunctionExpression mv var body, n, sourceFragment)  = []
+-- Return the unique identifier for the variable being declared and recursively process the
+-- expression field.
+astGetVarDecs (LabVarDeclaration (var, x) mex, n, sourceFragment) =
+    [varDecMakeLabel thisVarDec]
+    ++ (maybeExprGetVarDecs mex)
+    where
+        -- Name the (Haskell Land) argument.
+        thisVarDec = (LabVarDeclaration (var, x) mex, n, sourceFragment)
+astGetVarDecs (LabNew ex, n, sourceFragment) = astGetVarDecs ex

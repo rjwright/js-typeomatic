@@ -12,15 +12,13 @@
 -- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
--- Module takes a JSAST and gives each vertex a unique integer label. The label counter is simply
--- threaded through the tree. Traversal is depth first. It's all fairly straight-forward.
 
 
 -- The methods in the pipeline are:
 -- 		ParseJS.parseTree - NEEDS PRETTY PRINT
--- 		ParseJS.getJSASTWithSource - NEEDS PRETTY PRINT
--- 		ResolveJSASTSourceFragments.jsastListWSMakeSourceFragments
--- 		LabelJSAST.label
+-- 		ParseJS.getASTWithSource - NEEDS PRETTY PRINT
+-- 		ResolveASTSourceFragments.astListWSMakeSourceFragments
+-- 		LabelAST.label
 -- 		DeclarationGraph.getDeclarationGraph - NEEDS PRETTY PRINT
 -- 		DeclarationGraph.graphGetAllRules (optional) - TYPES NEED PRETTY PRINT
 -- 		DeclarationGraph.cleanFunctionRules (optional)
@@ -34,7 +32,7 @@ main
 
 
 import DeclarationGraph
-import LabelJSAST
+import LabelAST
 import Language.JavaScript.Parser
 import ParseJS
 import PrettyPrint
@@ -51,12 +49,12 @@ main = do
 	pr <- readFile infile
 	putStrLn ""
 	-- *****************
-	putStrLn ""
-	putStrLn "Print the stripped parse tree"
-	printParseTreeStripped $ jsnGetNode $ parseTree pr infile
-	putStrLn ""
-	putStrLn "Print the raw parse tree"
-	putStrLn $ show $ parse pr infile
+	-- putStrLn ""
+	-- putStrLn "Print the stripped parse tree"
+	-- printParseTreeStripped $ jsnGetNode $ parseTree pr infile
+	-- putStrLn ""
+	-- putStrLn "Print the raw parse tree"
+	-- putStrLn $ show $ parse pr infile
 	-- *****************
 	-- PRETTY PRINTED
 	-- Prints declared functions and function expressions, and the identifiers
@@ -69,10 +67,10 @@ main = do
 	-- **PRETTY PRINTED**
 	-- Prints the rules, indented base on their scope, with optional source code, and an optional
 	-- list of the identifiers that are visible at that each scope.
-	putStrLn ""
-	putStrLn "Pretty print cleaned function rules with identifiers"
-	putStr "Top Level:"
-	printCleanedRulesList ((makeCleanedFunctionRules pr infile):[]) (makeIndent "") False True
+	-- putStrLn ""
+	-- putStrLn "Pretty print cleaned function rules with identifiers"
+	-- putStr "Top Level:"
+	-- printCleanedRulesList ((makeCleanedFunctionRules pr infile):[]) (makeIndent "") False True
 
 	-- PRETTY PRINTED (could be improved with pretty printing for types)
 	-- Print all the rules, optionally with source code.
@@ -89,39 +87,39 @@ main = do
 	-- PRETTY PRINTED
 	-- Print the cleaned ATS.
 	-- putStrLn ""
-	-- putStrLn "Pretty print labelled JSAST without labels or source fragments"
-	-- mapPrintASTChild (makeLabelledJSAST pr infile) (makeIndent "") False False
+	-- putStrLn "Pretty print labelled AST without labels or source fragments"
+	-- mapPrintASTChild (makeLabelledAST pr infile) (makeIndent "") False False
 	-- PRETTY PRINTED
 	-- Print the cleaned ATS with labels.
 	-- putStrLn ""
-	-- putStrLn "Pretty print labelled JSAST with labels"
-	-- mapPrintASTChild (makeLabelledJSAST pr infile) (makeIndent "") False True
+	-- putStrLn "Pretty print labelled AST with labels"
+	-- mapPrintASTChild (makeLabelledAST pr infile) (makeIndent "") False True
 	-- PRETTY PRINTED
 	-- Print the cleaned ATS with source.
 	-- putStrLn ""
-	-- putStrLn "Pretty print labelled JSAST with source fragments"
-	-- mapPrintASTChild (makeLabelledJSAST pr infile) (makeIndent "") True False
+	-- putStrLn "Pretty print labelled AST with source fragments"
+	-- mapPrintASTChild (makeLabelledAST pr infile) (makeIndent "") True False
 	-- **PRETTY PRINTED**
 	-- Print the cleaned ATS with labels and source.
-	putStrLn ""
-	putStrLn "Pretty print labelled JSAST with labels and source fragments"
-	mapPrintASTChild (makeLabelledJSAST pr infile) (makeIndent "") True True
-
-	-- **PRETTY PRINTED**
-	-- Pretty print the JSASTWithSourceFragment with source fragments
-	putStrLn ""
-	putStrLn "Pretty print JSASTWithSourceFragment with source fragments"
-	mapPrintASTWS (makeJSASTWithSourceFragments pr infile) (makeIndent "") True
-	-- **PRETTY PRINTED**
-	-- Pretty print the JSASTWithSourceFragment without source fragments
-	putStrLn ""
-	putStrLn "Pretty print JSASTWithSourceFragment without source fragments"
-	mapPrintASTWS (makeJSASTWithSourceFragments pr infile) (makeIndent "") False
-
-	-- Prints the first JSAST (pre-labels).
 	-- putStrLn ""
-	-- putStrLn "Print the the original JSAST"
-	-- mapM_ print (makeJSAST pr infile)
+	-- putStrLn "Pretty print labelled AST with labels and source fragments"
+	-- printASTChild (makeLabelledAST pr infile) (makeIndent "") True True
+
+	-- **PRETTY PRINTED**
+	-- Pretty print the ASTWithSourceFragment with source fragments
+	putStrLn ""
+	putStrLn "Pretty print ASTWithSourceFragment with source fragments"
+	printASTWS (makeASTWithSourceFragments pr infile) (makeIndent "") True
+	-- **PRETTY PRINTED**
+	-- Pretty print the ASTWithSourceFragment without source fragments
+	putStrLn ""
+	putStrLn "Pretty print ASTWithSourceFragment without source fragments"
+	printASTWS (makeASTWithSourceFragments pr infile) (makeIndent "") False
+
+	-- Prints the first AST (pre-labels).
+	-- putStrLn ""
+	-- putStrLn "Print the the original AST"
+	-- mapM_ print (makeAST pr infile)
 
 	-- Rudimentary. Prints the parse tree using Language.JavaScript's showStripped function. Prints
 	-- one top-level parse tree node per line.
@@ -151,20 +149,18 @@ makeAllRules input fileName = graphGetAllRules $ makeDeclarationGraph input file
 makeDeclarationGraph :: String -> SourceFileName -> FunctionRules
 makeDeclarationGraph input fileName =
 	getDeclarationGraph
-		(makeLabelledJSAST input fileName)
+		(makeLabelledAST input fileName)
 		(fileName, 1, 1, ((length $ lines input) + 1), 1)
 
 
-makeLabelledJSAST :: String -> SourceFileName -> [ASTChild]
-makeLabelledJSAST input fileName = label $ makeJSASTWithSourceFragments input fileName
+makeLabelledAST :: String -> SourceFileName -> ASTChild
+makeLabelledAST input fileName = label $ makeASTWithSourceFragments input fileName
 
 
--- FIXME: Passing the file name here might mean that we don't need to thread it through the whole
--- AST.
-makeJSASTWithSourceFragments :: String -> SourceFileName -> [JSASTWithSourceFragment]
-makeJSASTWithSourceFragments input fileName =
-	jsastListWSMakeSourceFragments (makeJSAST input fileName) (SpanPoint fileName ((length $ lines input) + 1) 1)
+makeASTWithSourceFragments :: String -> SourceFileName -> ASTWithSourceFragment
+makeASTWithSourceFragments input fileName =
+	astWSMakeSourceFragment (makeAST input fileName) (SpanPoint fileName ((length $ lines input) + 1) 1)
 
 
-makeJSAST :: String -> SourceFileName -> ([JSASTWithSourceSpan], SourceFileName)
-makeJSAST input fileName = getJSASTWithSource (parseTree input fileName) fileName
+makeAST :: String -> SourceFileName -> (ASTWithSourceSpan, SourceFileName)
+makeAST input fileName = getASTWithSource (parseTree input fileName) fileName
